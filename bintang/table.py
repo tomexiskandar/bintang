@@ -8,7 +8,6 @@ import uuid
 import re
 import logging
 
-
 log = logging.getLogger(__name__)
 FORMAT = "[%(filename)s:%(lineno)s - %(funcName)10s() ] %(message)s"
 logging.basicConfig(format=FORMAT)
@@ -21,7 +20,7 @@ class ColumnNotFoundError(Exception):
         super().__init__(self.message)
 
 
-class Table(object):
+class BinTable(object):
     """Define a table object
        - provide columns to store a dictionary of column objects
        - provide rows to store a dictionary of row objects
@@ -52,7 +51,7 @@ class Table(object):
         tbl = {}
         tbl['table name'] = self.name
         columns = []
-        res = {k:v.name for k, v in self.__columns.items() }
+        #res = {k:v.name for k, v in self.__columns.items() }
         for k,v in self.__columns.items():
             columns.append(dict(id=v.id, name=v.name, column_size=v.column_size, data_props=v.data_props))
         tbl['columns'] = columns
@@ -61,6 +60,11 @@ class Table(object):
         # for columnname in self.get_columnnames():
         #     tbl_str += "{} {} {}\n".format(' '*3,self.get_columnid(columnname), columnname)
         return json.dumps(tbl, indent=2)
+
+
+    def __len__(self):
+        """ return the length of rows"""    
+        return len(self.__rows)
    
 
         
@@ -146,7 +150,7 @@ class Table(object):
         return {x.name.lower(): x.name  for x in self.__columns.values()}
 
 
-    def get_column_data_props(self, columnname):
+    def get_data_props(self, columnname):
         columnid = self.get_columnid(columnname)
         return self.__columns[columnid].data_props
 
@@ -180,6 +184,15 @@ class Table(object):
             else:
                 raise ValueError("Cannot find column {}.".format(columnname))
         return columnnames
+
+
+    def get_value(self, search_columnname, condition_columnname, condition_value):
+        ## will return a scalar value for the first match
+        for idx, row in self.iterrows():
+            if row[condition_columnname] == condition_value:
+                return row[search_columnname]
+
+
         
 
     def make_row(self,id=None, option=None):
@@ -348,6 +361,12 @@ class Table(object):
             return self.__rows[idx]
         else:
             raise KeyError ('Cannot find index {}.'.format(idx))
+
+
+    def get_valid_columnname(self, columnname):
+        columnid = self.get_columnid(columnname)   # columnname in this line passed by user
+        columnname = self.get_columnname(columnid) # ensure the same columnname passed as result.
+        return columnname        
     
 
     def get_row_asdict(self, idx, columnnames=None, rowid=False):
@@ -366,7 +385,9 @@ class Table(object):
         if rowid == True:
             res['_rowid_'] = row.id # add rowid for internal purpose eg. a merged table
         for columnname in columnnames:
-            columnid = self.get_columnid(columnname)
+            # get valid columnname. these two lines defined in def get_valid_columnname()
+            columnid = self.get_columnid(columnname)   # columnname in this line passed by user
+            columnname = self.get_columnname(columnid) # ensure the same columnname passed as result.
             if columnid not in row.cells:
                 res[columnname] = None
             else:
@@ -403,6 +424,7 @@ class Table(object):
 
 
     def set_data_props(self):
+        """ scan table to obtain columns properties - data type, column size (if str type then the max of len of string)"""
         columnids = self.get_columnids()
         for idx, row in self.__rows.items():
             for columnid in columnids:
@@ -468,13 +490,16 @@ class Table(object):
             print(idx, row)
 
     
-    def are_columnnames_valid(self, columnnames):
-        existing_columnnames = self.get_columnnames()
+    def columnnames_valid(self, columnnames):
+        existing_columnnames = self._get_columnnames_lced()
         for columnname in columnnames:
-            if columnname not in existing_columnnames:
+            if columnname.lower() not in existing_columnnames:
                 raise ValueError("Cannot find column name {}.".format(columnname))
         return True
 
+
+    def replace_insensitively(self, old, repl, text):
+        return re.sub('(?i)'+re.escape(old), lambda m: repl, text)
 
     def validate_stmt(self, stmt):
         invalid_keywords = ['import ']
@@ -483,7 +508,8 @@ class Table(object):
                 raise ValueError("Found invalid keyword {} in the statement!".format(repr(ik)))
 
 
-    def update_stmt(self, row, stmt, columnnames):
+    def set_cellvalue_stmt(self, row, stmt):
+        columnnames = re.findall('`(.*?)`',stmt) # extract column names from within a small tilde pair ``
         for columnname in columnnames:
             stmt = stmt.replace('`' + columnname + '`',repr(row[columnname]))
         return stmt
@@ -503,15 +529,24 @@ class Table(object):
 
 
     def get_index_exec(self, stmt):
-        columnnames_in_stmt = re.findall('`(.*?)`',stmt) # extract column names from within a small tilde pair ``
-        self.columnnames_valid(columnnames_in_stmt)  # validate column name from the stmt
-
+        # six line above not needed if client code aware case insensitive of column names in the stmt
+        columnname_case_insensitive = False
+        if columnname_case_insensitive == True:
+            columnnames_in_stmt = re.findall('`(.*?)`',stmt) # extract column names from within a small tilde pair ``
+            self.columnnames_valid(columnnames_in_stmt)  # validate column name from the stmt
+            columnnames_in_stmt = [self.get_valid_columnname(x) for x in columnnames_in_stmt]
+            for columnname in columnnames_in_stmt:
+                valid_columnname = self.get_valid_columnname(columnname)
+                stmt = self.replace_insensitively(columnname, valid_columnname, stmt)  
+        
+        
+        
         # scan the rows to search the index
         indexes = []
         for idx, row in self.iterrows():
-            stmt_updated = self.update_stmt(row,stmt,columnnames_in_stmt)
-            #self.validate_stmt(stmt)
-            ret = self.exec_stmt(stmt_updated)
+            stmt_set = self.set_cellvalue_stmt(row, stmt)
+            self.validate_stmt(stmt_set)
+            ret = self.exec_stmt(stmt_set)
             if ret['retval'] == True:
                 indexes.append(idx)
         return indexes

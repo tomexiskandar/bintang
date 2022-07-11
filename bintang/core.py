@@ -2,7 +2,7 @@ from openpyxl import load_workbook
 import os
 import json
 import copy
-from bintang.table import Table
+from bintang.table import BinTable
 from bintang import travjson
 from pathlib import Path
 import logging
@@ -56,7 +56,7 @@ class Bintang():
 
 
     def create_table(self, name, columnnames=None):
-        table = Table(name) # create a table
+        table = BinTable(name) # create a table
         self.add_table(table)
         if self.__be is not None:   # if is_persistent is True then update the table attributes and pass the connection
             table._Table__be = self.__be           
@@ -88,9 +88,7 @@ class Bintang():
     # def get_columnids(self, tablename, columnnames):
     #     tableid = self.get_tableid(tablename)
     #     return self.__tables[tableid].get_columnids
-
-
-
+    
 
     def add_table(self,table):
         tableid = self.get_tableid(table.name)

@@ -2,7 +2,7 @@ from openpyxl import load_workbook
 import os
 import json
 import copy
-from bintang.table import BinTable
+from bintang.bing import Bing
 from bintang import travjson
 from pathlib import Path
 import logging
@@ -56,7 +56,7 @@ class Bintang():
 
 
     def create_table(self, name, columnnames=None):
-        table = BinTable(name) # create a table
+        table = Bing(name) # create a table
         self.add_table(table)
         if self.__be is not None:   # if is_persistent is True then update the table attributes and pass the connection
             table._Table__be = self.__be           
@@ -272,8 +272,7 @@ class Bintang():
                 print(row)
             
             for k,v in row.cells.items():
-                # if v.tablepath == 'root/balances/special':
-                #if debug: print(' ->', k, ':', v)
+                # print(k,'->',v)
                 
                 # create a table if not created yet
                 if row.tablepath not in self.get_tablenames():
@@ -307,11 +306,11 @@ class Bintang():
         for k, v in self[rtablename].get_row_asdict(ridx,rowid=rowid).items():
             if output_rcolumnnames is None:
                 if k in self[ltablename].get_columnnames(): 
-                    k = 'r_' + k
+                    k = rtablename + '.' + k # prefix tablename instead. deprecated k = 'r_' + k
                     cell = self[output_tablename].make_cell(k,v)
                     outrow.add_cell(cell)
                 elif k == '_rowid_':# remember _rowid an injected column from iterrow()
-                    k = 'r' + k
+                    k = rtablename + '.'  + k #k = 'r' + k
                     cell = self[output_tablename].make_cell(k,v)
                     outrow.add_cell(cell)
                 else:
@@ -321,7 +320,7 @@ class Bintang():
                 # include only the passed columns
                 if k in output_rcolumnnames or k=='_rowid_':
                     if k in self[ltablename].get_columnnames(): 
-                        k = 'r_' + k
+                        k = rtablename + '.'  + k #k = 'r_' + k
                         cell = self[output_tablename].make_cell(k,v)
                         outrow.add_cell(cell)
                     elif k == '_rowid_':# remember _rowid an injected column from iterrow()

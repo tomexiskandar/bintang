@@ -6,6 +6,7 @@ import json
 import sqlite3
 import uuid
 import re
+import types
 import logging
 
 log = logging.getLogger(__name__)
@@ -21,7 +22,7 @@ class ColumnNotFoundError(Exception):
 
 
 class Bing(object):
-    """Define a table object
+    """Define a Bing table object
        - provide columns to store a dictionary of column objects
        - provide rows to store a dictionary of row objects
     """
@@ -35,30 +36,24 @@ class Bing(object):
         self.__be = None
         
 
-    
     def __getitem__(self, idx): # subscriptable version of self.get_row_asdict()
         #return self.__rows[idx] # bad design. a raw row isn't that useful at client code
-        return self.get_row_asdict(idx)   
+        return self.get_row_asdict(idx)
+
 
     def __setitem__(self, rowcell, value): # subscriptable version of self.update_row()
         # where arg rowcell is a tuple of an idx of rows & columnname  passed by client code
-        # eg.  table_obj[idx,columnname] = value
+        # client code signature: table_obj[idx,columnname] = value
         self.update_row(rowcell[0], rowcell[1], value)
         
-
 
     def __str__(self):
         tbl = {}
         tbl['table name'] = self.name
         columns = []
-        #res = {k:v.name for k, v in self.__columns.items() }
         for k,v in self.__columns.items():
             columns.append(dict(id=v.id, name=v.name, column_size=v.column_size, data_props=v.data_props))
         tbl['columns'] = columns
-
-        # tbl_str += self.name + '\n'
-        # for columnname in self.get_columnnames():
-        #     tbl_str += "{} {} {}\n".format(' '*3,self.get_columnid(columnname), columnname)
         return json.dumps(tbl, indent=2)
 
 
@@ -66,9 +61,6 @@ class Bing(object):
         """ return the length of rows"""    
         return len(self.__rows)
    
-
-        
-        
 
     def add_column(self,name, data_type=None, column_size=None):
         # check if the passed name already exists
@@ -189,7 +181,7 @@ class Bing(object):
 
 
     def validate_columnnames(self, columnnames):
-        """return columnnames as ones stored in table.columns"""
+        """return columnnames from those stored in table.columns"""
         res = []
         for columnname in columnnames:
             if columnname.lower() in self._get_columnnames_lced().keys():
@@ -212,7 +204,7 @@ class Bing(object):
 
 
     def get_index(self, condition_columnname, condition_value):
-        ## will return a scalar value for the first match
+        """will return the first index which value matches the condition"""
         for idx, row in self.iterrows():
             # test if string
             # if type(row[condition_columnname])==str:pass
@@ -220,7 +212,7 @@ class Bing(object):
                 return idx
 
     def get_indexes(self, condition_columnname, condition_value):
-        ## will return a list of index that matches the condition
+        """will return a list of indexes which value matches the condition"""
         indexes = []
         for idx, row in self.iterrows():
             # test if string
@@ -256,20 +248,21 @@ class Bing(object):
     def insert(self,columnnames,values):
         """ restrict arguments for data insertion for this function as the followings:
         1. a pair of columnnames and its single-row values
-        2. a pair of columnnames and its multiple-row values (as a list of tuple)
+        deprecated2. a pair of columnnames and its multiple-row values (as a list of tuple)
         """
 
-        if isinstance(values[0],tuple): # if no. 2
-            for value in values:
-                if isinstance(value,tuple): # if True then expect a multi-row insert. so add a row for each value
-                    row = self.make_row()
-                    for idx,columnname in enumerate(columnnames):
-                        cell = self.make_cell(columnname,value[idx])
-                        row.add_cell(cell)
-                    # add to rows
-                    self.add_row(row)    
+        # if isinstance(values[0],tuple): # if no. 2
+        #     for value in values:
+        #         if isinstance(value,tuple): # if True then expect a multi-row insert. so add a row for each value
+        #             row = self.make_row()
+        #             for idx,columnname in enumerate(columnnames):
+        #                 cell = self.make_cell(columnname,value[idx])
+        #                 row.add_cell(cell)
+        #             # add to rows
+        #             self.add_row(row)    
         #else: # if no. 1return None
-        elif isinstance(columnnames,list) and not isinstance(values[0],tuple):
+        # elif isinstance(columnnames,list) and not isinstance(values[0],tuple):
+        if isinstance(columnnames,list) or isinstance(columnnames,tuple) or isinstance(values,list) or isinstance(values,tuple):
             row = self.make_row()
             for idx, columnname in enumerate(columnnames):
                 cell = self.make_cell(columnname,values[idx])
@@ -282,7 +275,7 @@ class Bing(object):
             else:
                 self.add_row(row)    
         else:
-            raise ValueError("Insert only allows a pair of columns and values or columns and multiple row values (in tuple)")
+            raise ValueError("insert only allows a pair of columns and values with type list or tuple")
 
 
     def add_row_into_be(self):
@@ -439,7 +432,7 @@ class Bing(object):
         return res
 
 
-    def get_row_aslist(self, idx, columnnames=[]):
+    def get_row_aslist(self, idx, columnnames=None):
         if columnnames is None:
             columnnames = self.get_columnnames()
         columnids = self.get_columnids(columnnames)
@@ -573,7 +566,7 @@ class Bing(object):
 
 
     def get_index_exec(self, stmt):
-        # six line above not needed if client code aware case insensitive of column names in the stmt
+        """return the fist index that matches the condition."""
         columnname_case_insensitive = False
         if columnname_case_insensitive == True:
             columnnames_in_stmt = re.findall('`(.*?)`',stmt) # extract column names from within a small tilde pair ``
@@ -581,10 +574,27 @@ class Bing(object):
             columnnames_in_stmt = [self.get_valid_columnname(x) for x in columnnames_in_stmt]
             for columnname in columnnames_in_stmt:
                 valid_columnname = self.get_valid_columnname(columnname)
-                stmt = self.replace_insensitively(columnname, valid_columnname, stmt)  
+                stmt = self.replace_insensitively(columnname, valid_columnname, stmt)
+        # scan the rows to search the index
+        indexes = []
+        for idx, row in self.iterrows():
+            stmt_set = self.set_cellvalue_stmt(row, stmt)
+            self.validate_stmt(stmt_set)
+            ret = self.exec_stmt(stmt_set)
+            if ret['retval'] == True:
+                return idx
         
-        
-        
+
+    def get_indexes_exec(self, stmt):
+        """return a list of indexes that match the condition."""
+        columnname_case_insensitive = False
+        if columnname_case_insensitive == True:
+            columnnames_in_stmt = re.findall('`(.*?)`',stmt) # extract column names from within a small tilde pair ``
+            self.columnnames_valid(columnnames_in_stmt)  # validate column name from the stmt
+            columnnames_in_stmt = [self.get_valid_columnname(x) for x in columnnames_in_stmt]
+            for columnname in columnnames_in_stmt:
+                valid_columnname = self.get_valid_columnname(columnname)
+                stmt = self.replace_insensitively(columnname, valid_columnname, stmt)
         # scan the rows to search the index
         indexes = []
         for idx, row in self.iterrows():
@@ -610,14 +620,86 @@ class Bing(object):
             self.__rows[idx].add_cell(self.make_cell(columnname,value))    
 
 
+
+    def update(self, columnname, value, where=None):
+        if isinstance(value, types.FunctionType):
+            # value passed as function
+            for idx, row in self.iterrows():
+                if where is None:
+                    try:
+                        val = value(row) # function called
+                        self.update_row(idx, columnname, val)
+                    except Exception as e:
+                        log.warning(e)
+                        pass    
+                else:    
+                    try:
+                        if where(row):
+                            val = value(row) # function called
+                            self.update_row(idx, columnname, val) 
+                    except Exception as e:
+                        log.warning(e)
+                        pass 
+        else:
+            # value passed as non function eg. an int or str
+            for idx, row in self.iterrows():
+                if where is None:
+                    self.update_row(idx, columnname, value)
+                else:    
+                    try:
+                        if where(row): # function called 
+                            val = value(row)
+                            self.update_row(idx, columnname, val) 
+                    except Exception as e:
+                        print(e)
+                        pass 
+
+
+
+    
     def get_index_lambda(self,expr):
+        for idx, row in self.iterrows():
+            log.debug('idx {} row{}:'.format(idx, row))
+            ret = expr(row)
+            if ret:
+                return idx
+
+
+    def get_indexes_lambda(self,expr):
         indexes = []
         for idx, row in self.iterrows():
-            #log.debug('idx row:',idx, row)
-            idx = expr(idx,row)
-            if idx is not None:
+            log.debug('idx {} row{}:'.format(idx, row))
+            ret = expr(row)
+            if ret:
                 indexes.append(idx)       
         return indexes
+
+
+    def filter(self, expr, columnnames=None):
+        tab = Bing('mybing3')
+        if columnnames is None:
+            for idx, row in self.iterrows():
+                try:
+                    if expr(row):
+                        columnnames = tuple(row.keys())
+                        values = tuple(row.values())
+                        tab.insert(columnnames, values)
+                except:
+                    pass        
+        else:
+            columnnames_ = self.validate_columnnames(columnnames)
+            for idx, row in self.iterrows():
+                try:
+                    if expr(row):
+                        values = self.get_row_aslist(idx,columnnames_)
+                        tab.insert(columnnames_,values)
+                except:
+                    pass        
+        return tab
+
+
+    
+
 
 
     # def get_type_used(self, columnname):

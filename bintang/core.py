@@ -33,7 +33,7 @@ class Bintang():
         tableid = self.get_tableid(tablename)
         return self.__tables[tableid]       
 
-    def __str__(self):
+    def __repr__(self):
         rb = {}
         rb['name'] = self.name
         table = []
@@ -41,6 +41,8 @@ class Bintang():
             table.append(tablename)
         rb['tables'] = table
         return json.dumps(rb, indent=2)
+
+    
 
     def __del__(self):
         if self.__be is not None:

@@ -47,12 +47,12 @@ class Bing(object):
         self.update_row(rowcell[0], rowcell[1], value)
         
 
-    def __str__(self):
+    def __repr__(self):
         tbl = {}
         tbl['table name'] = self.name
         columns = []
         for k,v in self.__columns.items():
-            columns.append(dict(id=v.id, name=v.name, column_size=v.column_size, data_props=v.data_props))
+            columns.append(dict(id=v.id, name=v.name))
         tbl['columns'] = columns
         return json.dumps(tbl, indent=2)
 
@@ -648,10 +648,10 @@ class Bing(object):
                 else:    
                     try:
                         if where(row): # function called 
-                            val = value(row)
-                            self.update_row(idx, columnname, val) 
+                            self.update_row(idx, columnname, value) 
                     except Exception as e:
                         print(e)
+                        print('hai')
                         pass 
 
 

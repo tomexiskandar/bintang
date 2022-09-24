@@ -9,16 +9,16 @@ openpyxl
 pip install bintang
 
 # Examples of Usage
-  \>\>\> import bintang
-  \>\>\> bt = bintang.Bintang() # bintang object created
-  \>\>\> bt.create_table('Person')
-  \>\>\> bt
-  {
-    "name": null,
-    "tables": [
-      "Person"
-    ]
-  }
+  \>\>\> import bintang  
+  \>\>\> bt = bintang.Bintang() # bintang object created  
+  \>\>\> bt.create_table('Person')  
+  \>\>\> bt  
+  {  
+    "name": null,  
+    "tables": [  
+      "Person"  
+    ]  
+  }  
   \>\>\> bt['Person'].insert(['id','name','age','address'], [1,'John',35,'1 Station St'])  
   \>\>\> bt['Person'].insert(['id','name','age','hobby','address'], [2,'Jane',17,'Reading','8 Parade Rd'])  
   \>\>\> bt['Person'].insert(['id','name','hobby','address'], [3,'Nutmeg','Fishing','7 Ocean Rd'])  

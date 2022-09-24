@@ -9,7 +9,7 @@ openpyxl
 pip install bintang
 
 # Examples of Usage
-  \>\>\> import bintang  
+  \>\>\> import bintang  #  import the package  
   \>\>\> bt = bintang.Bintang() # bintang object created  
   \>\>\> bt.create_table('Person')  
   \>\>\> bt  
@@ -50,5 +50,5 @@ pip install bintang
       },  
       etc...  
   \>\>\> bt['Person'].update('age', 10, where=lambda row: row['name']=='Maria')  
-  \>\>\> bt['Person'][3] # __getitem__ for the row stored at the 3rd index  
+  \>\>\> bt['Person'][3] # \_\_getitem\_\_ for the row stored at the 3rd index  
   {'id': 4, 'name': 'Maria', 'age': 10, 'address': None, 'hobby': 'Digging'}  

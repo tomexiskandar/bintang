@@ -29,7 +29,7 @@ Use insert function to insert data. The args is a pair of column names and value
 >>> bt['Person'].insert(['id','name','hobby','address'], [4,'Maria','Digging',None])  
 >>> bt['Person'].insert(['id','name','hobby'], [5,'Bing','Digging'])
 ```
-Loop your data using iterows function. By default a dict of row will return.
+Loop your data using iterows function. This will loop through all the rows one by one in a python dict.
 ```
 >>> for idx, row in bt['Person'].iterrows():  
 ...     print(idx, row)  

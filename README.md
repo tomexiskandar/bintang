@@ -2,8 +2,8 @@
 A tiny and temporary db for quick data cleansing and transformation.
 
 # Requirements
-Python 3.6 or higher
-openpyxl
+1. Python 3.6 or higher
+2. openpyxl
 
 # Installation
 pip install bintang

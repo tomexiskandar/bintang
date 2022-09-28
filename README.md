@@ -40,9 +40,9 @@ Loop your data using iterows function. This will loop through all the rows one b
 3 {'id': 4, 'name': 'Maria', 'age': None, 'address': None, 'hobby': 'Digging'}  
 4 {'id': 5, 'name': 'Bing', 'age': None, 'address': None, 'hobby': 'Digging'} 
 ```
-You should notice that all column names now have been normalised for each row even though not all records used all column names during insertion.
+You should notice that all column names now have been normalised for each row, even though all records have not used all column names during insertion.
  
-Inspect Person table column list. You can use function table.get_columnnames() to list all column names.
+Inspect Person table column list. You can also use function table.get_columnnames() to list all column names.
 ```
 >>> bt['Person']  
 {  
@@ -71,3 +71,5 @@ Use getitem function to retrieve the row stored at the 3rd index
 >>> bt['Person'][3] 
 {'id': 4, 'name': 'Maria', 'age': 10, 'address': None, 'hobby': 'Digging'} 
 ```
+
+We are updating [the wiki pages] (https://github.com/tomexiskandar/bintang/wiki) so that's where you can find more about Bintang. 

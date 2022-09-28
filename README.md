@@ -72,4 +72,4 @@ Use getitem function to retrieve the row stored at the 3rd index
 {'id': 4, 'name': 'Maria', 'age': 10, 'address': None, 'hobby': 'Digging'} 
 ```
 
-We are updating [the wiki pages] (https://github.com/tomexiskandar/bintang/wiki) so that's where you can find more about Bintang. 
+We are updating [the wiki pages](https://github.com/tomexiskandar/bintang/wiki) so that's where you can find more about Bintang. 

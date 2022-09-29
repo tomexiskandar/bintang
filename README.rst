@@ -94,7 +94,7 @@ Use update function to change the data. The function signature is table.update(c
 
    bt['Person'].update('age', 10, where=lambda row: row['name']=='Maria') 
 
-Use getitem function to retrieve the row stored at the 3rd index.
+Retrieve the row stored at the 3rd index by passing 3 inside the list next to table object.
 
 .. code:: console
 
@@ -107,7 +107,7 @@ Use getitem function to retrieve the row stored at the 3rd index.
 Common Functions
 ----------------
 
-We are going to provide some functions that can be used most of the time when working with Bintang objects.
+We are going to provide some functions that may be needed most of the time when working with Bintang objects.
 
 
 Read Excel

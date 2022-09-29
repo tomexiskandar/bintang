@@ -117,9 +117,9 @@ Read Excel
 
    bt.read_excel(path, sheetname)
 
-Read an Excel file into Bing table.
-  path: path to an excel path eg. C:\\data\\contacts.xlsx or contacts.xlsx (if file located in your working folder).
-  sheetname: the sheetname and will be used as tablename.
+| Read an Excel file into Bing table.
+| path: path to an excel path eg. C:\\data\\contacts.xlsx or contacts.xlsx (if file located in your working folder).
+| sheetname: the sheetname and will be used as tablename.
 
 
 

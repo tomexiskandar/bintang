@@ -10,11 +10,8 @@ class Column:
         self.decimal_digits = 0 # get this on request
         self.data_props = {}
     
-    # def __repr__(self):
-    #     return {'columnname':self.name}
-
-    def describe(self):
-        print('{}(id:{}, name:{})'.format(__class__.__name__,self.id, self.name))
+    def __repr__(self):
+        return self.name
 
     def get_name_uppercased(self):
         return self.name.upper()

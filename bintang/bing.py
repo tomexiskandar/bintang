@@ -1,4 +1,3 @@
-from bintang import column
 from bintang.column import Column
 from bintang.cell import Cell
 from bintang.row import Row

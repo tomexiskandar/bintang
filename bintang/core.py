@@ -23,10 +23,6 @@ class Bintang():
         if backend is not None:
             from bintang.besqlite import Besqlite
             self.__be = Besqlite(self.name)
-            # self.__be = Besqlite("/home/tx/Projects/rowbusta/test/" + self.name + ".db")
-        #self._connect()
-        #import rowbusta.besqlite as lite
-        #lite._create_rowbustable()
  
 
     def __getitem__(self, tablename): # subscriptable version of self.get_table()

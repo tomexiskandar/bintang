@@ -103,9 +103,9 @@ Use getitem function to retrieve the row stored at the 3rd index.
 
 
 
----------
-Read Data
----------
+----------------
+Common Functions
+----------------
 
 We are going to provide some functions that can be used most of the time when working with Bintang objects.
 

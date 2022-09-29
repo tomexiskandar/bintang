@@ -3,13 +3,20 @@ Bintang
 =======
 A tiny and temporary db for quick data cleansing and transformation.
 
-------------
+.. contents:: Overview
+   :depth: 3
+
+------------------
+How to get started
+------------------
+
+
 Requirements
 ------------
 1. Python 3.6 or higher
 2. openpyxl
 
-------------
+
 Installation
 ------------
 
@@ -17,7 +24,7 @@ Installation
 
    pip install bintang
 
------------------
+
 Examples of Usage
 -----------------
 .. code-block:: console
@@ -89,7 +96,31 @@ Use update function to change the data. The function signature is table.update(c
 
 Use getitem function to retrieve the row stored at the 3rd index.
 
-.. code-block:: console
+.. code:: console
 
    bt['Person'][3] 
-   {'id': 4, 'name': 'Maria', 'age': 10, 'address': None, 'hobby': 'Digging'}    
+   {'id': 4, 'name': 'Maria', 'age': 10, 'address': None, 'hobby': 'Digging'} 
+
+
+
+---------
+Read Data
+---------
+
+We are going to provide some functions that can be used most of the time when working with Bintang objects.
+
+
+Read Excel
+----------
+
+.. code:: python
+
+   bt.read_excel(path, sheetname)
+
+Read an Excel file into Bing table.
+  path: path to an excel path eg. C:\\data\\contacts.xlsx or contacts.xlsx (if file located in your working folder).
+  sheetname: the sheetname and will be used as tablename.
+
+
+
+

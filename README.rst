@@ -120,9 +120,22 @@ Read an Excel file into Bing table.
    bt.read_excel(path, sheetname)
 
 
-| path: path to an excel path eg. C:\\data\\contacts.xlsx or contacts.xlsx (if file located in your working folder).
+| path: path to an excel path eg. /path/to/file.xlsx or file.xlsx (if file located in your working folder).
 | sheetname: the sheetname and will be used as tablename.
 
+
+To Excel
+--------
+
+Write Bing table to an Excel file.
+
+.. code:: python
+
+   bt.to_excel(path, index=False)
+
+
+| path: /path/to/file.xlsx
+| index (optional): provide row index if True
 
 
 

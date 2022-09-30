@@ -771,7 +771,6 @@ class Bing(object):
             if index == True:
                 columnnames.insert(0,'_idx')
             if index != True:
-                
                 columnnames.insert(0,str(index))        
         ws.append(columnnames)
         # add row

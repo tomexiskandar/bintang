@@ -122,6 +122,18 @@ Loop through Bing table's rows and yield index and row. By default row will be i
        print(idx, row) 
 
 
+Bing.to_excel(path, index=False)
+-----------------------------------
+
+Write Bing table to an Excel file.
+
+.. code:: python
+
+   bt.to_excel('/path/to/file.xlsx')
+
+| path: an excel file path to write to.
+| index: write row index if it set True.
+
 Bintang.read_excel(path, sheetname)
 -----------------------------------
 
@@ -131,23 +143,9 @@ Read an Excel file into Bing table.
 
    bt.read_excel('/path/to/file.xlsx', 'Sheet1')
 
-
 | path: an excel file path to read from.
 | sheetname: the sheetname and will be used as tablename.
 
-
-Bintang.to_excel(path, index=False)
------------------------------------
-
-Write Bing table to an Excel file.
-
-.. code:: python
-
-   bt.to_excel('/path/to/file.xlsx')
-
-
-| path: an excel file path to write to.
-| index: write row index if it set True.
 
 
 

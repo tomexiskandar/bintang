@@ -760,7 +760,7 @@ class Bing(object):
                         self.update_row(idx, as_columnnames[columnname], value)
 
 
-    def to_excel(self, path, index = False):
+    def to_excel(self, path, index=False):
         from openpyxl import Workbook
         wb = Workbook()
         ws = wb.active

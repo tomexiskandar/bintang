@@ -110,32 +110,32 @@ Common Functions
 We are going to provide some functions that may be needed most of the time when working with Bintang objects.
 
 
-Read Excel
-----------
+Bintang.read_excel(path, sheetname)
+-----------------------------------
 
 Read an Excel file into Bing table.
 
 .. code:: python
 
-   bt.read_excel(path, sheetname)
+   bt.read_excel('/path/to/file.xlsx', 'Sheet1')
 
 
-| path: path to an excel path eg. /path/to/file.xlsx or file.xlsx (if file located in your working folder).
+| path: an excel file path to read from.
 | sheetname: the sheetname and will be used as tablename.
 
 
-To Excel
---------
+Bintang.to_excel(path, index=False)
+-----------------------------------
 
 Write Bing table to an Excel file.
 
 .. code:: python
 
-   bt.to_excel(path, index=False)
+   bt.to_excel('/path/to/file.xlsx')
 
 
-| path: /path/to/file.xlsx
-| index (optional): provide row index if True
+| path: an excel file path to write to.
+| index: write row index if it set True.
 
 
 

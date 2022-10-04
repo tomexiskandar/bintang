@@ -107,7 +107,19 @@ Retrieve the row stored at the 3rd index by passing 3 inside the list next to ta
 Common Functions
 ----------------
 
-We are going to provide some functions that may be needed most of the time when working with Bintang objects.
+We are going to provide some functions that may be needed most when working with Bintang objects.
+
+
+Bing.iterrows(columnnames=None, result_as='dict')
+-------------------------------------------------
+
+Loop through Bing table's rows and yield index and row. By default row will be in python dictionary.
+
+.. code :: python
+
+   for idx, row in bt['tablename'].iterrows():
+       # do something with idx or row
+       print(idx, row) 
 
 
 Bintang.read_excel(path, sheetname)

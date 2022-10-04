@@ -103,7 +103,7 @@ Retrieve the row stored at the 3rd index by passing 3 inside the list next to ta
 
 
 
-----------------
+
 Common Functions
 ----------------
 
@@ -111,7 +111,7 @@ We are going to provide some functions that may be needed most when working with
 
 
 Bing.iterrows(columnnames=None, result_as='dict')
--------------------------------------------------
+=================================================
 
 Loop through Bing table's rows and yield index and row. By default row will be in python dictionary.
 
@@ -123,7 +123,7 @@ Loop through Bing table's rows and yield index and row. By default row will be i
 
 
 Bing.to_excel(path, index=False)
------------------------------------
+================================
 
 Write Bing table to an Excel file.
 
@@ -134,8 +134,9 @@ Write Bing table to an Excel file.
 | path: an excel file path to write to.
 | index: write row index if it set True.
 
+
 Bintang.read_excel(path, sheetname)
------------------------------------
+===================================
 
 Read an Excel file into Bing table.
 

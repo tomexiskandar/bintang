@@ -40,7 +40,7 @@ Examples of Usage
       ]  
    }  
 
-Use insert function to insert data. The args is a pair of column names and values and must be a list or tuple.
+Use insert function to insert data. The parameter is a pair of column names and values and must be a list or tuple.
 
 .. code-block:: console
 
@@ -110,10 +110,10 @@ Common Functions
 We are going to provide some functions that may be needed most when working with Bintang objects.
 
 
-Bing.iterrows(columnnames=None, result_as='dict')
+Table.iterrows(columnnames=None, result_as='dict')
 =================================================
 
-Loop through Bing table's rows and yield index and row. By default row will be in python dictionary.
+Loop through Bintang table's rows and yield index and row. By default row will be in python dictionary.
 
 .. code :: python
 
@@ -122,10 +122,10 @@ Loop through Bing table's rows and yield index and row. By default row will be i
        print(idx, row) 
 
 
-Bing.to_excel(path, index=False)
+Table.to_excel(path, index=False)
 ================================
 
-Write Bing table to an Excel file.
+Write Bintang table to an Excel file.
 
 .. code:: python
 
@@ -138,7 +138,7 @@ Write Bing table to an Excel file.
 Bintang.read_excel(path, sheetname)
 ===================================
 
-Read an Excel file into Bing table.
+Read an Excel file into Bintang table.
 
 .. code:: python
 

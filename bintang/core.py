@@ -2,7 +2,7 @@ from openpyxl import load_workbook
 import os
 import json
 import copy
-from bintang.bing import Bing
+from bintang.table import Table
 from bintang import travjson
 from pathlib import Path
 import logging
@@ -54,7 +54,7 @@ class Bintang():
 
 
     def create_table(self, name, columnnames=None):
-        table = Bing(name) # create a table
+        table = Table(name) # create a table
         self.add_table(table)
         if self.__be is not None:   # if is_persistent is True then update the table attributes and pass the connection
             table._Table__be = self.__be           
@@ -265,9 +265,9 @@ class Bintang():
     def read_json(self, jsondata, tablepaths=[]):
         debug = False
         for row in travjson.traverse_json(jsondata,tablepaths):
-            if debug:
-                print("\n---------------------in bintang---------------------")
-                print(row)
+            # if debug:
+            #     print("\n---------------------in bintang---------------------")
+            #     print(row)
             
             for k,v in row.cells.items():
                 # print(k,'->',v)
@@ -278,8 +278,8 @@ class Bintang():
                 
                 # upsert this row
                 self.get_table(row.tablepath).upsert_jsonrow(row)
-            if debug:
-                print("---------------------out bintang--------------------")
+            # if debug:
+            #     print("---------------------out bintang--------------------")
 
 
     def VOID_get_row_asdict(self, tablename, idx, columnnames=None):

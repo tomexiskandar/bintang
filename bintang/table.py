@@ -20,7 +20,7 @@ class ColumnNotFoundError(Exception):
         super().__init__(self.message)
 
 
-class Bing(object):
+class Table(object):
     """Define a Bing table object
        - provide columns to store a dictionary of column objects
        - provide rows to store a dictionary of row objects

@@ -21,7 +21,7 @@ class ColumnNotFoundError(Exception):
 
 
 class Table(object):
-    """Define a Bing table object
+    """Define a Bintang table object
        - provide columns to store a dictionary of column objects
        - provide rows to store a dictionary of row objects
     """
@@ -675,7 +675,7 @@ class Table(object):
 
 
     def filter(self, expr, columnnames=None):
-        tab = Bing('mybing3')
+        tab = Table('mybing3')
         if columnnames is None:
             for idx, row in self.iterrows():
                 try:

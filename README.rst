@@ -111,7 +111,7 @@ We are going to provide some functions that may be needed most when working with
 
 
 Table.iterrows(columnnames=None, result_as='dict')
-=================================================
+--------------------------------------------------
 
 Loop through Bintang table's rows and yield index and row. By default row will be in python dictionary.
 
@@ -123,7 +123,7 @@ Loop through Bintang table's rows and yield index and row. By default row will b
 
 
 Table.to_excel(path, index=False)
-================================
+---------------------------------
 
 Write Bintang table to an Excel file.
 
@@ -136,7 +136,7 @@ Write Bintang table to an Excel file.
 
 
 Bintang.read_excel(path, sheetname)
-===================================
+-----------------------------------
 
 Read an Excel file into Bintang table.
 

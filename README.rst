@@ -146,9 +146,3 @@ Write Bintang table to an Excel file.
 | path: an excel file path to write to.
 | index: write row index if it set True.
 
-
-
-
-
-
-

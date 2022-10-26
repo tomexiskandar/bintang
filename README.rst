@@ -109,6 +109,18 @@ Common Functions
 
 We are going to provide some functions that may be needed most when working with Bintang objects.
 
+Bintang.read_excel(path, sheetname)
+-----------------------------------
+
+Read an Excel file into Bintang table.
+
+.. code:: python
+
+   bt.read_excel('/path/to/file.xlsx', 'Sheet1')
+
+| path: an excel file path to read from.
+| sheetname: the sheetname and will be used as tablename.
+
 
 Table.iterrows(columnnames=None, result_as='dict')
 --------------------------------------------------
@@ -135,17 +147,7 @@ Write Bintang table to an Excel file.
 | index: write row index if it set True.
 
 
-Bintang.read_excel(path, sheetname)
------------------------------------
 
-Read an Excel file into Bintang table.
-
-.. code:: python
-
-   bt.read_excel('/path/to/file.xlsx', 'Sheet1')
-
-| path: an excel file path to read from.
-| sheetname: the sheetname and will be used as tablename.
 
 
 

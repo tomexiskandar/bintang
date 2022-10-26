@@ -141,7 +141,7 @@ Write Bintang table to an Excel file.
 
 .. code:: python
 
-   bt.to_excel('/path/to/file.xlsx')
+   bt['tablename'].to_excel('/path/to/file.xlsx')
 
 | path: an excel file path to write to.
 | index: write row index if it set True.

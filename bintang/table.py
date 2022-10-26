@@ -307,8 +307,6 @@ class Table(object):
 
     def get_rowidx_byrowid(self, rowid):
         debug = False
-        if not debug:
-            print('not debug...')
         # if debug:
         #     print("\n  ------------------in get_row_rowid (table.py) --------------------")
         for idx, row in self.__rows.items():

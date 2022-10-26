@@ -114,12 +114,13 @@ Bintang.read_excel(path, sheetname)
 
 Read an Excel file into Bintang table.
 
+| path: an excel file path to read from.
+| sheetname: the sheetname and will be used as tablename.
+
 .. code:: python
 
    bt.read_excel('/path/to/file.xlsx', 'Sheet1')
 
-| path: an excel file path to read from.
-| sheetname: the sheetname and will be used as tablename.
 
 
 Table.iterrows(columnnames=None, result_as='dict')
@@ -139,10 +140,12 @@ Table.to_excel(path, index=False)
 
 Write Bintang table to an Excel file.
 
+| path: an excel file path to write to.
+| index: write row index if it set True.
+
 .. code:: python
 
    bt['tablename'].to_excel('/path/to/file.xlsx')
 
-| path: an excel file path to write to.
-| index: write row index if it set True.
+
 

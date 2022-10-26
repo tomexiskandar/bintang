@@ -307,15 +307,15 @@ class Table(object):
 
     def get_rowidx_byrowid(self, rowid):
         debug = False
-        if debug:
-            print("\n  ------------------in get_row_rowid (table.py) --------------------")
+        # if debug:
+        #     print("\n  ------------------in get_row_rowid (table.py) --------------------")
         for idx, row in self.__rows.items():
             if debug:
                 print(idx, row)
             if row.id == rowid:
                 return idx
-        if debug:
-            print("\n  ------------------out get_row_rowid (table.py) -------------------")
+        # if debug:
+        #     print("\n  ------------------out get_row_rowid (table.py) -------------------")
         return None    
 
 

@@ -101,7 +101,7 @@ def gen_table_path_row(path_list, value):
                 print('  {}-> {}'.format(len(pathl),cell))
             del pathl[-1]
     if debug:
-        print('---------------------out gen_cell_json_row (travjson.py)-----------------------') 
+        print('---------------------out gen_table_path_row (travjson.py)-----------------------') 
     return row           
     
 

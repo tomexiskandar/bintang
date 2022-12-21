@@ -164,7 +164,7 @@ class Bintang():
 
     def iterrows(self, tablename, columnnames=None, result_as = 'dict', rowid=False):
         """get the table form the collection
-        then yield idx and row from table's iter_rows()
+        then yield idx and row from table's iterrows()
         """
         self.raise_valueerror_tablename(tablename)
         for idx, row in self.get_table(tablename).iterrows(columnnames, result_as=result_as, rowid=rowid):
@@ -293,50 +293,102 @@ class Bintang():
                 cell = self[output_tablename].make_cell(k,v)
                 outrow.add_cell(cell)
             if output_lcolumnnames is not None:
-                # include columns as passed
-                if k in output_lcolumnnames or k=='_rowid_':
+                # include only the passed columns
+                if k in output_lcolumnnames:
                     cell = self[output_tablename].make_cell(k,v)
                     outrow.add_cell(cell)
         return outrow            
 
 
-    def _add_rcell(self, ridx, rtablename, outrow, output_tablename, output_rcolumnnames, ltablename, rowid):   
+    def _add_rcell(self, ridx, rtablename, outrow, output_tablename, output_rcolumnnames, rcolnames_resolved, rowid):
         for k, v in self[rtablename].get_row_asdict(ridx,rowid=rowid).items():
             if output_rcolumnnames is None:
-                if k in self[ltablename].get_columnnames(): 
-                    k = rtablename + '.' + k # prefix tablename instead. deprecated k = 'r_' + k
-                    cell = self[output_tablename].make_cell(k,v)
-                    outrow.add_cell(cell)
-                elif k == '_rowid_':# remember _rowid an injected column from iterrow()
-                    k = rtablename + '.'  + k #k = 'r' + k
-                    cell = self[output_tablename].make_cell(k,v)
-                    outrow.add_cell(cell)
-                else:
-                    cell = self[output_tablename].make_cell(k,v)
-                    outrow.add_cell(cell)
+                cell = self[output_tablename].make_cell(rcolnames_resolved[k],v)
+                outrow.add_cell(cell)
             if output_rcolumnnames is not None:
                 # include only the passed columns
-                if k in output_rcolumnnames or k=='_rowid_':
-                    if k in self[ltablename].get_columnnames(): 
-                        k = rtablename + '.'  + k #k = 'r_' + k
-                        cell = self[output_tablename].make_cell(k,v)
-                        outrow.add_cell(cell)
-                    elif k == '_rowid_':# remember _rowid an injected column from iterrow()
-                        k = '_rrowid_'
-                        cell = self[output_tablename].make_cell(k,v)
-                        outrow.add_cell(cell)
-                    else:
-                        cell = self[output_tablename].make_cell(k,v)
-                        outrow.add_cell(cell)
-        return outrow 
+                if k in output_rcolumnnames:
+                    cell = self[output_tablename].make_cell(rcolnames_resolved[k],v)
+                    outrow.add_cell(cell)
+        return outrow
 
 
-    def innerjoin(self,ltablename, rtablename, lkeys, rkeys
-                ,output_lcolumnnames=None
-                ,output_rcolumnnames=None
-                ,rowid=False):
+    def _resolve_join_columnnames (self,ltablename, rtablename, rowid=False):
+        # resolve any conflict columnname by prefixing its tablename
+        # notes: conflict columnname occurs when the same columnname being used in two joining table.
+        rcolnames_resolved = {}
+        if rowid:
+            rcolnames_resolved['rowid_'] = ltablename + '_' + 'rowid_'
+        lcolnames = self[ltablename].get_columnnames()
+        for colname in self[rtablename].get_columnnames():
+            if colname in lcolnames:
+                rcolnames_resolved[colname] = rtablename + '_' + colname
+            else:
+                rcolnames_resolved[colname] = colname
+        return rcolnames_resolved  
+
+
+
+    # def _DEPRECATED_innerjoin(self,ltablename, lkeys
+    #             ,rtablename, rkeys
+    #             ,into
+    #             ,output_lcolumnnames=None
+    #             ,output_rcolumnnames=None
+    #             ,rowid=False):
+
+    #     # validate input eg. columnname etc
+    #     lkeys = self[ltablename].validate_columnnames(lkeys)
+    #     rkeys = self[rtablename].validate_columnnames(rkeys)
+    #     if output_lcolumnnames is not None:
+    #         output_lcolumnnames = self[ltablename].validate_columnnames(output_lcolumnnames)
+    #     if output_rcolumnnames is not None:
+    #         output_rcolumnnames = self[rtablename].validate_columnnames(output_rcolumnnames)
+
+    #     # resolve columnnames conflicts
+    #     rcolnames_resolved = self._resolve_join_columnnames(ltablename, rtablename, rowid)
+    #     # create an output table
+    #     output_tablename = into
+    #     self.create_table(output_tablename)
+    #     output_table = self.get_table(output_tablename)
+
+    #     # for debuging create merged table to store the matching rowids
+    #     #merged = self.create_table("merged",["lrowid","rrowid"])
+
+    #     numof_keys = len(lkeys)
+    #     # loop left table
+    #     for lidx, lrow in self.iterrows(ltablename, columnnames=lkeys, rowid=rowid):
+    #         # loop right table
+    #         for ridx, rrow in self.iterrows(rtablename, columnnames=rkeys, rowid=rowid):
+    #             matches = 0 # store matches for each rrow
+    #             # compare value for any matching keys, if TRUE then increment matches
+    #             for i in range(numof_keys):
+    #                 if lrow[lkeys[i]] == rrow[rkeys[i]]:
+    #                     matches += 1 # incremented!
+    #             if matches == numof_keys: # if fully matched, create the row & add into the output table
+    #                 #debug merged.insert(["lrowid","rrowid"], [lrow["_rowid"], rrow["_rowid"]])
+    #                 #and add the row to output table
+    #                 outrow = output_table.make_row()
+    #                 # add cells from left table
+    #                 outrow = self._add_lcell(lidx, ltablename, outrow, output_tablename, output_lcolumnnames, rowid)
+    #                 # add cells from right table
+    #                 outrow = self._add_rcell(ridx, rtablename, outrow, output_tablename, output_rcolumnnames, rcolnames_resolved, rowid)   
+    #                 output_table.add_row(outrow)
+    #     #debug merged.print() 
+    #     return output_table
+
+
+    def innerjoin(self
+                ,ltablename: str #, lkeys
+                ,rtablename: str #, rkeys
+                ,on: list
+                ,into: str
+                ,output_lcolumnnames: list=None
+                ,output_rcolumnnames: list=None
+                ,rowid=False) -> Table:
 
         # validate input eg. columnname etc
+        lkeys = [x[0] for x in on] # generate lkeys from on (1st sequence)
+        rkeys = [x[1] for x in on] # generate rkeys from on (2nd sequence)
         lkeys = self[ltablename].validate_columnnames(lkeys)
         rkeys = self[rtablename].validate_columnnames(rkeys)
         if output_lcolumnnames is not None:
@@ -344,35 +396,38 @@ class Bintang():
         if output_rcolumnnames is not None:
             output_rcolumnnames = self[rtablename].validate_columnnames(output_rcolumnnames)
 
-        # create an output table 
-        output_tablename = ltablename + rtablename
+        # resolve columnnames conflicts
+        rcolnames_resolved = self._resolve_join_columnnames(ltablename, rtablename, rowid)
+        # create an output table
+        output_tablename = into
         self.create_table(output_tablename)
         output_table = self.get_table(output_tablename)
 
         # for debuging create merged table to store the matching rowids
         #merged = self.create_table("merged",["lrowid","rrowid"])
 
-        numof_keys = len(lkeys)
+        numof_keys = len(on) #(lkeys)
+        # loop left table
         for lidx, lrow in self.iterrows(ltablename, columnnames=lkeys, rowid=rowid):
-
+            # loop right table
             for ridx, rrow in self.iterrows(rtablename, columnnames=rkeys, rowid=rowid):
                 matches = 0 # store matches for each rrow
-                # evaluate any matching keys, if so increment matches
+                # compare value for any matching keys, if TRUE then increment matches
                 for i in range(numof_keys):
+                    #if lrow[on[0]] == rrow[on[1]]:
                     if lrow[lkeys[i]] == rrow[rkeys[i]]:
-                        matches += 1 # increment
+                        matches += 1 # incremented!
                 if matches == numof_keys: # if fully matched, create the row & add into the output table
                     #debug merged.insert(["lrowid","rrowid"], [lrow["_rowid"], rrow["_rowid"]])
                     #and add the row to output table
                     outrow = output_table.make_row()
-                        # add cells for ltable
+                    # add cells from left table
                     outrow = self._add_lcell(lidx, ltablename, outrow, output_tablename, output_lcolumnnames, rowid)
-                    # add cells for rtable
-                    outrow = self._add_rcell(ridx, rtablename, outrow, output_tablename, output_rcolumnnames, ltablename, rowid)   
-                    output_table.add_row(outrow)             
+                    # add cells from right table
+                    outrow = self._add_rcell(ridx, rtablename, outrow, output_tablename, output_rcolumnnames, rcolnames_resolved, rowid)   
+                    output_table.add_row(outrow)
         #debug merged.print() 
         return output_table
-
 
     def leftjoin(self,ltablename, rtablename, lkeys, rkeys
                 ,output_lcolumnnames=None

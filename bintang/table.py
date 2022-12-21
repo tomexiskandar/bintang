@@ -85,11 +85,6 @@ class Table(object):
                 self.__columns[columnid].column_size = column_size
 
 
-
-
-
-
-
     def _add_column(self,name):
         # check if the passed name already exists
         columnid = self._get_columnid(name)
@@ -109,8 +104,6 @@ class Table(object):
         return None
 
     
-
-
     def get_columnids(self,columnnames=None):
         columnids = []
         if columnnames is None: # assume user want all available column ids
@@ -124,12 +117,9 @@ class Table(object):
         return columnids
 
             
-            
-
-
-    def rename_columnname(self,columnname,new_columnname):
+    def rename_columnname(self,old_columnname,new_columnname):
         for v in self.__columns.values():
-            if v.name == columnname:
+            if v.name == old_columnname:
                 v.name = new_columnname
                 return
 
@@ -299,7 +289,7 @@ class Table(object):
             # add to rows
             self.add_row(row)
         else:
-            raise ValueError("Insert only allows a pair of columns and values or columns and multiple row values (in tuple)")
+            raise ValueError("Insert only allows a pair of columns and values in a list or tuple")
 
     def get_indexes_OLD(self):
         return [x for x in self.__rows.keys()]
@@ -419,7 +409,7 @@ class Table(object):
     def _gen_row_asdict(self, row, columnnames, rowid=False):
         res = {}
         if rowid == True:
-            res['_rowid_'] = row.id # add rowid for internal purpose eg. a merged table
+            res['rowid_'] = row.id # add rowid for internal purpose eg. a merged table
         for columnname in columnnames:
             # get valid columnname. these two lines defined in def get_valid_columnname()
             columnid = self.get_columnid(columnname)   # columnname in this line passed by user
@@ -649,8 +639,8 @@ class Table(object):
                         if where(row): # function called 
                             self.update_row(idx, columnname, value) 
                     except Exception as e:
-                        print(e)
-                        print('hai')
+                        # print(e)
+                        # print('hai')
                         pass 
 
 

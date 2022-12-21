@@ -1,5 +1,6 @@
 import copy
-class Cell:
+
+class Cell(object):
     """Define a cell object
     """
     def __init__(self,columnid,value = None):
@@ -10,12 +11,16 @@ class Cell:
         return "{}(columnid:{}, value: {})".format(__class__.__name__, str(self.columnid), str(self.value))
     
 
-class Cell_JSON(Cell):
+class Cell_Path_List(Cell):
     def __init__(self,columnid, path_list, value):
-        super().__init__(self)
-        self.columnid = columnid
+        super().__init__(columnid, value)
         self.path_list = path_list
-        self.value = value
+
+    # DEPRECATED def __init__(self,columnid, path_list, value):
+    #     super().__init__(self)
+    #     self.columnid = columnid
+    #     self.path_list = path_list
+    #     self.value = value    
 
     def __repr__(self):
         return "{}(columnid:{}, value:{}, path_list:{}, get_columnname():{})".format(__class__.__name__, str(self.columnid), str(self.value)\

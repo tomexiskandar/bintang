@@ -3,7 +3,7 @@ import os
 import json
 import copy
 from bintang.table import Table
-from bintang import travjson
+from bintang import travdict
 from pathlib import Path
 import logging
 
@@ -262,9 +262,9 @@ class Bintang():
 
 
 
-    def read_json(self, jsondata, tablepaths=[]):
+    def read_dict(self, jsondata, tablepaths=[]):
         debug = False
-        for row in travjson.traverse_json(jsondata,tablepaths):
+        for row in travdict.traverse_dict(jsondata,tablepaths):
             # if debug:
             #     print("\n---------------------in bintang---------------------")
             #     print(row)

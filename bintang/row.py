@@ -36,11 +36,15 @@ class Row:
         return row_values
 
 
-class Row_JSON(Row):
+class Row_Table_Path(Row):
     def __init__(self,id):
-        super().__init__(self)
-        self.id = id
+        super().__init__(id)
         self.tablepath = None
+
+    # def __init__(self,id):
+    #     super().__init__(self)
+    #     self.id = id
+    #     self.tablepath = None    
 
     def __repr__(self):
         return '{}(tablepath:{} id:{}, cells:{})'.format(__class__.__name__, self.tablepath, self.id, self.cells)            

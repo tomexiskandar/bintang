@@ -1,5 +1,5 @@
-from bintang.cell import Cell_JSON
-from bintang.row import Row_JSON
+from bintang.cell import Cell_Path_List
+from bintang.row import Row_Table_Path
 import copy
 
 
@@ -49,7 +49,7 @@ def gen_cell_json_row(path_list, value):
     # for the path_list 
     debug = False
     rowid = gen_rowid(path_list)
-    row = Row_JSON(rowid)
+    row = Row_Table_Path(rowid)
     row.tablepath = gen_tablepath(path_list)
     pathl = copy.deepcopy(path_list) 
     
@@ -58,7 +58,7 @@ def gen_cell_json_row(path_list, value):
         print('  {}-> path_list {}'.format(len(pathl),path_list))
     
     # create the first cell    
-    cell = Cell_JSON(len(pathl), path_list, value)
+    cell = Cell_Path_List(len(pathl), path_list, value)
     row.add_cell(cell)
     if debug:
         print('  {}-> {}'.format(len(pathl),cell))
@@ -86,7 +86,7 @@ def gen_cell_json_row(path_list, value):
         if isinstance(pathl[-1], int):
             # this is a list
             pathl_copy = copy.deepcopy(pathl) # to make it persistent and be used in making cell    
-            cell = Cell_JSON(len(pathl), pathl_copy, pathl[-1])
+            cell = Cell_Path_List(len(pathl), pathl_copy, pathl[-1])
             row.add_cell(cell)
             if debug:
                 print('  {}-> {}'.format(len(pathl),cell))
@@ -96,7 +96,7 @@ def gen_cell_json_row(path_list, value):
         elif isinstance(pathl[-1], str):
             # this is a dict
             pathl_copy = copy.deepcopy(pathl) # to make it persistent and be used in making cell    
-            cell = Cell_JSON(len(pathl), pathl_copy, pathl[-1])
+            cell = Cell_Path_List(len(pathl), pathl_copy, pathl[-1])
             row.add_cell(cell)
             if debug:
                 print('  {}-> {}'.format(len(pathl),cell))
@@ -107,7 +107,7 @@ def gen_cell_json_row(path_list, value):
     
 
 
-def traverse_json(jsondata,tablepaths=[]):
+def traverse_dict(jsondata,tablepaths=[]):
     # yield a json row
     # also allow to yield only the row that matches tablepath list from client.
     for path_list, value, in traverse_(jsondata,path=['/']):        

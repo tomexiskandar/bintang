@@ -16,11 +16,11 @@ class Cell_Path_List(Cell):
         super().__init__(columnid, value)
         self.path_list = path_list
 
-    # DEPRECATED def __init__(self,columnid, path_list, value):
-    #     super().__init__(self)
-    #     self.columnid = columnid
+    # DEPRECATED - use super() instead
+    # def __init__(self,columnid, path_list, value):
+    #     Cell.__init__(self, columnid, value)
     #     self.path_list = path_list
-    #     self.value = value    
+            
 
     def __repr__(self):
         return "{}(columnid:{}, value:{}, path_list:{}, get_columnname():{})".format(__class__.__name__, str(self.columnid), str(self.value)\

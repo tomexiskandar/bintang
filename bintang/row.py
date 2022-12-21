@@ -41,9 +41,9 @@ class Row_Table_Path(Row):
         super().__init__(id)
         self.tablepath = None
 
-    # def __init__(self,id):
-    #     super().__init__(self)
-    #     self.id = id
+    # DEPRECATED use super() instead
+    # def __init__(self, id):
+    #     Row.__init__(self, id)
     #     self.tablepath = None    
 
     def __repr__(self):

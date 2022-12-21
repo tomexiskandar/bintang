@@ -107,10 +107,10 @@ def gen_cell_json_row(path_list, value):
     
 
 
-def traverse_dict(jsondata,tablepaths=[]):
+def traverse_dict(dict_obj, tablepaths=[]):
     # yield a json row
     # also allow to yield only the row that matches tablepath list from client.
-    for path_list, value, in traverse_(jsondata,path=['/']):        
+    for path_list, value, in traverse_(dict_obj, path=['/']):        
         if isinstance(value,(list,dict)):
             #print('-->',path_list,":",value)
             #continue # use continue and comment the below line value = None to create column with list/dict

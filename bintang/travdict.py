@@ -3,7 +3,6 @@ from bintang.row import Row_Table_Path
 import copy
 
 
-
 def traverse_(dict_or_list, path=[]):
     if isinstance(dict_or_list, dict):
         iterator = dict_or_list.items()
@@ -42,7 +41,7 @@ def gen_rowid(path_list):
         return ''.join(str(x) for x in path_list)
     
 
-def gen_cell_json_row(path_list, value):
+def gen_table_path_row(path_list, value):
     # there are two types of cell will be created as the result of data path location
     # 1. main cell
     # 2. parent cell (if any)
@@ -54,7 +53,7 @@ def gen_cell_json_row(path_list, value):
     pathl = copy.deepcopy(path_list) 
     
     if debug:
-        print('\n---------------------in gen_cell_json_row (travjson.py)--------------------------')
+        print('\n---------------------in gen_table_path_row (travdict.py)--------------------------')
         print('  {}-> path_list {}'.format(len(pathl),path_list))
     
     # create the first cell    
@@ -102,7 +101,7 @@ def gen_cell_json_row(path_list, value):
                 print('  {}-> {}'.format(len(pathl),cell))
             del pathl[-1]
     if debug:
-        print('---------------------out gen_cell_json_row (travjson.py)-----------------------')
+        print('---------------------out gen_cell_json_row (travjson.py)-----------------------') 
     return row           
     
 
@@ -118,9 +117,9 @@ def traverse_dict(dict_obj, tablepaths=[]):
         # print(path_list, value)
         if len(tablepaths) == 0:
             # client wants to return all available tablepaths
-            yield gen_cell_json_row(path_list,value)
+            yield gen_table_path_row(path_list,value)
         elif len(tablepaths) > 0:
             # client wants to return specific tablepaths
             for tp in tablepaths:
                 if tp == gen_tablepath(path_list):
-                    yield gen_cell_json_row(path_list,value)
+                    yield gen_table_path_row(path_list,value)

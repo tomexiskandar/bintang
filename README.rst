@@ -15,6 +15,7 @@ Requirements
 ------------
 1. Python 3.6 or higher
 2. openpyxl
+3. pyodbc
 
 
 Installation

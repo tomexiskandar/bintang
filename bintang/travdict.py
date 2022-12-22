@@ -3,7 +3,7 @@ from bintang.row import Row_Table_Path
 import copy
 
 
-def traverse_(dict_or_list, path=[]):
+def _traverse(dict_or_list, path=[]):
     if isinstance(dict_or_list, dict):
         iterator = dict_or_list.items()
     else:
@@ -11,7 +11,7 @@ def traverse_(dict_or_list, path=[]):
     for k, v in iterator:
         yield path + [k], v
         if isinstance(v, (dict, list)):
-            for k, v in traverse_(v, path + [k]):
+            for k, v in _traverse(v, path + [k]):
                 yield k,v
 
 
@@ -101,15 +101,15 @@ def gen_table_path_row(path_list, value):
                 print('  {}-> {}'.format(len(pathl),cell))
             del pathl[-1]
     if debug:
-        print('---------------------out gen_table_path_row (travjson.py)-----------------------') 
+        print('---------------------out gen_table_path_row (travdict.py)-----------------------') 
     return row           
     
 
 
 def traverse_dict(dict_obj, tablepaths=[]):
-    # yield a json row
+    # yield a tprow (row with a table path)
     # also allow to yield only the row that matches tablepath list from client.
-    for path_list, value, in traverse_(dict_obj, path=['/']):        
+    for path_list, value, in _traverse(dict_obj, path=['/']):        
         if isinstance(value,(list,dict)):
             #print('-->',path_list,":",value)
             #continue # use continue and comment the below line value = None to create column with list/dict

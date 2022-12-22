@@ -309,20 +309,20 @@ class Table(object):
         return None    
 
 
-    def upsert_jsonrow(self, jsonrow):
+    def upsert_table_path_row(self, tprow):
         debug = False
         if debug:
             print("\n  ------------------in upsert_jsonrow (table.py) --------------------")
         # extract the rowid and use it as the table index (the key of rows{})
         # create a row if the rowid not found in the table's index
-        res_idx = self.get_rowidx_byrowid(jsonrow.id)
+        res_idx = self.get_rowidx_byrowid(tprow.id)
         
         if res_idx is None:
             if debug:
-                print("inserting... row does not exist", jsonrow)
-            row = self.make_row(jsonrow.id)
-            # re-make cells from jsonrow
-            for id, c in jsonrow.cells.items():
+                print("inserting... row does not exist", tprow)
+            row = self.make_row(tprow.id)
+            # re-make cells from tprow
+            for id, c in tprow.cells.items():
                 if debug:
                     print('cell:', id, ";", c)
                 cell = self.make_cell(c.get_columnname(), c.value)
@@ -332,12 +332,12 @@ class Table(object):
             
         elif res_idx is not None:
             if debug:
-                print("updating... row exists", jsonrow)
-            for id, c in jsonrow.cells.items():
+                print("updating... row exists", tprow)
+            for id, c in tprow.cells.items():
                 cell = self.make_cell(c.get_columnname(), c.value)
                 self.__rows[res_idx].add_cell(cell)        
         if debug:
-            print("\n  ------------------out upsert_jsonrow (table.py)-------------------"    )
+            print("\n  ------------------out upsert_table_path_row (table.py)-------------------"    )
 
 
     def make_cell(self,columnname,value,new_columnname=True):

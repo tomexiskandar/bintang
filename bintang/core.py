@@ -262,22 +262,22 @@ class Bintang():
 
 
 
-    def read_dict(self, jsondata, tablepaths=[]):
+    def read_dict(self, dict_obj, tablepaths=[]):
         debug = False
-        for row in travdict.traverse_dict(jsondata,tablepaths):
+        for tprow in travdict.traverse_dict(dict_obj, tablepaths):
             # if debug:
             #     print("\n---------------------in bintang---------------------")
             #     print(row)
             
-            for k,v in row.cells.items():
+            for k,v in tprow.cells.items():
                 # print(k,'->',v)
                 
                 # create a table if not created yet
-                if row.tablepath not in self.get_tablenames():
-                    self.create_table(row.tablepath)
+                if tprow.tablepath not in self.get_tablenames():
+                    self.create_table(tprow.tablepath)
                 
                 # upsert this row
-                self.get_table(row.tablepath).upsert_jsonrow(row)
+                self.get_table(tprow.tablepath).upsert_table_path_row(tprow)
             # if debug:
             #     print("---------------------out bintang--------------------")
 

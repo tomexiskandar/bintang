@@ -2,7 +2,7 @@ from openpyxl import load_workbook
 import os
 import json
 import copy
-from bintang.table import Table
+from bintang.table import Table, Table_Path
 from bintang import travdict
 from pathlib import Path
 import logging
@@ -54,7 +54,7 @@ class Bintang():
 
 
     def create_table(self, name, columnnames=None):
-        table = Table(name) # create a table
+        table = Table(name) # create a table object
         self.add_table(table)
         if self.__be is not None:   # if is_persistent is True then update the table attributes and pass the connection
             table._Table__be = self.__be           
@@ -62,6 +62,17 @@ class Bintang():
         if columnnames is not None:
             for columnname in columnnames: # add column
                 table.add_column(columnname)
+
+
+    def create_path_table(self, name, columnnames=None):
+        table = Table_Path(name) # create a table object
+        self.add_table(table)
+        if self.__be is not None:   # if is_persistent is True then update the table attributes and pass the connection
+            table._Table__be = self.__be           
+            table._Table__be.add_table(self.get_tableid(name), name)
+        if columnnames is not None:
+            for columnname in columnnames: # add column
+                table.add_column(columnname)            
         
         
     def get_tableid(self, tablename):
@@ -77,6 +88,14 @@ class Bintang():
             tablename = table.name
             tablenames.append(tablename)    
         return tablenames
+
+
+    def get_tablepaths(self):
+        pathnames = []
+        for table in self.__tables.values():
+            pathname = table.path
+            pathnames.append(pathname)    
+        return pathnames    
 
     
     def get_columnnames(self, tablename):
@@ -274,12 +293,32 @@ class Bintang():
                 
                 # create a table if not created yet
                 if tprow.tablepath not in self.get_tablenames():
-                    self.create_table(tprow.tablepath)
+                    self.create_path_table(tprow.tablepath)
                 
                 # upsert this row
                 self.get_table(tprow.tablepath).upsert_table_path_row(tprow)
             # if debug:
             #     print("---------------------out bintang--------------------")
+
+    def set_child_tables(self):
+        for tab1 in self.get_tablepaths():
+            # print('table name',tab1)
+            # print(self[tab1].get_path_aslist())
+            tab1_pathlist = self[tab1].get_path_aslist()
+            for tab2 in self.get_tablepaths():
+                tab2_pathlist = self[tab2].get_path_aslist()
+                if len(tab2_pathlist) - len(tab1_pathlist) == 1:
+                    # this is a possible child, not grand child
+                    matches = 0
+                    for i in range(len(tab1_pathlist)):
+                        if tab1_pathlist[i] == tab2_pathlist[i]:
+                            matches += 1
+                    if matches == len(tab1_pathlist):
+                        # this is a child
+                        self[tab1].children.append(tab2)      
+                    
+
+
 
 
     def VOID_get_row_asdict(self, tablename, idx, columnnames=None):

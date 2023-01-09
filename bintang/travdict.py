@@ -80,12 +80,13 @@ def gen_table_path_row(path_list, value):
     # create 'parent key' cells
     while len(pathl) > 1: # if 0 then the root (/) will be included in the result set
         if debug:
-            print('  {}-> pathl {}'.format(len(pathl),pathl))
+            print('  {}->>> pathl {}'.format(len(pathl),pathl))
         #create the cell
         if isinstance(pathl[-1], int):
             # this is a list
             pathl_copy = copy.deepcopy(pathl) # to make it persistent and be used in making cell    
             cell = Cell_Path_List(len(pathl), pathl_copy, pathl[-1])
+            cell.is_key = True
             row.add_cell(cell)
             if debug:
                 print('  {}-> {}'.format(len(pathl),cell))
@@ -96,6 +97,7 @@ def gen_table_path_row(path_list, value):
             # this is a dict
             pathl_copy = copy.deepcopy(pathl) # to make it persistent and be used in making cell    
             cell = Cell_Path_List(len(pathl), pathl_copy, pathl[-1])
+            cell.is_key = True
             row.add_cell(cell)
             if debug:
                 print('  {}-> {}'.format(len(pathl),cell))
@@ -112,8 +114,8 @@ def traverse_dict(dict_obj, tablepaths=[]):
     for path_list, value, in _traverse(dict_obj, path=['/']):        
         if isinstance(value,(list,dict)):
             #print('-->',path_list,":",value)
-            #continue # use continue and comment the below line value = None to create column with list/dict
-            value = None  # include column with list/dict in the table but set value as None
+            continue # use continue and comment the below line value = None to create column with list/dict
+            #value = '[]'  # include column with list/dict in the table but set value as None
         # print(path_list, value)
         if len(tablepaths) == 0:
             # client wants to return all available tablepaths

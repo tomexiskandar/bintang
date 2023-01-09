@@ -48,7 +48,7 @@ class Table(object):
 
     def __repr__(self):
         tbl = {}
-        tbl['table name'] = self.name
+        tbl['name'] = self.name
         columns = []
         for k,v in self.__columns.items():
             columns.append(dict(id=v.id, name=v.name))
@@ -310,9 +310,9 @@ class Table(object):
 
 
     def upsert_table_path_row(self, tprow):
-        debug = False
+        debug = True
         if debug:
-            print("\n  ------------------in upsert_jsonrow (table.py) --------------------")
+            print("\n  ------------------in upsert_table_path_row (table.py) --------------------")
         # extract the rowid and use it as the table index (the key of rows{})
         # create a row if the rowid not found in the table's index
         res_idx = self.get_rowidx_byrowid(tprow.id)
@@ -325,7 +325,11 @@ class Table(object):
             for id, c in tprow.cells.items():
                 if debug:
                     print('cell:', id, ";", c)
-                cell = self.make_cell(c.get_columnname(), c.value)
+                if c.is_key == True:
+                    cell = self.make_cell('/' + c.get_columnname(), c.value)
+                else:
+                    cell = self.make_cell(c.get_columnname(), c.value)
+
                 row.add_cell(cell)
             # add to rows
             self.add_row(row)
@@ -334,7 +338,10 @@ class Table(object):
             if debug:
                 print("updating... row exists", tprow)
             for id, c in tprow.cells.items():
-                cell = self.make_cell(c.get_columnname(), c.value)
+                if c.is_key == True:
+                    cell = self.make_cell('/' + c.get_columnname(), c.value)
+                else:
+                    cell = self.make_cell(c.get_columnname(), c.value)
                 self.__rows[res_idx].add_cell(cell)        
         if debug:
             print("\n  ------------------out upsert_table_path_row (table.py)-------------------"    )
@@ -772,4 +779,36 @@ class Table(object):
             for idx, row in self.iterrows(result_as='list'):
                 ws.append(row)          
         wb.save(path)
+
+
+class Table_Path(Table):
+    def __init__(self, name):
+        super().__init__(name)
+        self.path = name
+        self.children = []        
+
+
+    def __repr__(self):
+        tbl = {}
+        tbl['name'] = self.name
+        tbl['path'] = self.path
+        columns = []
+        for k,v in self._Table__columns.items():
+            columns.append(dict(id=v.id, name=v.name))
+        tbl['columns'] = columns
+        return json.dumps(tbl, indent=2)
+
+
+    def get_path_aslist(self):
+        path_as_list = []
+        if self.path == '/': # if root
+            path_as_list.append('/')
+            return path_as_list
+        for node in self.path.split("/"):
+            if node == '': # if the 1st one. 1st node have discarded by split
+                path_as_list.append('/')
+            else:
+                path_as_list.append(node)
+        return path_as_list        
+
 

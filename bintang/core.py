@@ -1,17 +1,26 @@
 from openpyxl import load_workbook
+import pyodbc
 import os
 import json
 import copy
 from bintang.table import Table, Table_Path
 from bintang import travdict
 from pathlib import Path
-import logging
+from bintang.log import log
+from thefuzz import process as thefuzzprocess
+# import logging
 
-
-log = logging.getLogger(__name__)
-FORMAT = "[%(filename)s:%(lineno)s - %(funcName)10s() ] %(message)s"
-logging.basicConfig(format=FORMAT)
-log.setLevel(logging.ERROR)
+# log = logging.getLogger(__name__)
+# FORMAT = "[%(filename)s:%(lineno)s - %(funcName)10s() ] %(message)s"
+# logging.basicConfig(format=FORMAT)
+# log.setLevel(logging.DEBUG)
+# class TableNotFoundError(Exception):
+#     def __init__(self,tablename):
+#         tablenames = self.get_tables()
+#         suggest = process.extract(tablename, tablenames, limit=2)
+#         print('hello',suggest)
+#         self.message = "Cannot find table '{}'.".format(tablename)
+#         super().__init__(self.message)
 
 
 class Bintang():
@@ -27,13 +36,19 @@ class Bintang():
 
     def __getitem__(self, tablename): # subscriptable version of self.get_table()
         tableid = self.get_tableid(tablename)
-        return self.__tables[tableid]       
+        if tableid is None:
+            tablenames = self.get_tables()
+            extracted = thefuzzprocess.extract(tablename, tablenames, limit=2)
+            fuzzies = [x[0] for x in extracted if x[1]>95]
+            raise ValueError ('could not find table {}. Did you mean {}?'.format(tablename,' or '.join(fuzzies)))
+        else:
+            return self.__tables[tableid]       
 
     def __repr__(self):
         rb = {}
         rb['name'] = self.name
         table = []
-        for tablename in self.get_tablenames():
+        for tablename in self.get_tables():
             table.append(tablename)
         rb['tables'] = table
         return json.dumps(rb, indent=2)
@@ -50,29 +65,39 @@ class Bintang():
         import shutil
         if dest == None:
             dest = os.getcwd()
-        shutil.copy(self.__be.dbpath, dest)    
+        shutil.copy(self.__be.dbpath, dest)      
 
 
-    def create_table(self, name, columnnames=None):
-        table = Table(name) # create a table object
-        self.add_table(table)
-        if self.__be is not None:   # if is_persistent is True then update the table attributes and pass the connection
-            table._Table__be = self.__be           
-            table._Table__be.add_table(self.get_tableid(name), name)
-        if columnnames is not None:
-            for columnname in columnnames: # add column
-                table.add_column(columnname)
+    def create_table(self, name, columns=None):
+        tobj = Table(name) # create a tobj object
+        self.add_table(tobj)
+        if self.__be is not None:   # if is_persistent is True then update the tobj attributes and pass the connection
+            tobj._Table__be = self.__be           
+            tobj._Table__be.add_table(self.get_tableid(name), name)
+        if columns is not None:
+            for column in columns: # add column
+                tobj.add_column(column)
+
+    def delete_table(self, tablename):
+        tableid = self.get_tableid(tablename)
+        if tableid is None:
+            tablenames = self.get_tables()
+            extracted = thefuzzprocess.extract(tablename, tablenames, limit=2)
+            fuzzies = [x[0] for x in extracted if x[1]>95]
+            raise ValueError ('could not find table {}. Did you mean {}?'.format(tablename,' or '.join(fuzzies)))
+        else:
+            del self.__tables[tableid]
 
 
-    def create_path_table(self, name, columnnames=None):
-        table = Table_Path(name) # create a table object
-        self.add_table(table)
-        if self.__be is not None:   # if is_persistent is True then update the table attributes and pass the connection
-            table._Table__be = self.__be           
-            table._Table__be.add_table(self.get_tableid(name), name)
-        if columnnames is not None:
-            for columnname in columnnames: # add column
-                table.add_column(columnname)            
+    def create_path_table(self, name, columns=None):
+        tobj = Table_Path(name) # create a table object
+        self.add_table(tobj)
+        if self.__be is not None:   # if is_persistent is True then update the tobj attributes and pass the connection
+            tobj._Table__be = self.__be           
+            tobj._Table__be.add_table(self.get_tableid(name), name)
+        if columns is not None:
+            for column in columns: # add column
+                tobj.add_column(column)            
         
         
     def get_tableid(self, tablename):
@@ -82,12 +107,12 @@ class Bintang():
         return None
 
 
-    def get_tablenames(self):
-        tablenames = []
+    def get_tables(self):
+        tables = []
         for table in self.__tables.values():
             tablename = table.name
-            tablenames.append(tablename)    
-        return tablenames
+            tables.append(tablename)    
+        return tables
 
 
     def get_tablepaths(self):
@@ -98,11 +123,11 @@ class Bintang():
         return pathnames    
 
     
-    def get_columnnames(self, tablename):
-        return self.get_table(tablename).get_columnnames()
+    def get_columns(self, tablename):
+        return self.get_table(tablename).get_columns()
 
 
-    # def get_columnids(self, tablename, columnnames):
+    # def get_columnids(self, tablename, columns):
     #     tableid = self.get_tableid(tablename)
     #     return self.__tables[tableid].get_columnids
     
@@ -117,17 +142,17 @@ class Bintang():
             raise ValueError('Table {} already exists.'.format(table.name))
 
 
-    def rename_table(self, tablename, new_tablename):
-        # check if tablename already exists
-        if tablename in self.get_tablenames():
+    def rename_table(self, name, new_tablename):
+        # check if name already exists
+        if name in self.get_tables():
             for id, table in self.__tables.items():
-                if tablename == table.name:
+                if name == table.name:
                     self.__tables[id].name = new_tablename
         else:
-            raise ValueError('Tablename {} does not exist.'.format(tablename))
+            raise ValueError('Tablename {} does not exist.'.format(name))
 
-    def get_table(self, tablename):
-        tableid = self.get_tableid(tablename)
+    def get_table(self, name):
+        tableid = self.get_tableid(name)
         return self.__tables[tableid]
 
 
@@ -137,17 +162,17 @@ class Bintang():
         self.add_table(destination_table)
         
     
-    def drop_column(self,tablename,columnname):
-        self.__tables[tablename].drop_column(columnname)
+    def drop_column(self,tablename,column):
+        self.__tables[tablename].drop_column(column)
 
 
-    def insert(self,tablename,columnnames,values):
-        self.get_table(tablename).insert(columnnames,values)
+    def insert(self,tablename,columns,values):
+        self.get_table(tablename).insert(columns,values)
         
 
-    def get_cells_bycolumnnames(self,tablename,row,columnnames):
+    def get_cells_bycolumnnames(self,tablename,row,columns):
         _cells = {} # to hold the results cells
-        for name in columnnames:
+        for name in columns:
             columnid = self.__tables[tablename].get_columnid(name)
             # only assign if columnid exists to avoid a KeyError
             if columnid in row.cells:
@@ -162,11 +187,11 @@ class Bintang():
         self.get_table(tablename).delete_rows(indexes)
 
 
-    def print(self,tablename, top=None, columnnames=None):
-        if columnnames is None:
-            columnnames = [x.name for x in self.__tables[tablename].columns.values()]
-        print(','.join(str(val) for val in columnnames))
-        columnids = self.__tables[tablename].get_columnids(columnnames)
+    def print(self,tablename, top=None, columns=None):
+        if columns is None:
+            columns = [x.name for x in self.__tables[tablename].columns.values()]
+        print(','.join(str(val) for val in columns))
+        columnids = self.__tables[tablename].get_columnids(columns)
         
         # print each row values
         for idx,row in enumerate(self.__tables[tablename].rows.values()):
@@ -178,19 +203,25 @@ class Bintang():
     def raise_valueerror_tablename(self,tablename):
         tableid = self.get_tableid(tablename)
         if tableid is None:
+            #tablenames = self.get_tables()
+            # suggest = process.extract(tablename, tablenames, limit=2)
+            # print('hello',suggest)
+            # print('yes')
+            # quit()
             raise ValueError('Tablename {} does not exist.'.format(tablename))
 
 
-    def iterrows(self, tablename, columnnames=None, result_as = 'dict', rowid=False):
+    def iterrows(self, tablename, columns=None, result_as = 'dict', rowid=False):
         """get the table form the collection
         then yield idx and row from table's iterrows()
         """
+        
         self.raise_valueerror_tablename(tablename)
-        for idx, row in self.get_table(tablename).iterrows(columnnames, result_as=result_as, rowid=rowid):
+        for idx, row in self.get_table(tablename).iterrows(columns, result_as=result_as, rowid=rowid):
             yield idx, row
             
 
-    def dev_read_db(self, connstr, tablename, columnnames = None):
+    def dev_read_db(self, connstr, tablename, columns = None):
         self.create_table(tablename)
         self[tablename].connstr = connstr
         import pyodbc
@@ -210,11 +241,11 @@ class Bintang():
             sql_ = 'CREATE TABLE {} (id serial NOT NULL PRIMARY KEY, name varchar(150))'.format(tablename.lower()+'_columns')
             cursor.execute(sql_)
             cursor.commit()
-            # add columnnames if passed
-            if columnnames is not None:
-                if len(columnnames) > 0:
-                    for colname in columnnames:
-                        sql_ = "INSERT INTO {} (name) VALUES ('{}');".format(tablename.lower()+'_columns', colname)
+            # add columns if passed
+            if columns is not None:
+                if len(columns) > 0:
+                    for col in columns:
+                        sql_ = "INSERT INTO {} (name) VALUES ('{}');".format(tablename.lower()+'_columns', col)
                         log.debug(sql_)
                         cursor.execute(sql_)
                         cursor.commit()
@@ -222,7 +253,7 @@ class Bintang():
         conn.close()    
 
 
-    def dev_read_sqlite(self, tablename, columnnames = None):
+    def dev_read_sqlite(self, tablename, columns = None):
         self.create_table(tablename)
         import sqlite3
         conn = sqlite3.connect('bintang.db')
@@ -245,40 +276,50 @@ class Bintang():
             # create table for columns
             sql_ = 'CREATE TABLE {} (id serial NOT NULL PRIMARY KEY, name varchar(150))'.format(tablename.lower()+'_columns')
             cursor.execute(sql_)
-            # add columnnames if passed
-            if columnnames is not None:
-                if len(columnnames) > 0:
-                    for colname in columnnames:
-                        sql_ = "INSERT INTO {} (name) VALUES ('{}');".format(tablename.lower()+'_columns', colname)
+            # add columns if passed
+            if columns is not None:
+                if len(columns) > 0:
+                    for col in columns:
+                        sql_ = "INSERT INTO {} (name) VALUES ('{}');".format(tablename.lower()+'_columns', col)
                         log.debug(sql_)
                         cursor.execute(sql_)
         cursor.close()
         conn.close() 
 
 
-    def read_excel(self, path, sheetname):
-        self.create_table(sheetname)        
+    def read_excel(self, path, sheetname, name=None):
+        tablename = None
+        if name is None:
+            tablename = sheetname
+        else:
+            tablename = name
+  
+        self.create_table(tablename)        
         if self.__be is not None:
-            self.__be.create_table(sheetname)
+            self.__be.create_table(tablename)
         wb = load_workbook(path, read_only=True, data_only=True)
         ws = wb[sheetname]
-        columnnames = []
+        columns = []
+        Nonecolumn_cnt = 0
         for rownum, row_cells in enumerate(ws.iter_rows(),start=1):
             values = [] # hold column value for each row
             if rownum == 1:
                 for cell in row_cells:
-                    columnnames.append(cell.value)
-            if None in columnnames:
-                log.debug('columnnames: {}'.format(columnnames))
-                log.error('Error! None column detected!')
-                quit()    
+                    if cell.value is None:
+                        columname = 'noname' + str(Nonecolumn_cnt)
+                        Nonecolumn_cnt += 1
+                        columns.append(columname)
+                    else:
+                        columns.append(cell.value)
+                if Nonecolumn_cnt > 0:
+                    log.warning('Warning! Noname column detected!')          
+            
             if rownum > 1:
                 for cell in row_cells:
                     values.append(cell.value)
-                self.get_table(sheetname).insert(columnnames, values)
+                self.get_table(tablename).insert(columns, values)
         if self.__be is not None:
-            self.get_table(sheetname).add_row_into_be()
-
+            self.get_table(tablename).add_row_into_be()
 
 
     def read_dict(self, dict_obj, tablepaths=[]):
@@ -292,7 +333,7 @@ class Bintang():
                 # print(k,'->',v)
                 
                 # create a table if not created yet
-                if tprow.tablepath not in self.get_tablenames():
+                if tprow.tablepath not in self.get_tables():
                     self.create_path_table(tprow.tablepath)
                 
                 # upsert this row
@@ -316,88 +357,97 @@ class Bintang():
                     if matches == len(tab1_pathlist):
                         # this is a child
                         self[tab1].children.append(tab2)      
-                    
 
 
+    def read_sql(self, conn, tablename, sql_str, params=None ):
+        self.create_table(tablename)
+        cursor = conn.cursor()
+        if params is not None:
+            cursor.execute(sql_str, params)
+        else:
+            cursor.execute(sql_str)
+        columns = [col[0] for col in cursor.description]
+        for row in cursor.fetchall():
+            self.insert(tablename, columns, row)
+             
+
+    def VOID_get_row_asdict(self, tablename, idx, columns=None):
+        return self.get_table(tablename).get_row_asdict(idx, columns=columns)
 
 
-    def VOID_get_row_asdict(self, tablename, idx, columnnames=None):
-        return self.get_table(tablename).get_row_asdict(idx, columnnames=columnnames)
-
-
-    def _add_lcell(self, lidx, ltablename, outrow, output_tablename, output_lcolumnnames, rowid):
-        for k, v in self[ltablename].get_row_asdict(lidx,rowid=rowid).items():
-            if output_lcolumnnames is None:
+    def _add_lcell(self, lidx, ltable, outrow, out_table, out_lcolumns, rowid):
+        for k, v in self[ltable].get_row_asdict(lidx,rowid=rowid).items():
+            if out_lcolumns is None:
                 # incude all columns
-                cell = self[output_tablename].make_cell(k,v)
+                cell = self[out_table].make_cell(k,v)
                 outrow.add_cell(cell)
-            if output_lcolumnnames is not None:
+            if out_lcolumns is not None:
                 # include only the passed columns
-                if k in output_lcolumnnames:
-                    cell = self[output_tablename].make_cell(k,v)
+                if k in out_lcolumns:
+                    cell = self[out_table].make_cell(k,v)
                     outrow.add_cell(cell)
         return outrow            
 
 
-    def _add_rcell(self, ridx, rtablename, outrow, output_tablename, output_rcolumnnames, rcolnames_resolved, rowid):
-        for k, v in self[rtablename].get_row_asdict(ridx,rowid=rowid).items():
-            if output_rcolumnnames is None:
-                cell = self[output_tablename].make_cell(rcolnames_resolved[k],v)
+    def _add_rcell(self, ridx, rtable, outrow, out_table, out_rcolumns, rcol_resolved, rowid):
+        for k, v in self[rtable].get_row_asdict(ridx,rowid=rowid).items():
+            if out_rcolumns is None:
+                cell = self[out_table].make_cell(rcol_resolved[k],v)
                 outrow.add_cell(cell)
-            if output_rcolumnnames is not None:
+            if out_rcolumns is not None:
                 # include only the passed columns
-                if k in output_rcolumnnames:
-                    cell = self[output_tablename].make_cell(rcolnames_resolved[k],v)
+                if k in out_rcolumns:
+                    cell = self[out_table].make_cell(rcol_resolved[k],v)
                     outrow.add_cell(cell)
         return outrow
 
 
-    def _resolve_join_columnnames (self,ltablename, rtablename, rowid=False):
-        # resolve any conflict columnname by prefixing its tablename
-        # notes: conflict columnname occurs when the same columnname being used in two joining table.
-        rcolnames_resolved = {}
+    def _resolve_join_columns (self,ltable, rtable, rowid=False):
+        # resolve any conflict column by prefixing its tablename
+        # notes: conflict column occurs when the same column being used in two joining table.
+        rcol_resolved = {}
         if rowid:
-            rcolnames_resolved['rowid_'] = ltablename + '_' + 'rowid_'
-        lcolnames = self[ltablename].get_columnnames()
-        for colname in self[rtablename].get_columnnames():
-            if colname in lcolnames:
-                rcolnames_resolved[colname] = rtablename + '_' + colname
+            rcol_resolved['rowid_'] = ltable + '_' + 'rowid_'
+        lcolumns = self[ltable].get_columns()
+        for col in self[rtable].get_columns():
+            if col in lcolumns:
+                rcol_resolved[col] = rtable + '_' + col
             else:
-                rcolnames_resolved[colname] = colname
-        return rcolnames_resolved  
+                rcol_resolved[col] = col
+        return rcol_resolved  
 
 
 
-    # def _DEPRECATED_innerjoin(self,ltablename, lkeys
-    #             ,rtablename, rkeys
+    # def _DEPRECATED_innerjoin(self,ltable, lkeys
+    #             ,rtable, rkeys
     #             ,into
-    #             ,output_lcolumnnames=None
-    #             ,output_rcolumnnames=None
+    #             ,out_lcolumns=None
+    #             ,out_rcolumns=None
     #             ,rowid=False):
 
-    #     # validate input eg. columnname etc
-    #     lkeys = self[ltablename].validate_columnnames(lkeys)
-    #     rkeys = self[rtablename].validate_columnnames(rkeys)
-    #     if output_lcolumnnames is not None:
-    #         output_lcolumnnames = self[ltablename].validate_columnnames(output_lcolumnnames)
-    #     if output_rcolumnnames is not None:
-    #         output_rcolumnnames = self[rtablename].validate_columnnames(output_rcolumnnames)
+    #     # validate input eg. column etc
+    #     lkeys = self[ltable].validate_columns(lkeys)
+    #     rkeys = self[rtable].validate_columns(rkeys)
+    #     if out_lcolumns is not None:
+    #         out_lcolumns = self[ltable].validate_columns(out_lcolumns)
+    #     if out_rcolumns is not None:
+    #         out_rcolumns = self[rtable].validate_columns(out_rcolumns)
 
-    #     # resolve columnnames conflicts
-    #     rcolnames_resolved = self._resolve_join_columnnames(ltablename, rtablename, rowid)
+    #     # resolve columns conflicts
+    #     rcol_resolved = self._resolve_join_columns(ltable, rtable, rowid)
     #     # create an output table
-    #     output_tablename = into
-    #     self.create_table(output_tablename)
-    #     output_table = self.get_table(output_tablename)
+    #     out_table = into
+    #     self.create_table(out_table)
+    #     out_tobj = self.get_table(out_table)
 
     #     # for debuging create merged table to store the matching rowids
     #     #merged = self.create_table("merged",["lrowid","rrowid"])
 
     #     numof_keys = len(lkeys)
     #     # loop left table
-    #     for lidx, lrow in self.iterrows(ltablename, columnnames=lkeys, rowid=rowid):
+    #     for lidx, lrow in self.iterrows(ltable, columns=lkeys, rowid=rowid):
     #         # loop right table
-    #         for ridx, rrow in self.iterrows(rtablename, columnnames=rkeys, rowid=rowid):
+    #         for ridx, rrow in self.iterrows(rtable, columns=rkeys, rowid=rowid):
     #             matches = 0 # store matches for each rrow
     #             # compare value for any matching keys, if TRUE then increment matches
     #             for i in range(numof_keys):
@@ -406,50 +456,50 @@ class Bintang():
     #             if matches == numof_keys: # if fully matched, create the row & add into the output table
     #                 #debug merged.insert(["lrowid","rrowid"], [lrow["_rowid"], rrow["_rowid"]])
     #                 #and add the row to output table
-    #                 outrow = output_table.make_row()
+    #                 outrow = out_tobj.make_row()
     #                 # add cells from left table
-    #                 outrow = self._add_lcell(lidx, ltablename, outrow, output_tablename, output_lcolumnnames, rowid)
+    #                 outrow = self._add_lcell(lidx, ltable, outrow, out_table, out_lcolumns, rowid)
     #                 # add cells from right table
-    #                 outrow = self._add_rcell(ridx, rtablename, outrow, output_tablename, output_rcolumnnames, rcolnames_resolved, rowid)   
-    #                 output_table.add_row(outrow)
+    #                 outrow = self._add_rcell(ridx, rtable, outrow, out_table, out_rcolumns, rcol_resolved, rowid)   
+    #                 out_tobj.add_row(outrow)
     #     #debug merged.print() 
-    #     return output_table
+    #     return out_tobj
 
 
     def innerjoin(self
-                ,ltablename: str #, lkeys
-                ,rtablename: str #, rkeys
-                ,on: list
+                ,ltable: str #, lkeys
+                ,rtable: str #, rkeys
+                ,on: list # list of lkey & r key tuple
                 ,into: str
-                ,output_lcolumnnames: list=None
-                ,output_rcolumnnames: list=None
+                ,out_lcolumns: list=None
+                ,out_rcolumns: list=None
                 ,rowid=False) -> Table:
 
-        # validate input eg. columnname etc
+        # validate input eg. column etc
         lkeys = [x[0] for x in on] # generate lkeys from on (1st sequence)
         rkeys = [x[1] for x in on] # generate rkeys from on (2nd sequence)
-        lkeys = self[ltablename].validate_columnnames(lkeys)
-        rkeys = self[rtablename].validate_columnnames(rkeys)
-        if output_lcolumnnames is not None:
-            output_lcolumnnames = self[ltablename].validate_columnnames(output_lcolumnnames)
-        if output_rcolumnnames is not None:
-            output_rcolumnnames = self[rtablename].validate_columnnames(output_rcolumnnames)
+        lkeys = self[ltable].validate_columns(lkeys)
+        rkeys = self[rtable].validate_columns(rkeys)
+        if out_lcolumns is not None:
+            out_lcolumns = self[ltable].validate_columns(out_lcolumns)
+        if out_rcolumns is not None:
+            out_rcolumns = self[rtable].validate_columns(out_rcolumns)
 
-        # resolve columnnames conflicts
-        rcolnames_resolved = self._resolve_join_columnnames(ltablename, rtablename, rowid)
+        # resolve columns conflicts
+        rcol_resolved = self._resolve_join_columns(ltable, rtable, rowid)
         # create an output table
-        output_tablename = into
-        self.create_table(output_tablename)
-        output_table = self.get_table(output_tablename)
+        out_table = into
+        self.create_table(out_table)
+        out_tobj = self.get_table(out_table)
 
         # for debuging create merged table to store the matching rowids
         #merged = self.create_table("merged",["lrowid","rrowid"])
 
         numof_keys = len(on) #(lkeys)
         # loop left table
-        for lidx, lrow in self.iterrows(ltablename, columnnames=lkeys, rowid=rowid):
+        for lidx, lrow in self.iterrows(ltable, columns=lkeys, rowid=rowid):
             # loop right table
-            for ridx, rrow in self.iterrows(rtablename, columnnames=rkeys, rowid=rowid):
+            for ridx, rrow in self.iterrows(rtable, columns=rkeys, rowid=rowid):
                 matches = 0 # store matches for each rrow
                 # compare value for any matching keys, if TRUE then increment matches
                 for i in range(numof_keys):
@@ -459,43 +509,44 @@ class Bintang():
                 if matches == numof_keys: # if fully matched, create the row & add into the output table
                     #debug merged.insert(["lrowid","rrowid"], [lrow["_rowid"], rrow["_rowid"]])
                     #and add the row to output table
-                    outrow = output_table.make_row()
+                    outrow = out_tobj.make_row()
                     # add cells from left table
-                    outrow = self._add_lcell(lidx, ltablename, outrow, output_tablename, output_lcolumnnames, rowid)
+                    outrow = self._add_lcell(lidx, ltable, outrow, out_table, out_lcolumns, rowid)
                     # add cells from right table
-                    outrow = self._add_rcell(ridx, rtablename, outrow, output_tablename, output_rcolumnnames, rcolnames_resolved, rowid)   
-                    output_table.add_row(outrow)
+                    outrow = self._add_rcell(ridx, rtable, outrow, out_table, out_rcolumns, rcol_resolved, rowid)   
+                    out_tobj.add_row(outrow)
         #debug merged.print() 
-        return output_table
+        return out_tobj
 
-    def leftjoin(self,ltablename, rtablename, lkeys, rkeys
-                ,output_lcolumnnames=None
-                ,output_rcolumnnames=None
+
+    def leftjoin(self,ltable, rtable, lkeys, rkeys
+                ,out_lcolumns=None
+                ,out_rcolumns=None
                 ,rowid=False):
 
-        # validate input eg. columnname etc
-        lkeys = self[ltablename].validate_columnnames(lkeys)
-        rkeys = self[rtablename].validate_columnnames(rkeys)
-        if output_lcolumnnames is not None:
-            output_lcolumnnames = self[ltablename].validate_columnnames(output_lcolumnnames)
-        if output_rcolumnnames is not None:
-            output_rcolumnnames = self[rtablename].validate_columnnames(output_rcolumnnames)
+        # validate input eg. column etc
+        lkeys = self[ltable].validate_columns(lkeys)
+        rkeys = self[rtable].validate_columns(rkeys)
+        if out_lcolumns is not None:
+            out_lcolumns = self[ltable].validate_columns(out_lcolumns)
+        if out_rcolumns is not None:
+            out_rcolumns = self[rtable].validate_columns(out_rcolumns)
         
 
         # create an output table 
-        output_tablename = ltablename + rtablename
-        self.create_table(output_tablename)
-        output_table = self.get_table(output_tablename)
+        out_table = ltable + rtable
+        self.create_table(out_table)
+        out_tobj = self.get_table(out_table)
 
         # for debuging create merged table to store the matching rowids
         #merged = self.create_table("merged",["lrowid","rrowid"])
 
         numof_keys = len(lkeys)
-        for lidx, lrow in self.iterrows(ltablename, columnnames=lkeys, rowid=rowid):
-            outrow = output_table.make_row()
+        for lidx, lrow in self.iterrows(ltable, columns=lkeys, rowid=rowid):
+            outrow = out_tobj.make_row()
             # add cells for ltable
-            outrow = self._add_lcell(lidx, ltablename, outrow, output_tablename, output_lcolumnnames, rowid)
-            for ridx, rrow in self.iterrows(rtablename, columnnames=rkeys, rowid=rowid):
+            outrow = self._add_lcell(lidx, ltable, outrow, out_table, out_lcolumns, rowid)
+            for ridx, rrow in self.iterrows(rtable, columns=rkeys, rowid=rowid):
                 matches = 0 # store matches for each rrow
                 # evaluate any matching keys, if so increment matches
                 for i in range(numof_keys):
@@ -504,7 +555,8 @@ class Bintang():
                 if matches == numof_keys: # if fully matched, create the row & add into the output table
                     #debug merged.insert(["lrowid","rrowid"], [lrow["_rowid"], rrow["_rowid"]])
                     # add cells for rtable
-                    outrow = self._add_rcell(ridx, rtablename, outrow, output_tablename, output_rcolumnnames, ltablename, rowid)   
-            output_table.add_row(outrow)             
+                    outrow = self._add_rcell(ridx, rtable, outrow, out_table, out_rcolumns, ltable, rowid)   
+            out_tobj.add_row(outrow)             
         #debug merged.print() 
-        return output_table
+        return out_tobj
+    

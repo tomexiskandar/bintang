@@ -15,3 +15,5 @@ class Column:
 
     def get_name_uppercased(self):
         return self.name.upper()
+
+    

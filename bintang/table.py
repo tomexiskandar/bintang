@@ -6,19 +6,21 @@ import sqlite3
 import uuid
 import re
 import types
-import logging
+from bintang.log import log
+# import logging
 
-log = logging.getLogger(__name__)
-FORMAT = "[%(filename)s:%(lineno)s - %(funcName)10s() ] %(message)s"
-logging.basicConfig(format=FORMAT)
-log.setLevel(logging.ERROR)
+# log = logging.getLogger(__name__)
+# FORMAT = "[%(filename)s:%(lineno)s - %(funcName)10s() ] %(message)s"
+# logging.basicConfig(format=FORMAT)
+# log.setLevel(logging.DEBUG)
 
 
 class ColumnNotFoundError(Exception):
-    def __init__(self,tablename, columnname):
-        self.message = "Cannot find column '{}' in table {}.".format(columnname, tablename)
+    def __init__(self,table, column):
+        self.message = "Cannot find column '{}' in table {}.".format(column, table)
         super().__init__(self.message)
-
+    
+        
 
 class Table(object):
     """Define a Bintang table object
@@ -33,7 +35,7 @@ class Table(object):
         self.__last_assigned_columnid= -1 #
         self.__last_assigned_rowid = -1
         self.__be = None
-        
+
 
     def __getitem__(self, idx): # subscriptable version of self.get_row_asdict()
         #return self.__rows[idx] # bad design. a raw row isn't that useful at client code
@@ -41,8 +43,8 @@ class Table(object):
 
 
     def __setitem__(self, rowcell, value): # subscriptable version of self.update_row()
-        # where arg rowcell is a tuple of an idx of rows & columnname  passed by client code
-        # client code signature: table_obj[idx,columnname] = value
+        # where arg rowcell is a tuple of an idx of rows & column  passed by client code
+        # client code signature: table_obj[idx,column] = value
         self.update_row(rowcell[0], rowcell[1], value)
         
 
@@ -59,19 +61,199 @@ class Table(object):
     def __len__(self):
         """ return the length of rows"""    
         return len(self.__rows)
-   
+
+    def set_to_sql_colmap(self, columns):
+        if isinstance(columns, list):
+            return dict(zip(columns, columns))
+        elif isinstance(columns, dict):
+            return columns
+            
+    def to_sql_str(self, conn, schemaname, table, columns, max_rows = 300):
+        colmap = self.set_to_sql_colmap(columns)
+        src_cols = [x for x in colmap.values()]
+        dest_columns = [x for x in colmap.keys()]
+       
+
+        sql_template = 'INSERT INTO {}.{} ({}) VALUES'
+        str_stmt = sql_template.format(schemaname,table,",".join(['"{}"'.format(x) for x in colmap]))
+
+        sql_cols_withtype = self.set_sql_datatype(dest_columns, conn, schemaname, table)
+        sql_cols_withliteral = self.set_sql_literal(sql_cols_withtype, conn)
+        
+        # start insert to sql
+        cursor = conn.cursor()
+        temp_rows = []  
+        total_rowcount = 0 # to hold total record affected
+        for idx, values in self.iterrows(src_cols, result_as='list'):
+            ## question: can values and d_cols_withliteral align???????
+            sql_record = self.gen_sql_literal_record(values, sql_cols_withliteral)
+            temp_rows.append(sql_record)
+            if len(temp_rows) == max_rows:
+                stmt = str_stmt + ' {}'.format(",".join(temp_rows))
+                #log.debug(stmt)
+                cursor.execute(stmt)
+                total_rowcount += cursor.rowcount
+                temp_rows.clear()
+        if len(temp_rows) > 0:
+            stmt = str_stmt + ' {}'.format(",".join(temp_rows))
+            #log.debug(stmt)
+            cursor.execute(stmt)
+            total_rowcount += cursor.rowcount
+        return total_rowcount           
+
+
+    def gen_sql_literal_record(self, values, sql_cols_withliteral):
+        sql_record = []
+        sql_columns = [x for x in sql_cols_withliteral.keys()]
+        for i, value in enumerate(values):
+            col = sql_columns[i]
+            literals = sql_cols_withliteral[col]
+            sql_value = self.gen_sql_literal_value(literals, value)
+            sql_record.append(sql_value)
+        return "({})".format(','.join(sql_record))
+        
+
+    def gen_sql_literal_value(self, literals, value):
+        if value == "" or value is None:
+            return "NULL"
+        if isinstance(value, str):
+            value = value.replace("'","''")
+        return "{}{}{}".format('' if literals[0] is None else literals[0], value, '' if literals[1] is None else literals[1])
+    
+
+    def get_sql_typeinfo_table(self, conn):
+        cursor = conn.cursor()
+        sql_type_info_tuple = cursor.getTypeInfo(sqlType = None)
+        columnnames = [column[0] for column in cursor.description]
+        tobj = Table('sql_typeinfo')
+        for row in sql_type_info_tuple:
+            tobj.insert(columnnames, row)        
+        return tobj
+    
+
+    def set_sql_datatype(self, dest_columns, conn, schemaname, table):
+        cursor = conn.cursor()
+        sql_columns = cursor.columns(schema=schemaname, table=table)
+        columns = [column[0] for column in cursor.description]
+        tobj = Table('sql_columns_')
+        for row in sql_columns: #cursor.columns(schema=schemaname, table=table):
+            tobj.insert(columns, row)
+        sql_columns_withtype = {}
+        for col in dest_columns:
+            _type = tobj.get_value('type_name', where = lambda row: row['column_name']==col)
+            sql_columns_withtype[col] = _type
+        return sql_columns_withtype
+    
+
+    def set_sql_literal(self, sql_cols_withtype, conn):
+        sql_typeinfo_tab = self.get_sql_typeinfo_table(conn)
+        sql_cols_withliteral = {}
+        for k, v in sql_cols_withtype.items():
+            prefix = sql_typeinfo_tab.get_value('literal_prefix',where=lambda row: row['type_name']==v)
+            suffix = sql_typeinfo_tab.get_value('literal_suffix',where=lambda row: row['type_name']==v)
+            literals = (prefix,suffix)
+            sql_cols_withliteral[k] = literals
+        return sql_cols_withliteral
+
+
+    def to_sql(self, conn, schemaname, table, columns, max_rows = 1):
+        if max_rows <= len(self): # validate max_row
+            mrpb = max_rows # assign max row per batch
+        else:
+            #log.warning('Warning! max_rows {} set greater than totalrows {}. max_rows set to 1'.format(max_rows, len(self)))
+            mrpb = 1
+        numof_col = len(columns) # num of columns
+
+        colmap = self.set_to_sql_colmap(columns)
+        src_cols = [x for x in colmap.values()]
+        dest_columns = [x for x in colmap.keys()]
+        
+        # create as prepared statement
+        sql_template = 'INSERT INTO {}.{} ({}) VALUES {}'
+        param_markers = self.gen_row_param_markers(numof_col, mrpb)
+        prep_stmt = sql_template.format(schemaname,table,",".join(['"{}"'.format(x) for x in dest_columns]),param_markers)
+        cursor = conn.cursor()
+        temp_rows = []
+        total_rowcount = 0
+        for idx, row in self.iterrows(src_cols, result_as='list'):
+            for v in row:
+                temp_rows.append(v)
+            if len(temp_rows) == (mrpb * numof_col):
+                try:
+                    cursor.execute(prep_stmt, temp_rows)
+                    total_rowcount += cursor.rowcount
+                except Exception as e:
+                    log.error(e)
+                    log.error('Error!! uploading data to dbms with the following data.')
+                    log.error(prep_stmt)
+                    data = [str(x) for x in temp_rows]
+                    log.error(','.join(data))
+                temp_rows.clear()     
+        
+        if len(temp_rows) > 0: # if any reminder
+            param_markers = self.gen_row_param_markers(numof_col, int(len(temp_rows)/numof_col))
+            prep_stmt = sql_template.format(schemaname,table,",".join(['"{}"'.format(x) for x in dest_columns]),param_markers)
+            cursor.execute(prep_stmt, temp_rows)
+            total_rowcount += cursor.rowcount
+        return total_rowcount        
+
+
+    def gen_row_param_markers(self,numof_col,num_row):
+        param = "(" + ",".join("?"*numof_col) + ")"
+        params = []
+        for i in range(num_row):
+            params.append(param)
+        return ",".join(params)
+    
+
+
+    def gen_create_sqltable(self, dbms):
+        # scanning table to get column properties
+        # and assin the data type and size (when able)
+        self.set_data_props()
+        for col in self.get_columns():
+            cobj = self.__columns[self.get_columnid(col)]
+            for type, prop in cobj.data_props.items():
+                if type == 'str':
+                    cobj.data_type = 'str' #type_map['str'][0]
+                    cobj.column_size = prop['column_size']
+                else:
+                    cobj.data_type = type #type_map[type][0]    
+        
+        # use type_map to translate the type
+        create_columns = []
+        for col in self.get_columns():
+            cobj = self.__columns[self.get_columnid(col)]
+            if cobj.data_type == 'str':
+                create_item = ['[{}]'.format(cobj.name), type_map[dbms][cobj.data_type],'({})'.format(cobj.column_size)]
+                create_columns.append(create_item)
+            else:
+                create_item = ['[{}]'.format(cobj.name), type_map[dbms][cobj.data_type]]
+                create_columns.append(create_item)
+        create_columns_str = []
+        for i, citem in enumerate(create_columns):
+            create_item_str = []
+            if i == 0: # add tab if first, the rest will be added at later join
+                create_item_str.append('\t')
+            for i in citem:
+                create_item_str.append(i)
+            create_item_str.append('\n')
+            create_columns_str.append(' '.join(create_item_str))
+        create_sqltable_templ = "CREATE TABLE {} (\n{})".format(self.name, '\t,'.join(create_columns_str))
+        return create_sqltable_templ 
+        
 
     def add_column(self,name, data_type=None, column_size=None):
         # check if the passed name already exists
         columnid = self.get_columnid(name)
         if columnid is None:
-            col = Column(name)
+            cobj = Column(name)
             if data_type is not None:
-                col.data_type = data_type
+                cobj.data_type = data_type
             if column_size is not None:
-                col.column_size = column_size
-            col.id = self.__last_assigned_columnid + 1
-            self.__columns[col.id] = col
+                cobj.column_size = column_size
+            cobj.id = self.__last_assigned_columnid + 1
+            self.__columns[cobj.id] = cobj
             self.__last_assigned_columnid= self.__last_assigned_columnid + 1
 
 
@@ -90,47 +272,47 @@ class Table(object):
         columnid = self._get_columnid(name)
         log.debug(columnid)
         if columnid is None:
-            col = Column(name)
-            col.id = self.__last_assigned_columnid + 1
-            self.__columns[col.id] = col
+            cobj = Column(name)
+            cobj.id = self.__last_assigned_columnid + 1
+            self.__columns[cobj.id] = cobj
             self.__last_assigned_columnid= self.__last_assigned_columnid + 1        
 
 
-    def get_columnid(self,columnname):
-        for id, column in self.__columns.items():
-            # match the columnname case insensitive
-            if column.get_name_uppercased() == columnname.upper():
+    def get_columnid(self,column):
+        for id, cobj in self.__columns.items():
+            # match the column case insensitive
+            if cobj.get_name_uppercased() == column.upper():
                 return id
         return None
 
     
-    def get_columnids(self,columnnames=None):
+    def get_columnids(self,columns=None):
         columnids = []
-        if columnnames is None: # assume user want all available column ids
+        if columns is None: # assume user want all available column ids
             return [id for id in self.__columns.keys()]
-        for columnname in columnnames:
-            columnid = self.get_columnid(columnname)
+        for column in columns:
+            columnid = self.get_columnid(column)
             if columnid is None:
-                raise ValueError('Cannot find column name {}.'.format(columnname))
+                raise ValueError('Cannot find column name {}.'.format(column))
             else:
                 columnids.append(columnid)
         return columnids
 
             
-    def rename_columnname(self,old_columnname,new_columnname):
+    def rename_column(self,old_column,new_column):
         for v in self.__columns.values():
-            if v.name == old_columnname:
-                v.name = new_columnname
+            if v.name == old_column:
+                v.name = new_column
                 return
 
         
 
-    def drop_column(self,columnname):
+    def drop_column(self,column):
         # get columnid
-        columnid = self.get_columnid(columnname)
-        #provide warning if the passed columnname does not exist
+        columnid = self.get_columnid(column)
+        #provide warning if the passed column does not exist
         if columnid is None:
-            log.warning("warning... trying to drop a non-existence column '{}'".format(columnname))
+            log.warning("warning... trying to drop a non-existence column '{}'".format(column))
             return False
         # delete the cell from cell
         for row in self.__rows.values():
@@ -139,86 +321,141 @@ class Table(object):
         self.__columns.pop(columnid,None)
 
 
-    def get_columnname(self,columnid):
+    def get_column(self,columnid):
         return self.__columns[columnid].name
         
 
-    def get_columnnames(self, columnnames=None):
+    def get_columns(self, columns=None):
         return [x.name for x in self.__columns.values()]
 
 
-    def _get_columnnames_lced(self, columnnames=None):
+    def _get_columnnames_lced(self, columns=None):
         return {x.name.lower(): x.name  for x in self.__columns.values()}
 
 
-    def get_data_props(self, columnname):
-        columnid = self.get_columnid(columnname)
+    def get_data_props(self, column):
+        columnid = self.get_columnid(column)
         return self.__columns[columnid].data_props
 
 
-    def get_column_object(self, columnname):
-        columnid = self.get_columnid(columnname)
+    def get_column_object(self, column):
+        columnid = self.get_columnid(column)
         return self.__columns[columnid]
 
  
-    def validate_columnname(self, columnname):
-        """return columnname as the one stored in table.columns"""
-        if columnname.lower() in self._get_columnnames_lced().keys():
-            return self._get_columnnames_lced().get(columnname.lower())
+    def validate_column(self, column):
+        """return column as the one stored in table.columns"""
+        if column.lower() in self._get_columnnames_lced().keys():
+            return self._get_columnnames_lced().get(column.lower())
         else:
-            raise ColumnNotFoundError(self.name, columnname)
+            raise ColumnNotFoundError(self.name, column)
 
 
-    def validate_columnnames(self, columnnames):
-        """return columnnames from those stored in table.columns"""
+    def validate_columns(self, columns):
+        """return columns from those stored in table.columns"""
         res = []
-        for columnname in columnnames:
-            if columnname.lower() in self._get_columnnames_lced().keys():
-                res.append(self._get_columnnames_lced().get(columnname.lower()))
+        for column in columns:
+            if column.lower() in self._get_columnnames_lced().keys():
+                res.append(self._get_columnnames_lced().get(column.lower()))
             else:
-                raise ColumnNotFoundError(self.name, columnname)
+                raise ColumnNotFoundError(self.name, column)
         return res                
 
 
-    def VOID_validate_columnnames(self,columnnames):
+    def VOID_validate_columns(self,columns):
         res = []
-        for columnname in columnnames:
-            columnid = self.get_columnid(columnname)
+        for column in columns:
+            columnid = self.get_columnid(column)
             if columnid is not None:
-                existing_columnname = self.get_columnname(columnid)
-                res.append(existing_columnname)
+                existing_column = self.get_column(columnid)
+                res.append(existing_column)
             else:
-                raise ValueError("Cannot find column {}.".format(columnname))
-        return columnnames
+                raise ValueError("Cannot find column {}.".format(column))
+        return columns
 
 
-    def get_index(self, condition_columnname, condition_value):
+    def get_index(self, condition_column, condition_value):
         """will return the first index which value matches the condition"""
         for idx, row in self.iterrows():
             # test if string
             # if type(row[condition_columnname])==str:pass
-            if row[condition_columnname] == condition_value:
+            if row[condition_column] == condition_value:
                 return idx
 
-    def get_indexes(self, condition_columnname, condition_value):
+    def get_indexes(self, condition_column, condition_value):
         """will return a list of indexes which value matches the condition"""
         indexes = []
         for idx, row in self.iterrows():
             # test if string
             # if type(row[condition_columnname])==str:pass
-            if row[condition_columnname] == condition_value:
+            if row[condition_column] == condition_value:
                 indexes.append(idx)
         return indexes    
 
 
-    def get_value(self, search_columnname, condition_columnname, condition_value):
+    def get_value_OLD(self, search_column, condition_column, condition_value):
         ## will return a scalar value for the first match
         for idx, row in self.iterrows():
-            if row[condition_columnname] == condition_value:
-                return row[search_columnname]            
+            if row[condition_column] == condition_value:
+                # print(row[condition_columnname])
+                # print(row[search_columnname])
+                # print('hello')
+                return row[search_column]
 
 
+    def get_value_original(self, column, where):
+        """ 
+        return a scalar value.
+        switch different process if user want column pass as string or lambda
+        params:
+        column: either column name or using lambda expression
+        where: always a lambda expression"""
         
+        if isinstance(column,str):
+            for idx, row in self.iterrows():
+                if where(row):
+                    return row[column]
+        elif isinstance(column, types.FunctionType):
+            for idx, row in self.iterrows():
+                if where(row):
+                    return column(row)
+        else:
+            raise 'param column must be either column name or lambda and param where must be a lambda.'
+
+
+    def get_value(self, column, where = None):
+        """ 
+        return a scalar value.
+        switch different process if user want column pass as string or lambda
+        params:
+        column: either column name or using lambda expression
+        where: always a lambda expression"""
+        if where is not None:
+            if isinstance(column,str):
+                for idx, row in self.iterrows():
+                    if where(row):
+                        return row[column]
+            elif isinstance(column, types.FunctionType):
+                for idx, row in self.iterrows():
+                    if where(row):
+                        return column(row)
+            else:
+                raise 'param column must be either column name or lambda and param where must be a lambda.'
+        else:
+            if isinstance(column,str):
+                for idx, row in self.iterrows():
+                    return row[column]
+            elif isinstance(column, types.FunctionType):
+                for idx, row in self.iterrows():
+                    return column(row)
+            else:
+                raise 'param column must be either column name or lambda and param where must be a lambda.'
+
+
+                
+        
+
+
 
     def make_row(self,id=None, option=None):
         """make a new row.
@@ -234,27 +471,27 @@ class Table(object):
         return row
 
 
-    def insert(self,columnnames,values):
+    def insert(self,columns,values):
         """ restrict arguments for data insertion for this function as the followings:
-        1. a pair of columnnames and its single-row values
-        deprecated2. a pair of columnnames and its multiple-row values (as a list of tuple)
+        1. a pair of columns and its single-row values
+        deprecated2. a pair of columns and its multiple-row values (as a list of tuple)
         """
 
         # if isinstance(values[0],tuple): # if no. 2
         #     for value in values:
         #         if isinstance(value,tuple): # if True then expect a multi-row insert. so add a row for each value
         #             row = self.make_row()
-        #             for idx,columnname in enumerate(columnnames):
-        #                 cell = self.make_cell(columnname,value[idx])
+        #             for idx,column in enumerate(columns):
+        #                 cell = self.make_cell(column,value[idx])
         #                 row.add_cell(cell)
         #             # add to rows
         #             self.add_row(row)    
         #else: # if no. 1return None
-        # elif isinstance(columnnames,list) and not isinstance(values[0],tuple):
-        if isinstance(columnnames,list) or isinstance(columnnames,tuple) or isinstance(values,list) or isinstance(values,tuple):
+        # elif isinstance(columns,list) and not isinstance(values[0],tuple):
+        if isinstance(columns,list) or isinstance(columns,tuple) or isinstance(values,list) or isinstance(values,tuple):
             row = self.make_row()
-            for idx, columnname in enumerate(columnnames):
-                cell = self.make_cell(columnname,values[idx])
+            for idx, column in enumerate(columns):
+                cell = self.make_cell(column,values[idx])
                 row.add_cell(cell)
             # add to rows
             if self.__be is not None:
@@ -276,15 +513,15 @@ class Table(object):
         self.insert([x for x in adict.keys()], [x for x in adict.values()])
 
 
-    def insert_todb(self,columnnames,values):
+    def insert_todb(self,columns,values):
         """ restrict arguments for data insertion for this function as the followings:
-        1. a pair of columnnames and its single-row values
-        2. a pair of columnnames and its multiple-row values (as a list of tuple)
+        1. a pair of columns and its single-row values
+        2. a pair of columns and its multiple-row values (as a list of tuple)
         """
-        if isinstance(columnnames,list) and not isinstance(values[0],tuple):
+        if isinstance(columns,list) and not isinstance(values[0],tuple):
             row = self.make_row()
-            for idx, columnname in enumerate(columnnames):
-                cell = self.make_cell(columnname,values[idx])
+            for idx, column in enumerate(columns):
+                cell = self.make_cell(column,values[idx])
                 row.add_cell(cell)
             # add to rows
             self.add_row(row)
@@ -310,7 +547,7 @@ class Table(object):
 
 
     def upsert_table_path_row(self, tprow):
-        debug = True
+        debug = False
         if debug:
             print("\n  ------------------in upsert_table_path_row (table.py) --------------------")
         # extract the rowid and use it as the table index (the key of rows{})
@@ -326,9 +563,9 @@ class Table(object):
                 if debug:
                     print('cell:', id, ";", c)
                 if c.is_key == True:
-                    cell = self.make_cell('/' + c.get_columnname(), c.value)
+                    cell = self.make_cell('/' + c.get_column(), c.value)
                 else:
-                    cell = self.make_cell(c.get_columnname(), c.value)
+                    cell = self.make_cell(c.get_column(), c.value)
 
                 row.add_cell(cell)
             # add to rows
@@ -339,23 +576,23 @@ class Table(object):
                 print("updating... row exists", tprow)
             for id, c in tprow.cells.items():
                 if c.is_key == True:
-                    cell = self.make_cell('/' + c.get_columnname(), c.value)
+                    cell = self.make_cell('/' + c.get_column(), c.value)
                 else:
-                    cell = self.make_cell(c.get_columnname(), c.value)
+                    cell = self.make_cell(c.get_column(), c.value)
                 self.__rows[res_idx].add_cell(cell)        
         if debug:
             print("\n  ------------------out upsert_table_path_row (table.py)-------------------"    )
 
 
-    def make_cell(self,columnname,value,new_columnname=True):
-        columnid = self.get_columnid(columnname)
+    def make_cell(self,column,value,new_column=True):
+        columnid = self.get_columnid(column)
         if columnid is None: # if columnid is None then assume user wants a new column
-            if new_columnname == True:
-                self.add_column(columnname)
-                columnid = self.get_columnid(columnname) # reassign the columnid
+            if new_column == True:
+                self.add_column(column)
+                columnid = self.get_columnid(column) # reassign the columnid
                 if self.__be is not None:
-                    self.__be.add_column(self.name, columnid, columnname)
-                # deprecated moved up columnid = self.get_columnid(columnname) # reassign the columnid
+                    self.__be.add_column(self.name, columnid, column)
+                # deprecated moved up columnid = self.get_columnid(column) # reassign the columnid
         if columnid is None:
             raise ValueError("Cannot make cell due to None column name.")    
         return Cell(columnid,value)
@@ -367,16 +604,16 @@ class Table(object):
         rows_idx = len(self.__rows)
         self.__rows[rows_idx] = row
 
-    def _XXgen_row_asdict(self, row, columnnames, rowid=False):
+    def _XXgen_row_asdict(self, row, columns, rowid=False):
         res = {}
         if rowid == True:
             res['_rowid_'] = row.id # add rowid for internal purpose eg. a merged table
-        for columnname in columnnames:
-            columnid = self.get_columnid(columnname)
+        for column in columns:
+            columnid = self.get_columnid(column)
             if columnid not in row.cells:
-                res[columnname] = None
+                res[column] = None
             else:
-                res[columnname] = row.cells[columnid].value
+                res[column] = row.cells[columnid].value
         return res   
     
 
@@ -396,62 +633,62 @@ class Table(object):
             raise KeyError ('Cannot find index {}.'.format(idx))
 
 
-    def get_valid_columnname(self, columnname):
-        columnid = self.get_columnid(columnname)   # columnname in this line passed by user
-        columnname = self.get_columnname(columnid) # ensure the same columnname passed as result.
-        return columnname        
+    def get_valid_columnname(self, column):
+        columnid = self.get_columnid(column)   # column in this line passed by user
+        column = self.get_column(columnid) # ensure the same column passed as result.
+        return column        
     
 
-    def get_row_asdict(self, idx, columnnames=None, rowid=False):
+    def get_row_asdict(self, idx, columns=None, rowid=False):
         if idx not in self.__rows:
             raise KeyError ('Cannot find index {}.'.format(idx))
         if idx in self.__rows:
-            if columnnames is None:
-                columnnames = self.get_columnnames()
-            if columnnames is not None:
-                columnnames = self.validate_columnnames(columnnames)
-            return self._gen_row_asdict(self.__rows[idx],columnnames, rowid)
+            if columns is None:
+                columns = self.get_columns()
+            if columns is not None:
+                columns = self.validate_columns(columns)
+            return self._gen_row_asdict(self.__rows[idx],columns, rowid)
             
 
-    def _gen_row_asdict(self, row, columnnames, rowid=False):
+    def _gen_row_asdict(self, row, columns, rowid=False):
         res = {}
         if rowid == True:
             res['rowid_'] = row.id # add rowid for internal purpose eg. a merged table
-        for columnname in columnnames:
-            # get valid columnname. these two lines defined in def get_valid_columnname()
-            columnid = self.get_columnid(columnname)   # columnname in this line passed by user
-            columnname = self.get_columnname(columnid) # ensure the same columnname passed as result.
+        for column in columns:
+            # get valid column. these two lines defined in def get_valid_columnname()
+            columnid = self.get_columnid(column)   # column in this line passed by user
+            column = self.get_column(columnid) # ensure the same column passed as result.
             if columnid not in row.cells:
-                res[columnname] = None
+                res[column] = None
             else:
-                res[columnname] = row.cells[columnid].value
+                res[column] = row.cells[columnid].value        
         return res
 
 
-    def get_row_aslist(self, idx, columnnames=None):
-        if columnnames is None:
-            columnnames = self.get_columnnames()
-        columnids = self.get_columnids(columnnames)
+    def get_row_aslist(self, idx, columns=None):
+        if columns is None:
+            columns = self.get_columns()
+        columnids = self.get_columnids(columns)
         return self._gen_row_aslist(self.__rows[idx],columnids)
 
 
     def _gen_row_aslist(self, row, columnids):
-        #columnids = self.get_columnids(columnnames)
+        #columnids = self.get_columnids(columns)
         return row.get_values(columnids)
 
        
-    def iterrows(self, columnnames=None, result_as='dict', rowid=False):
-        if columnnames is None:
-                columnnames = self.get_columnnames() # assign all available column names
+    def iterrows(self, columns=None, result_as='dict', rowid=False):
+        if columns is None:
+                columns = self.get_columns() # assign all available column names
         if result_as == 'dict': 
             if self.__be is None:
                 for idx, row in self.__rows.items():
-                    yield idx, self._gen_row_asdict(row,columnnames,rowid)
+                    yield idx, self._gen_row_asdict(row,columns,rowid)
             if self.__be is not None:
-                for idx, row in self.__be.iterrows_asdict(self.name, columnnames):
+                for idx, row in self.__be.iterrows_asdict(self.name, columns):
                     yield idx, row
         elif result_as == 'list':
-            columnids = self.get_columnids(columnnames)
+            columnids = self.get_columnids(columns)
             for idx, row in self.__rows.items():
                 yield idx, self._gen_row_aslist(row,columnids)
 
@@ -461,8 +698,8 @@ class Table(object):
         columnids = self.get_columnids()
         for idx, row in self.__rows.items():
             for columnid in columnids:
-                log.debug(row)
-                log.debug('id: {}, value: {}'.format(idx , self.__columns[columnid].name))
+                # log.debug(row)
+                # log.debug('id: {}, value: {}'.format(idx , self.__columns[columnid].name))
                 if columnid in row.cells:
                     self.set_data_props_datatype(columnid, row.cells[columnid].value)
                     if row.cells[columnid].value is not None:
@@ -485,14 +722,12 @@ class Table(object):
                     self.__columns[columnid].data_props['datetime']['column_size'] = 19        
 
                 
-
-
     def set_data_props_str_column_size(self, columnid, value):
         if len(value) > self.__columns[columnid].data_props['str']['column_size']:
             self.__columns[columnid].data_props['str']['column_size'] = len(value)       
     
         
-    def print(self,top=None, columnnames=None):
+    def print(self,top=None, columns=None):
         rows_values = []
         for enum,row in enumerate(self.__rows.values(),1):
             row_values = []
@@ -504,30 +739,30 @@ class Table(object):
             rows_values.append(row_values)
             if enum == top:
                 break
-        # get and print out columnnames
-        columnnames = [x.name for x in self.__columns.values()]
-        print(columnnames) 
+        # get and print out columns
+        columns = [x.name for x in self.__columns.values()]
+        print(columns) 
         # get and print out rowresult_as
         for row in rows_values:
             print(row)
 
 
-    def print_aslist(self, top=None, columnnames=None):
-        print("idx",self.get_columnnames(columnnames))
-        for idx, row in self.iterrows(result_as='list',columnnames=columnnames):
+    def print_aslist(self, top=None, columns=None):
+        print("idx",self.get_columns(columns))
+        for idx, row in self.iterrows(result_as='list',columns=columns):
             print(idx, row)
 
 
-    def print_asdict(self, top=None, columnnames=None):
-        for idx, row in self.iterrows(columnnames=columnnames):
+    def print_asdict(self, top=None, columns=None):
+        for idx, row in self.iterrows(columns=columns):
             print(idx, row)
 
     
-    def columnnames_valid(self, columnnames):
+    def columnnames_valid(self, columns):
         existing_columnnames = self._get_columnnames_lced()
-        for columnname in columnnames:
-            if columnname.lower() not in existing_columnnames:
-                raise ValueError("Cannot find column name {}.".format(columnname))
+        for column in columns:
+            if column.lower() not in existing_columnnames:
+                raise ValueError("Cannot find column name {}.".format(column))
         return True
 
 
@@ -542,9 +777,9 @@ class Table(object):
 
 
     def set_cellvalue_stmt(self, row, stmt):
-        columnnames = re.findall('`(.*?)`',stmt) # extract column names from within a small tilde pair ``
-        for columnname in columnnames:
-            stmt = stmt.replace('`' + columnname + '`',repr(row[columnname]))
+        columns = re.findall('`(.*?)`',stmt) # extract column names from within a small tilde pair ``
+        for column in columns:
+            stmt = stmt.replace('`' + column + '`',repr(row[column]))
         return stmt
 
 
@@ -568,9 +803,9 @@ class Table(object):
             columnnames_in_stmt = re.findall('`(.*?)`',stmt) # extract column names from within a small tilde pair ``
             self.columnnames_valid(columnnames_in_stmt)  # validate column name from the stmt
             columnnames_in_stmt = [self.get_valid_columnname(x) for x in columnnames_in_stmt]
-            for columnname in columnnames_in_stmt:
-                valid_columnname = self.get_valid_columnname(columnname)
-                stmt = self.replace_insensitively(columnname, valid_columnname, stmt)
+            for column in columnnames_in_stmt:
+                valid_columnname = self.get_valid_columnname(column)
+                stmt = self.replace_insensitively(column, valid_columnname, stmt)
         # scan the rows to search the index
         indexes = []
         for idx, row in self.iterrows():
@@ -588,9 +823,9 @@ class Table(object):
             columnnames_in_stmt = re.findall('`(.*?)`',stmt) # extract column names from within a small tilde pair ``
             self.columnnames_valid(columnnames_in_stmt)  # validate column name from the stmt
             columnnames_in_stmt = [self.get_valid_columnname(x) for x in columnnames_in_stmt]
-            for columnname in columnnames_in_stmt:
-                valid_columnname = self.get_valid_columnname(columnname)
-                stmt = self.replace_insensitively(columnname, valid_columnname, stmt)
+            for column in columnnames_in_stmt:
+                valid_columnname = self.get_valid_columnname(column)
+                stmt = self.replace_insensitively(column, valid_columnname, stmt)
         # scan the rows to search the index
         indexes = []
         for idx, row in self.iterrows():
@@ -607,24 +842,45 @@ class Table(object):
         self.delete_rows(indexes)
 
 
-    def update_row(self,idx,columnname,value):
-        self.__rows[idx].add_cell(self.make_cell(columnname,value))
+    def update_row(self,idx,column,value):
+        self.__rows[idx].add_cell(self.make_cell(column,value))
 
 
-    def update_row_all(self,columnname,value):
+    def update_row_all(self,column,value):
+        
         for idx in self.__rows:
-            self.__rows[idx].add_cell(self.make_cell(columnname,value))    
+            self.__rows[idx].add_cell(self.make_cell(column,value))    
 
 
+    def exists(self, where):
+        for idx, row in self.iterrows():
+            try:
+                if where(row):
+                    return True
+            except:
+                print(row)
+                pass
+        return False
 
-    def update(self, columnname, value, where=None):
+    def exists_original(self, where):
+        for idx, row in self.iterrows():
+            try:
+                if where(row):
+                    return True
+            except:
+                print(row)
+                pass
+        return False    
+        
+        
+    def update(self, column, value, where=None):
         if isinstance(value, types.FunctionType):
             # value passed as function
             for idx, row in self.iterrows():
                 if where is None:
                     try:
                         val = value(row) # function called
-                        self.update_row(idx, columnname, val)
+                        self.update_row(idx, column, val)
                     except Exception as e:
                         log.warning(e)
                         pass    
@@ -632,7 +888,7 @@ class Table(object):
                     try:
                         if where(row):
                             val = value(row) # function called
-                            self.update_row(idx, columnname, val) 
+                            self.update_row(idx, column, val) 
                     except Exception as e:
                         log.warning(e)
                         pass 
@@ -640,14 +896,13 @@ class Table(object):
             # value passed as non function eg. an int or str
             for idx, row in self.iterrows():
                 if where is None:
-                    self.update_row(idx, columnname, value)
+                    self.update_row(idx, column, value)
                 else:    
                     try:
                         if where(row): # function called 
-                            self.update_row(idx, columnname, value) 
+                            self.update_row(idx, column, value) 
                     except Exception as e:
                         # print(e)
-                        # print('hai')
                         pass 
 
 
@@ -671,45 +926,45 @@ class Table(object):
         return indexes
 
 
-    def filter(self, expr, columnnames=None):
-        tab = Table('mybing3')
-        if columnnames is None:
+    def filter(self, expr, columns=None):
+        tobj = Table('mybing3')
+        if columns is None:
             for idx, row in self.iterrows():
                 try:
                     if expr(row):
-                        columnnames = tuple(row.keys())
+                        columns = tuple(row.keys())
                         values = tuple(row.values())
-                        tab.insert(columnnames, values)
+                        tobj.insert(columns, values)
                 except:
                     pass        
         else:
-            columnnames_ = self.validate_columnnames(columnnames)
+            columns_ = self.validate_columns(columns)
             for idx, row in self.iterrows():
                 try:
                     if expr(row):
-                        values = self.get_row_aslist(idx,columnnames_)
-                        tab.insert(columnnames_,values)
+                        values = self.get_row_aslist(idx,columns_)
+                        tobj.insert(columns_,values)
                 except:
                     pass        
-        return tab
+        return tobj
 
 
     
 
 
 
-    # def get_type_used(self, columnname):
+    # def get_type_used(self, column):
     #     # iterate through the table and suss out the type
     #     used_types = []
-    #     for idx, row in self.iterrows(columnnames=[columnname]):
-    #         #if row[columnname] is not None:
-    #         used_type = type(row[columnname]).__name__
+    #     for idx, row in self.iterrows(columns=[column]):
+    #         #if row[column] is not None:
+    #         used_type = type(row[column]).__name__
     #         if used_type not in used_types:
     #             used_types.append(used_type)
     #     return used_types
 
 
-    # def get_types_used(self, columnname):
+    # def get_types_used(self, column):
     #     # self.__columns[1].name = 'manuf'
     #     # for k,v in self.__columns.items():
     #     #     log.debug(k,v.name)
@@ -718,58 +973,126 @@ class Table(object):
     #     # iterate through the table and suss out the type
 
     #     for idx, row in self.iterrows():
-    #         #if row[columnname] is not None:
-    #         used_type = type(row[columnname]).__name__
+    #         #if row[column] is not None:
+    #         used_type = type(row[column]).__name__
     #         if used_type not in used_types:
     #             used_types.append(used_type)
     #     return used_types    
 
 
-    def tlookup(self, lktable, keys, lkkeys, return_lkcolumnnames, return_ascolumnnames = None):
-        # validate input eg. columnname etc
-        keys = self.validate_columnnames(keys)
-        lkkeys = lktable.validate_columnnames(lkkeys)
-        return_lkcolumnnames = lktable.validate_columnnames(return_lkcolumnnames)
-
-        as_columnnames = {} # define a resolved columnnames, in case both table have a same columnname
-        if return_ascolumnnames is None:
-            for columnname in return_lkcolumnnames:
-                if columnname in self.get_columnnames():
-                    # prefix '_lk' if same name found
-                    as_columnnames[columnname] = '_lk' + columnname
-                else:
-                    as_columnnames[columnname] = columnname
-        if return_ascolumnnames is not None:
-            as_columnnames = dict(zip(return_lkcolumnnames,return_ascolumnnames))
-
-
-        numof_keys = len(keys)
-        for idx, row in self.iterrows(keys, rowid=True):
-            for lkidx, lkrow in lktable.iterrows():
+    #def blookup(self, rtable, keys, lkkeys, out_rcolumns, ret_ascolumns = None):
+    def blookup(self, rtable, on, out_rcolumns):    
+        # validate input eg. column etc
+        lkeys = [x[0] for x in on] # generate lkeys from on (1st sequence)
+        rkeys = [x[1] for x in on] # generate rkeys from on (2nd sequence)
+        lkeys = self.validate_columns(lkeys)
+        rkeys = rtable.validate_columns(rkeys)
+        lcolumn_prematch = self.get_columns() # will use this list when matching occurs below
+        # validate out_rcolumns once:
+        # otherwise will make lots of call later
+        valid_out_rcolumns = []
+        for item in out_rcolumns:
+            if isinstance(item,str):
+                item = rtable.validate_column(item)
+                valid_out_rcolumns.append(item)
+            if isinstance(item, tuple):
+                valid_column  = rtable.validate_column(item[0])
+                item_ = tuple([valid_column,item[1]])
+                valid_out_rcolumns.append(item_)
+        numof_keys = len(on)
+        for lidx, lrow in self.iterrows(lkeys, rowid=True):
+            for ridx, rrow in rtable.iterrows():
                 matches = 0
                 for i in range(numof_keys):
-                    if row[keys[i]] == lkrow[lkkeys[i]]:
+                    if lrow[lkeys[i]] == rrow[rkeys[i]]:
                         matches += 1 # increment
                 if matches == numof_keys:
-                    # update this table row for each return_lkcolumnnames
-                    for columnname in return_lkcolumnnames:
-                        value = lktable[lkidx][columnname]
-                        self.update_row(idx, as_columnnames[columnname], value)
+                    # update this table lrow for each out_rcolumns
+                    for item in valid_out_rcolumns:
+                        if isinstance(item, str): # if item is a column
+                            value = rtable[ridx][item]
+                            if item in lcolumn_prematch:
+                                print('item',item,'in',self.name)
+                                self.update_row(lidx, rtable.name + '_' + item, value)
+                            else:
+                                self.update_row(lidx, item, value)
+                        if isinstance(item, tuple): # if a tuple
+                            value = rtable[ridx][item[0]]
+                            self.update_row(lidx, item[1], value)
 
+    def groupbycount(self, columnname):
+        res_dict = {}
+        for idx, row in self.iterrows(columnname):
+            value = next(iter(row.values()))
+            if value not in res_dict:
+                res_dict[value] = 1
+            else:
+                res_dict[value] += 1
+        return res_dict
+    
+    
+    
+    def groupby2count(self, columns):
+        res_dict = {} #key=a tuple of columns, value=count
+        for idx, row in self.iterrows(columns, result_as='list'):
+            # DEPRECATED - No need tobe a string trow = tuple([str(x or 'None') for x in row])
+            trow = tuple(row)
+            keys = res_dict.keys()
+            if trow not in res_dict.keys():
+                res_dict[trow] = 1
+            else:
+                res_dict[trow] += 1       
+        return res_dict
+    
+    
+    def DEV_groupby3count(self, columns):
+        group_tobj = Table('test')
+        res_dict = {} #key=a tuple of columns, value=count
+        for idx, row in self.iterrows(columns, result_as='list'):
+            trow = tuple(row)
+            if trow not in res_dict.keys():
+                res_dict[trow] = 1
+            else:
+                res_dict[trow] += 1
+                
+        for k, v in res_dict.items():
+            columns_ = columns + ['count']
+            values = list(k) + [v]
+            group_tobj.insert(columns_, values)       
+        return group_tobj
+    
+
+    def DEV_groupby_count(self, columns, count_column):
+        group_tobj = Table('test')
+        res_dict = {} #key=a tuple of columns, value=count
+        for idx, row in self.iterrows(columns, result_as='list'):
+            trow = tuple(row)
+            if trow not in res_dict.keys():
+                res_dict[trow] = 1
+            else:
+                res_dict[trow] += 1
+                
+        for k, v in res_dict.items():
+            columns_ = columns + [count_column]
+            values = list(k) + [v]
+            group_tobj.insert(columns_, values)       
+        return group_tobj
+    
+    
 
     def to_excel(self, path, index=False):
         from openpyxl import Workbook
         wb = Workbook()
         ws = wb.active
         # add header
-        columnnames = self.get_columnnames()
-        log.debug(index)
+        columns = self.get_columns()
+        log.debug('index: {}'.format(index))
         if index:
             if index == True:
-                columnnames.insert(0,'_idx')
+                columns.insert(0,'_idx')
             if index != True:
-                columnnames.insert(0,str(index))        
-        ws.append(columnnames)
+                columns.insert(0,str(index))        
+        ws.append(columns)
         # add row
         if index:
             for idx, row in self.iterrows(result_as='list'):
@@ -780,6 +1103,14 @@ class Table(object):
                 ws.append(row)          
         wb.save(path)
 
+    def to_list(self, column):
+        if isinstance(column, str):
+            res_list = []
+            for idx, row in self.iterrows([column]):
+                res_list.append(next(iter(row.values())))
+            return res_list    
+        else:
+            raise ValueError('column must be a single column string!')
 
 class Table_Path(Table):
     def __init__(self, name):
@@ -810,5 +1141,15 @@ class Table_Path(Table):
             else:
                 path_as_list.append(node)
         return path_as_list        
+
+
+type_map = {
+    'sqlserver': {
+                'str':'nvarchar'
+                ,'int':'int'
+                ,'datetime':'datetime'
+                ,'float':'float'
+                }
+    }
 
 

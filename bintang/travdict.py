@@ -56,11 +56,11 @@ def gen_table_path_row(path_list, value):
         print('\n---------------------in gen_table_path_row (travdict.py)--------------------------')
         print('  {}-> path_list {}'.format(len(pathl),path_list))
     
-    # create the first cell    
-    cell = Cell_Path_List(len(pathl), path_list, value)
-    row.add_cell(cell)
-    if debug:
-        print('  {}-> {}'.format(len(pathl),cell))
+    # # create the first cell    
+    # cell = Cell_Path_List(len(pathl), path_list, value)
+    # row.add_cell(cell)
+    # if debug:
+    #     print('  {}-> {}'.format(len(pathl),cell))
     
 
     # take the last item of the path
@@ -102,6 +102,13 @@ def gen_table_path_row(path_list, value):
             if debug:
                 print('  {}-> {}'.format(len(pathl),cell))
             del pathl[-1]
+
+    # create the first cell    
+    cell = Cell_Path_List(len(pathl), path_list, value)
+    row.add_cell(cell)
+    if debug:
+        print('  {}-> {}'.format(len(pathl),cell))
+                
     if debug:
         print('---------------------out gen_table_path_row (travdict.py)-----------------------') 
     return row           

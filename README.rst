@@ -33,6 +33,7 @@ Examples of Usage
 
    import bintang  #  import the package   
    bt = bintang.Bintang() # bintang object created  
+
    bt.create_table('Person')  
    bt  
    {  
@@ -125,6 +126,46 @@ Read an Excel file into Bintang table.
    bt.read_excel('/path/to/file.xlsx', 'Sheet1')
 
 
+Bintang.innerjoin(left_table, right_table, on, into, out_leftcolumns, out_rightcolumns)
+
+return a new table from an inner join operation.
+
+| left_table: name of left table or the first table.
+| right_table: name if right table or the second table.
+| on: a list of columns to match for the join.
+| into: a new table name to hold the result.
+| out_leftcolumns: column output from left table.
+| out_rightcolumns: column outpout from right table.
+
+.. code:: python
+
+   bt.create_table('Person') # This will be our left table
+   person = bt.get_table('Person') # get table object for Person
+   # insert data directly from table object instead throug bt object.
+   person.insert(('id','name','surname','address'),(1,'John','Smith','1 Station St'))
+   person.insert(('id','name','surname','hobby','address'),[2,'Jane','Brown','Digging','8 Parade Rd'])
+   person.insert(('id','name','surname','Address'),(3,'Nutmeg','Spaniel','7 Ocean Rd'))
+   person.insert(('id','name','hobby','Address'),(4,'Maria','Digging',None))
+   person.insert(('id','name','hobby','Address'),(5,'Bing','Digging',None))
+
+   bt.create_table('FishingClub') # this will be our right table
+   bt['FishingClub'].insert(('FirstName','LastName','Membership'),('Ajes','Freeman','Active'))
+   bt['FishingClub'].insert(('FirstName','LastName','Membership'),('John','Smith','Active'))
+   bt['FishingClub'].insert(('FirstName','LastName','Membership'),('John','Brown','Active'))
+   bt['FishingClub'].insert(('FirstName','LastName','Membership'),('Nutmeg','Spaniel','Active'))
+   bt['FishingClub'].insert(('FirstName','LastName','Membership'),('Zekey','Pokey','Active'))
+
+   res = bt.innerjoin('Person'
+                     ,'FishingClub'
+                     ,[('name','FirstName'), ('surname','LastName')]
+                     ,'Fisherman'
+                     ,out_lcolumns=['name','address']
+                     ,out_rcolumns=['Membership']
+                     )
+
+   # check the result. you can loop through 'Fisherman' or res.
+   for idx, row in bt['Fisherman'].iterrows():
+      print(idx, row)
 
 Table.iterrows(columns=None, row_type='dict')
 --------------------------------------------------
@@ -152,6 +193,3 @@ Write Bintang table to an Excel file.
 .. code:: python
 
    bt['tablename'].to_excel('/path/to/file.xlsx')
-
-
-

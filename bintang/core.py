@@ -211,13 +211,13 @@ class Bintang():
             raise ValueError('Tablename {} does not exist.'.format(tablename))
 
 
-    def iterrows(self, tablename, columns=None, result_as = 'dict', rowid=False):
+    def iterrows(self, tablename, columns=None, row_type = 'dict', rowid=False):
         """get the table form the collection
         then yield idx and row from table's iterrows()
         """
         
         self.raise_valueerror_tablename(tablename)
-        for idx, row in self.get_table(tablename).iterrows(columns, result_as=result_as, rowid=rowid):
+        for idx, row in self.get_table(tablename).iterrows(columns, row_type=row_type, rowid=rowid):
             yield idx, row
             
 

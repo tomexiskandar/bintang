@@ -84,7 +84,7 @@ class Table(object):
         cursor = conn.cursor()
         temp_rows = []  
         total_rowcount = 0 # to hold total record affected
-        for idx, values in self.iterrows(src_cols, result_as='list'):
+        for idx, values in self.iterrows(src_cols, row_type='list'):
             ## question: can values and d_cols_withliteral align???????
             sql_record = self.gen_sql_literal_record(values, sql_cols_withliteral)
             temp_rows.append(sql_record)
@@ -175,7 +175,7 @@ class Table(object):
         cursor = conn.cursor()
         temp_rows = []
         total_rowcount = 0
-        for idx, row in self.iterrows(src_cols, result_as='list'):
+        for idx, row in self.iterrows(src_cols, row_type='list'):
             for v in row:
                 temp_rows.append(v)
             if len(temp_rows) == (mrpb * numof_col):
@@ -677,17 +677,17 @@ class Table(object):
         return row.get_values(columnids)
 
        
-    def iterrows(self, columns=None, result_as='dict', rowid=False):
+    def iterrows(self, columns=None, row_type='dict', rowid=False):
         if columns is None:
                 columns = self.get_columns() # assign all available column names
-        if result_as == 'dict': 
+        if row_type == 'dict': 
             if self.__be is None:
                 for idx, row in self.__rows.items():
                     yield idx, self._gen_row_asdict(row,columns,rowid)
             if self.__be is not None:
                 for idx, row in self.__be.iterrows_asdict(self.name, columns):
                     yield idx, row
-        elif result_as == 'list':
+        elif row_type == 'list':
             columnids = self.get_columnids(columns)
             for idx, row in self.__rows.items():
                 yield idx, self._gen_row_aslist(row,columnids)
@@ -749,7 +749,7 @@ class Table(object):
 
     def print_aslist(self, top=None, columns=None):
         print("idx",self.get_columns(columns))
-        for idx, row in self.iterrows(result_as='list',columns=columns):
+        for idx, row in self.iterrows(row_type='list',columns=columns):
             print(idx, row)
 
 
@@ -1034,7 +1034,7 @@ class Table(object):
     
     def groupby2count(self, columns):
         res_dict = {} #key=a tuple of columns, value=count
-        for idx, row in self.iterrows(columns, result_as='list'):
+        for idx, row in self.iterrows(columns, row_type='list'):
             # DEPRECATED - No need tobe a string trow = tuple([str(x or 'None') for x in row])
             trow = tuple(row)
             keys = res_dict.keys()
@@ -1048,7 +1048,7 @@ class Table(object):
     def DEV_groupby3count(self, columns):
         group_tobj = Table('test')
         res_dict = {} #key=a tuple of columns, value=count
-        for idx, row in self.iterrows(columns, result_as='list'):
+        for idx, row in self.iterrows(columns, row_type='list'):
             trow = tuple(row)
             if trow not in res_dict.keys():
                 res_dict[trow] = 1
@@ -1065,7 +1065,7 @@ class Table(object):
     def DEV_groupby_count(self, columns, count_column):
         group_tobj = Table('test')
         res_dict = {} #key=a tuple of columns, value=count
-        for idx, row in self.iterrows(columns, result_as='list'):
+        for idx, row in self.iterrows(columns, row_type='list'):
             trow = tuple(row)
             if trow not in res_dict.keys():
                 res_dict[trow] = 1
@@ -1095,11 +1095,11 @@ class Table(object):
         ws.append(columns)
         # add row
         if index:
-            for idx, row in self.iterrows(result_as='list'):
+            for idx, row in self.iterrows(row_type='list'):
                 row.insert(0,idx)
                 ws.append(row)
         if not index:
-            for idx, row in self.iterrows(result_as='list'):
+            for idx, row in self.iterrows(row_type='list'):
                 ws.append(row)          
         wb.save(path)
 

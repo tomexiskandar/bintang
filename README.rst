@@ -118,7 +118,7 @@ Read an Excel file into Bintang table.
 
 | path: an excel file path to read from.
 | sheetname: the sheetname to read from.
-| table: table name to hold the data. If not given then sheetname will be used.
+| table: table name to hold the data. If not given, table name will be the sheetname.
 
 .. code:: python
 

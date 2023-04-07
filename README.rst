@@ -126,12 +126,15 @@ Read an Excel file into Bintang table.
 
 
 
-Table.iterrows(columnnames=None, result_as='dict')
+Table.iterrows(columns=None, result_as='dict')
 --------------------------------------------------
 
 Loop through Bintang table's rows and yield index and row. By default row will be in python dictionary.
 
-.. code :: python
+| columns: a list of columns for each row will contain. If None, contain all columns.
+| result_as: either 'dict' or 'list'. Default the row type as dict.
+
+.. code:: python
 
    for idx, row in bt['tablename'].iterrows():
        # do something with idx or row

@@ -169,7 +169,7 @@ return a new table from an inner join operation.
    for idx, row in bt['Fisherman'].iterrows():
       print(idx, row)
 
-Table.iterrows(columns=None, row_type='dict')
+Bintang.Table.iterrows(columns=None, row_type='dict')
 --------------------------------------------------
 
 Loop through Bintang table's rows and yield index and row. Row can be yield in as dict (default) or list.
@@ -184,7 +184,7 @@ Loop through Bintang table's rows and yield index and row. Row can be yield in a
        print(idx, row) 
 
 
-Table.to_excel(path, index=False)
+Bintang.Table.to_excel(path, index=False)
 ---------------------------------
 
 Write Bintang table to an Excel file.

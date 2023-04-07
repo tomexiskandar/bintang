@@ -113,7 +113,7 @@ Common Functions
 We are going to provide some functions that may be needed most when working with Bintang objects.
 
 Bintang.read_excel(path, sheetname, table=None)
------------------------------------
+-----------------------------------------------
 
 Read an Excel file into Bintang table.
 
@@ -127,6 +127,7 @@ Read an Excel file into Bintang table.
 
 
 Bintang.innerjoin(left_table, right_table, on, into, out_leftcolumns, out_rightcolumns)
+---------------------------------------------------------------------------------------
 
 return a new table from an inner join operation.
 
@@ -139,7 +140,7 @@ return a new table from an inner join operation.
 
 .. code:: python
 
-   bt.create_table('Person') # This will be our left table
+   bt.create_table('Person') # This will be a left table
    person = bt.get_table('Person') # get table object for Person
    # insert data directly from table object instead throug bt object.
    person.insert(('id','name','surname','address'),(1,'John','Smith','1 Station St'))
@@ -148,13 +149,14 @@ return a new table from an inner join operation.
    person.insert(('id','name','hobby','Address'),(4,'Maria','Digging',None))
    person.insert(('id','name','hobby','Address'),(5,'Bing','Digging',None))
 
-   bt.create_table('FishingClub') # this will be our right table
+   bt.create_table('FishingClub') # this will be a right table
    bt['FishingClub'].insert(('FirstName','LastName','Membership'),('Ajes','Freeman','Active'))
    bt['FishingClub'].insert(('FirstName','LastName','Membership'),('John','Smith','Active'))
    bt['FishingClub'].insert(('FirstName','LastName','Membership'),('John','Brown','Active'))
    bt['FishingClub'].insert(('FirstName','LastName','Membership'),('Nutmeg','Spaniel','Active'))
    bt['FishingClub'].insert(('FirstName','LastName','Membership'),('Zekey','Pokey','Active'))
 
+   # let's match the two tables for their firt name and last name.
    res = bt.innerjoin('Person'
                      ,'FishingClub'
                      ,[('name','FirstName'), ('surname','LastName')]

@@ -6,6 +6,7 @@ import sqlite3
 import uuid
 import re
 import types
+import unicodedata
 from bintang.log import log
 # import logging
 
@@ -1004,7 +1005,8 @@ class Table(object):
             for ridx, rrow in rtable.iterrows():
                 matches = 0
                 for i in range(numof_keys):
-                    if lrow[lkeys[i]] == rrow[rkeys[i]]:
+                    # if lrow[lkeys[i]] == rrow[rkeys[i]]:
+                    if _match_caseless_unicode(lrow[lkeys[i]], rrow[rkeys[i]]):
                         matches += 1 # increment
                 if matches == numof_keys:
                     # update this table lrow for each out_rcolumns
@@ -1020,9 +1022,9 @@ class Table(object):
                             value = rtable[ridx][item[0]]
                             self.update_row(lidx, item[1], value)
 
-    def groupbycount(self, columnname):
+    def groupbycount(self, column):
         res_dict = {}
-        for idx, row in self.iterrows(columnname):
+        for idx, row in self.iterrows(column):
             value = next(iter(row.values()))
             if value not in res_dict:
                 res_dict[value] = 1
@@ -1142,6 +1144,37 @@ class Table_Path(Table):
                 path_as_list.append(node)
         return path_as_list        
 
+def _match_primitive(value1, value2):
+    "Ascii case sensitive matching"
+    if value1 == value2:
+        return True
+    
+def _match_caseless(value1, value2):
+    "Ascii ase insensitive matching"
+    if isinstance(value1, str) and isinstance(value2, str):
+        if value1.lower() == value2.lower():
+            return True
+    elif isinstance(value1, str) or isinstance(value2, str):
+        if str(value1) == str(value2):
+            return True    
+    else:
+        if value1 == value2:
+            return True    
+        
+def _match_caseless_unicode(value1, value2):
+    "Unicode case insensetive matching"
+    if isinstance(value1, str) and isinstance(value2, str):
+        if _normalize_caseless(value1) == _normalize_caseless(value2):
+            return True
+    elif isinstance(value1, str) or isinstance(value2, str):
+        if str(value1) == str(value2):
+            return True
+    else:
+        if value1 == value2:
+            return True
+
+def _normalize_caseless(string):
+    return unicodedata.normalize("NFKD", string.casefold())
 
 type_map = {
     'sqlserver': {

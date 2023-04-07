@@ -4,6 +4,7 @@ import os
 import json
 import copy
 from bintang.table import Table, Table_Path
+from bintang.table import _match_primitive, _match_caseless, _match_caseless_unicode
 from bintang import travdict
 from pathlib import Path
 from bintang.log import log
@@ -500,9 +501,8 @@ class Bintang():
             for ridx, rrow in self.iterrows(rtable, columns=rkeys, rowid=rowid):
                 matches = 0 # store matches for each rrow
                 # compare value for any matching keys, if TRUE then increment matches
-                for i in range(numof_keys):
-                    #if lrow[on[0]] == rrow[on[1]]:
-                    if lrow[lkeys[i]] == rrow[rkeys[i]]:
+                for i in range(numof_keys): 
+                    if _match_caseless_unicode(lrow[lkeys[i]], rrow[rkeys[i]]):
                         matches += 1 # incremented!
                 if matches == numof_keys: # if fully matched, create the row & add into the output table
                     #debug merged.insert(["lrowid","rrowid"], [lrow["_rowid"], rrow["_rowid"]])
@@ -515,7 +515,7 @@ class Bintang():
                     out_tobj.add_row(outrow)
         #debug merged.print() 
         return out_tobj
-
+                
 
     def leftjoin(self,ltable, rtable, lkeys, rkeys
                 ,out_lcolumns=None
@@ -548,7 +548,7 @@ class Bintang():
                 matches = 0 # store matches for each rrow
                 # evaluate any matching keys, if so increment matches
                 for i in range(numof_keys):
-                    if lrow[lkeys[i]] == rrow[rkeys[i]]:
+                    if _match_caseless_unicode(lrow[lkeys[i]] == rrow[rkeys[i]]):
                         matches += 1 # increment
                 if matches == numof_keys: # if fully matched, create the row & add into the output table
                     #debug merged.insert(["lrowid","rrowid"], [lrow["_rowid"], rrow["_rowid"]])

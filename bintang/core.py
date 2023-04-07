@@ -287,16 +287,14 @@ class Bintang():
         conn.close() 
 
 
-    def read_excel(self, path, sheetname, name=None):
-        tablename = None
-        if name is None:
-            tablename = sheetname
-        else:
-            tablename = name
+    def read_excel(self, path, sheetname, table=None):
+        table_ = sheetname
+        if table is not None:
+            table_ = table
   
-        self.create_table(tablename)        
+        self.create_table(table_)        
         if self.__be is not None:
-            self.__be.create_table(tablename)
+            self.__be.create_table(table_)
         wb = load_workbook(path, read_only=True, data_only=True)
         ws = wb[sheetname]
         columns = []
@@ -317,9 +315,9 @@ class Bintang():
             if rownum > 1:
                 for cell in row_cells:
                     values.append(cell.value)
-                self.get_table(tablename).insert(columns, values)
+                self.get_table(table_).insert(columns, values)
         if self.__be is not None:
-            self.get_table(tablename).add_row_into_be()
+            self.get_table(table_).add_row_into_be()
 
 
     def read_dict(self, dict_obj, tablepaths=[]):

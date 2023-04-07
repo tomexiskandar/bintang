@@ -16,6 +16,7 @@ Requirements
 1. Python 3.6 or higher
 2. openpyxl
 3. pyodbc
+4. thefuzz
 
 
 Installation
@@ -51,7 +52,7 @@ Use insert function to insert data. The parameter is a pair of column names and 
    bt['Person'].insert(['id','name','hobby','address'], [4,'Maria','Digging',None])  
    bt['Person'].insert(['id','name','hobby'], [5,'Bing','Digging'])
 
-Loop your data using iterows function. This will loop through all the rows one by one in a python dict.
+Loop your data using iterrows function. This will loop through all the rows one by one in a python dict.
 
 .. code-block:: console
 
@@ -110,13 +111,14 @@ Common Functions
 
 We are going to provide some functions that may be needed most when working with Bintang objects.
 
-Bintang.read_excel(path, sheetname)
+Bintang.read_excel(path, sheetname, table=None)
 -----------------------------------
 
 Read an Excel file into Bintang table.
 
 | path: an excel file path to read from.
-| sheetname: the sheetname and will be used as tablename.
+| sheetname: the sheetname to read from.
+| table: table name to hold the data. If not given then sheetname will be used.
 
 .. code:: python
 
@@ -142,7 +144,7 @@ Table.to_excel(path, index=False)
 Write Bintang table to an Excel file.
 
 | path: an excel file path to write to.
-| index: write row index if it set True.
+| index: write row index if it sets True.
 
 .. code:: python
 

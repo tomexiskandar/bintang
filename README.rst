@@ -129,10 +129,10 @@ Read an Excel file into Bintang table.
 Table.iterrows(columns=None, row_type='dict')
 --------------------------------------------------
 
-Loop through Bintang table's rows and yield index and row. By default row will be in python dictionary.
+Loop through Bintang table's rows and yield index and row. Row can be yield in as dict (default) or list.
 
 | columns: a list of columns for each row will contain. If None, contain all columns.
-| row_type: roweither 'dict' or 'list'. Default the row type as dict.
+| row_type: either 'dict' (default) or 'list'.
 
 .. code:: python
 

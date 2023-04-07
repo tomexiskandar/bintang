@@ -31,8 +31,8 @@ Examples of Usage
 -----------------
 .. code-block:: console
 
-   import bintang  #  import the package   
-   bt = bintang.Bintang() # bintang object created  
+   import bintang          # import the package
+   bt = bintang.Bintang()  # bintang object created
 
    bt.create_table('Person')  
    bt  

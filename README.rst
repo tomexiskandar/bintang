@@ -68,7 +68,7 @@ Loop your data using iterrows function. This will loop through all the rows one 
 
 You should notice that all column names now have been normalised for each row, even though all records have not used all column names during insertion.
  
-Inspect Person table column list. You can also use function table.get_columnnames() to list all column names.
+Inspect Person table column list. You can also use function table.get_columns() to list all column names.
 
 .. code-block:: console
 

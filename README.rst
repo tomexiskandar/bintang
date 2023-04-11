@@ -51,7 +51,7 @@ Use insert function to insert data. The parameters are record and columns.
    bt['Person'].insert([1,'John',35,'1 Station St'], ['id','name','age','address'])  
    bt['Person'].insert([2,'Jane',17,'Reading','8 Parade Rd'], ['id','name','age','hobby','address'])  
    bt['Person'].insert([3,'Okie','Fishing','7 Ocean Rd'], ['id','name','hobby','address'])
-   bt['Person'].insert([4,'Maria','Digging','Heaven'], ['id','name','hobby','address'])
+   bt['Person'].insert([4,'Maria','Digging','7 Heaven Ave'], ['id','name','hobby','address'])
    bt['Person'].insert([5,'Bing','Digging'], ['id','name','hobby'])
 
 Loop your data using iterrows function. This will loop through all the rows one by one in a python dict.
@@ -64,7 +64,7 @@ Loop your data using iterrows function. This will loop through all the rows one 
    0 {'id': 1, 'name': 'John', 'age': 35, 'address': '1 Station St', 'hobby': None}
    1 {'id': 2, 'name': 'Jane', 'age': 17, 'address': '8 Parade Rd', 'hobby': 'Reading'}
    2 {'id': 3, 'name': 'Okie', 'age': None, 'address': '7 Ocean Rd', 'hobby': 'Fishing'}
-   3 {'id': 4, 'name': 'Maria', 'age': None, 'address': 'Heaven', 'hobby': 'Digging'}
+   3 {'id': 4, 'name': 'Maria', 'age': None, 'address': '7 Heaven Ave', 'hobby': 'Digging'}
    4 {'id': 5, 'name': 'Bing', 'age': None, 'address': None, 'hobby': 'Digging'}
 
 You should notice that all columns now have been normalised for each row, even though all records have not used all column names during insertion.\
@@ -96,7 +96,7 @@ Retrieve the row stored at the 3rd index by passing 3 inside the list next to ta
 .. code:: console
 
    bt['Person'][3] 
-   {'id': 4, 'name': 'Maria', 'age': 10, 'address': 'Heaven', 'hobby': 'Digging'} 
+   {'id': 4, 'name': 'Maria', 'age': 10, 'address': '7 Heaven Ave', 'hobby': 'Digging'} 
 
 
 
@@ -171,7 +171,7 @@ Insert a record into a table.
    p.insert([1,'John','Smith','1 Station St'], ['id','name','surname','address'])
    p.insert([2,'Jane','Brown','Digging','8 Parade Rd'], ['id','name','surname','hobby','address'])
    p.insert([3,'Okie','Dokie','7 Ocean Rd'], ['id','name','surname','Address'])
-   p.insert((4,'Maria','Digging','Heaven'), ('id','name','hobby','Address'))
+   p.insert((4,'Maria','Digging','7 Heaven Ave'), ('id','name','hobby','Address'))
    p.insert((5,'Bing','Digging',None), ('id','name','hobby','Address'))
 
    bt.create_table('FishingClub')
@@ -241,7 +241,7 @@ Notes: Currently tested for SQL Server 2019. However this function should work w
    person.insert([1,'John','Smith','1 Station St'], ['id','name','surname','address'])
    person.insert([2,'Jane','Brown','Digging','8 Parade Rd'], ['id','name','surname','address'])
    person.insert([3,'Okie','Dokey','7 Ocean Rd'], ['id','name','surname','address'])
-   person.insert((4,'Maria','Digging','Heaven'), ('id','name','hobby','Address'))
+   person.insert((4,'Maria','Digging','7 Heaven Ave'), ('id','name','hobby','Address'))
    person.insert((5,'Bing','Digging',None), ('id','name','hobby','Address'))
     
    # let map column ID, FirstName, LastName, Address

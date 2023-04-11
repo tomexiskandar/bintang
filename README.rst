@@ -44,7 +44,7 @@ Examples of Usage
       ]  
    }  
 
-Use insert function to insert data. The parameter is a pair of record and columnname.
+Use insert function to insert data. The parameter is a pair of record and columns.
 
 .. code-block:: console
 
@@ -67,9 +67,11 @@ Loop your data using iterrows function. This will loop through all the rows one 
    3 {'id': 4, 'name': 'Maria', 'age': None, 'address': None, 'hobby': 'Digging'}
    4 {'id': 5, 'name': 'Bing', 'age': None, 'address': None, 'hobby': 'Digging'}
 
-You should notice that all column names now have been normalised for each row, even though all records have not used all column names during insertion.
+You should notice that all columns now have been normalised for each row, even though all records have not used all column names during insertion.\
+When the 1st record (idx 0) is inserted, four columns created. id, name, age and address.
+When insert 4th record is inserted (idx 3), a hobby column added.
  
-Inspect Person table column list. You can also use function table.get_columns() to list all column names.
+Inspect Person table column list. You can also use function table.get_columns() to list all columns.
 
 .. code-block:: console
 
@@ -92,7 +94,7 @@ Inspect Person table column list. You can also use function table.get_columns() 
       etc...
    }
 
-Use update function to change the data. The function signature is table.update(columnname, value, where=None). The value and where arg can use lambda function for smarter expression.
+Use update function to change the data. The function signature is table.update(column, value, where=None). The value and where arg can use lambda function for smarter expression.
 
 .. code-block:: console
 
@@ -134,7 +136,7 @@ return a new table from an inner join operation.
 
 | left_table: name of left table or the first table.
 | right_table: name if right table or the second table.
-| on: a list of columns to match for the join.
+| on: a list of pair columns used for the join.
 | into: a new table name to hold the result.
 | out_leftcolumns: column output from left table.
 | out_rightcolumns: column outpout from right table.
@@ -150,10 +152,10 @@ return a new table from an inner join operation.
    # ...
 
    # let's match the two tables for their firt name and last name.
-   res = bt.innerjoin('Person'
-                     ,'FishingClub'
-                     ,[('name','FirstName'), ('surname','LastName')]
-                     ,'Fisherman'
+   res = bt.innerjoin('Person'                                       # left table
+                     ,'FishingClub'                                  # right table
+                     ,[('name','FirstName'), ('surname','LastName')] # on
+                     ,'Fisherman'                                    # into
                      ,out_lcolumns=['name','address']
                      ,out_rcolumns=['Membership']
                      )

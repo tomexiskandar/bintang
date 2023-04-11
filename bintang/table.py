@@ -70,23 +70,23 @@ class Table(object):
             return columns
         
 
-    def to_sql(self, conn, schemaname, table, columns, method='prep', max_rows = 1):
+    def to_sql(self, conn, schema, table, columns, method='prep', max_rows = 1):
         if method == 'prep':
-            return self.to_sql_prep(conn, schemaname, table, columns, max_rows=max_rows)
+            return self.to_sql_prep(conn, schema, table, columns, max_rows=max_rows)
         elif method =='string':
-            return self.to_sql_string(self, conn, schemaname, table, columns, max_rows=max_rows)
+            return self.to_sql_string(self, conn, schema, table, columns, max_rows=max_rows)
 
  
-    def to_sql_string(self, conn, schemaname, table, columns, max_rows = 300):
+    def to_sql_string(self, conn, schema, table, columns, max_rows = 300):
         colmap = self.set_to_sql_colmap(columns)
         src_cols = [x for x in colmap.values()]
         dest_columns = [x for x in colmap.keys()]
        
 
         sql_template = 'INSERT INTO {}.{} ({}) VALUES'
-        str_stmt = sql_template.format(schemaname,table,",".join(['"{}"'.format(x) for x in colmap]))
+        str_stmt = sql_template.format(schema,table,",".join(['"{}"'.format(x) for x in colmap]))
 
-        sql_cols_withtype = self.set_sql_datatype(dest_columns, conn, schemaname, table)
+        sql_cols_withtype = self.set_sql_datatype(dest_columns, conn, schema, table)
         sql_cols_withliteral = self.set_sql_literal(sql_cols_withtype, conn)
         
         # start insert to sql
@@ -140,12 +140,12 @@ class Table(object):
         return tobj
     
 
-    def set_sql_datatype(self, dest_columns, conn, schemaname, table):
+    def set_sql_datatype(self, dest_columns, conn, schema, table):
         cursor = conn.cursor()
-        sql_columns = cursor.columns(schema=schemaname, table=table)
+        sql_columns = cursor.columns(schema=schema, table=table)
         columns = [column[0] for column in cursor.description]
         tobj = Table('sql_columns_')
-        for row in sql_columns: #cursor.columns(schema=schemaname, table=table):
+        for row in sql_columns: #cursor.columns(schema=schema, table=table):
             tobj.insert(columns, row)
         sql_columns_withtype = {}
         for col in dest_columns:
@@ -165,7 +165,7 @@ class Table(object):
         return sql_cols_withliteral
 
 
-    def to_sql_prep(self, conn, schemaname, table, columns, max_rows = 1):
+    def to_sql_prep(self, conn, schema, table, columns, max_rows = 1):
         if max_rows <= len(self): # validate max_row
             mrpb = max_rows # assign max row per batch
         else:
@@ -180,7 +180,7 @@ class Table(object):
         # create as prepared statement
         sql_template = 'INSERT INTO {}.{} ({}) VALUES {}'
         param_markers = self.gen_row_param_markers(numof_col, mrpb)
-        prep_stmt = sql_template.format(schemaname,table,",".join(['"{}"'.format(x) for x in dest_columns]),param_markers)
+        prep_stmt = sql_template.format(schema,table,",".join(['"{}"'.format(x) for x in dest_columns]),param_markers)
         cursor = conn.cursor()
         temp_rows = []
         total_rowcount = 0
@@ -194,7 +194,7 @@ class Table(object):
         
         if len(temp_rows) > 0: # if any reminder
             param_markers = self.gen_row_param_markers(numof_col, int(len(temp_rows)/numof_col))
-            prep_stmt = sql_template.format(schemaname,table,",".join(['"{}"'.format(x) for x in dest_columns]),param_markers)
+            prep_stmt = sql_template.format(schema,table,",".join(['"{}"'.format(x) for x in dest_columns]),param_markers)
             cursor.execute(prep_stmt, temp_rows)
             total_rowcount += cursor.rowcount
         return total_rowcount        

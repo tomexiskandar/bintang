@@ -111,9 +111,9 @@ Bintang.read_excel(path, sheetname, table=None)
 
 Read an Excel file into Bintang table.
 
-| path: an excel file path to read from.
-| sheetname: the sheetname to read from.
-| table: table name to hold the data. If not given, table name will be the sheetname.
+:path: an excel file path to read from.
+:sheetname: the sheetname to read from.
+:table: table name to hold the data. If not given, table name will be the sheetname.
 
 .. code:: python
 
@@ -125,12 +125,12 @@ Bintang.innerjoin(left_table, right_table, on, into, out_leftcolumns, out_rightc
 
 return a new table from an inner join operation.
 
-| left_table: name of left table or the first table.
-| right_table: name if right table or the second table.
-| on: a list of pair columns used for the join.
-| into: a new table name to hold the result.
-| out_leftcolumns: column output from left table.
-| out_rightcolumns: column outpout from right table.
+:left_table: name of left table or the first table.
+:right_table: name if right table or the second table.
+:on: a list of pair columns used for the join.
+:into: a new table name to hold the result.
+:out_leftcolumns: column output from left table.
+:out_rightcolumns: column outpout from right table.
 
 .. code:: python
 
@@ -160,8 +160,8 @@ Bintang.Table.insert(record, columns=None)
 ------------------------------------------
 Insert a record into a table.
 
-| record: a list/tuple of data. Or a dict where key=column, value=record
-| columns: a list/tuple of columns in the right order of the record.
+:record: a list/tuple of data. Or a dict where key=column, value=record
+:columns: a list/tuple of columns in the right order of the record.
 
 .. code:: python
 
@@ -197,8 +197,8 @@ Bintang.Table.iterrows(columns=None, row_type='dict')
 
 Loop through Bintang table's rows and yield index and row. Row can be called out as dict (default) or list.
 
-| columns: a list of columns for each row will output. If None, output all columns.
-| row_type: either 'dict' (default) or 'list'.
+:columns: a list of columns for each row will output. If None, output all columns.
+:row_type: either 'dict' (default) or 'list'.
 
 .. code:: python
 
@@ -212,8 +212,8 @@ Bintang.Table.to_excel(path, index=False)
 
 Write Bintang table to an Excel file.
 
-| path: an excel file path to write to.
-| index: write row index if it sets True.
+:path: an excel file path to write to.
+:index: write row index if it sets True.
 
 .. code:: python
 
@@ -227,7 +227,7 @@ Insert records into sql table.
 Notes: Currently tested for SQL Server 2019. However this function should work with other dbms supportted by pyodbc.
 
 :conn: pyodbc database connection
-:schemaname: the schema name the sql table belong to.
+:schema: the schema name the sql table belong to.
 :table: the table name in the sql database
 :columns: a dictionary of column mappings where the key is sql column (destination) and the value is bintang columns (source). If columns is a list, column mapping will be created automatically assuming source columns and destination columns are the same.
 :method: prep to use prepared statement (default) or string to use sql string. To avoid sql injection, never use method string when the datasource is not known or from they are from external.
@@ -257,3 +257,4 @@ Notes: Currently tested for SQL Server 2019. However this function should work w
 
 
 
+   

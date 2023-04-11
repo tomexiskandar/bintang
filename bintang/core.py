@@ -316,7 +316,7 @@ class Bintang():
             if rownum > 1:
                 for cell in row_cells:
                     values.append(cell.value)
-                self.get_table(table_).insert(columns, values)
+                self.get_table(table_).insert(values, columns)
         if self.__be is not None:
             self.get_table(table_).add_row_into_be()
 

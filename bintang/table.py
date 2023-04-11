@@ -68,8 +68,16 @@ class Table(object):
             return dict(zip(columns, columns))
         elif isinstance(columns, dict):
             return columns
-            
-    def to_sql_str(self, conn, schemaname, table, columns, max_rows = 300):
+        
+
+    def to_sql(self, conn, schemaname, table, columns, method='prep', max_rows = 1):
+        if method == 'prep':
+            return self.to_sql_prep(conn, schemaname, table, columns, max_rows=max_rows)
+        elif method =='string':
+            return self.to_sql_string(self, conn, schemaname, table, columns, max_rows=max_rows)
+
+ 
+    def to_sql_string(self, conn, schemaname, table, columns, max_rows = 300):
         colmap = self.set_to_sql_colmap(columns)
         src_cols = [x for x in colmap.values()]
         dest_columns = [x for x in colmap.keys()]
@@ -86,7 +94,7 @@ class Table(object):
         temp_rows = []  
         total_rowcount = 0 # to hold total record affected
         for idx, values in self.iterrows(src_cols, row_type='list'):
-            ## question: can values and d_cols_withliteral align???????
+            ## question: can values and d_cols_withliteral align? dict python 3.7 is ordered and will solve it?
             sql_record = self.gen_sql_literal_record(values, sql_cols_withliteral)
             temp_rows.append(sql_record)
             if len(temp_rows) == max_rows:
@@ -157,7 +165,7 @@ class Table(object):
         return sql_cols_withliteral
 
 
-    def to_sql(self, conn, schemaname, table, columns, max_rows = 1):
+    def to_sql_prep(self, conn, schemaname, table, columns, max_rows = 1):
         if max_rows <= len(self): # validate max_row
             mrpb = max_rows # assign max row per batch
         else:
@@ -180,15 +188,8 @@ class Table(object):
             for v in row:
                 temp_rows.append(v)
             if len(temp_rows) == (mrpb * numof_col):
-                try:
-                    cursor.execute(prep_stmt, temp_rows)
-                    total_rowcount += cursor.rowcount
-                except Exception as e:
-                    log.error(e)
-                    log.error('Error!! uploading data to dbms with the following data.')
-                    log.error(prep_stmt)
-                    data = [str(x) for x in temp_rows]
-                    log.error(','.join(data))
+                cursor.execute(prep_stmt, temp_rows)
+                total_rowcount += cursor.rowcount
                 temp_rows.clear()     
         
         if len(temp_rows) > 0: # if any reminder

@@ -2,6 +2,7 @@
 Bintang
 =======
 A tiny and temporary db for quick data cleansing and transformation.
+It is a high level python coding and would help any beginners up to speed with ETL work.
 
 .. contents:: Overview
    :depth: 3
@@ -13,7 +14,7 @@ How to get started
 
 Requirements
 ------------
-1. Python 3.6 or higher
+1. Python 3.7 or higher
 2. openpyxl
 3. pyodbc
 4. thefuzz
@@ -43,14 +44,14 @@ Examples of Usage
       ]  
    }  
 
-Use insert function to insert data. The parameter is a pair of column names and values and must be a list or tuple.
+Use insert function to insert data. The parameter is a pair of record and columnname.
 
 .. code-block:: console
 
    bt['Person'].insert([1,'John',35,'1 Station St'], ['id','name','age','address'])  
    bt['Person'].insert([2,'Jane',17,'Reading','8 Parade Rd'], ['id','name','age','hobby','address'])  
-   bt['Person'].insert([3,'Nutmeg','Fishing','7 Ocean Rd'], ['id','name','hobby','address'])
-   bt['Person'].insert( [4,'Maria','Digging',None], ['id','name','hobby','address'])
+   bt['Person'].insert([3,'Okie','Fishing','7 Ocean Rd'], ['id','name','hobby','address'])
+   bt['Person'].insert([4,'Maria','Digging',None], ['id','name','hobby','address'])
    bt['Person'].insert([5,'Bing','Digging'], ['id','name','hobby'])
 
 Loop your data using iterrows function. This will loop through all the rows one by one in a python dict.
@@ -62,7 +63,7 @@ Loop your data using iterrows function. This will loop through all the rows one 
   
    0 {'id': 1, 'name': 'John', 'age': 35, 'address': '1 Station St', 'hobby': None}
    1 {'id': 2, 'name': 'Jane', 'age': 17, 'address': '8 Parade Rd', 'hobby': 'Reading'}
-   2 {'id': 3, 'name': 'Nutmeg', 'age': None, 'address': '7 Ocean Rd', 'hobby': 'Fishing'}
+   2 {'id': 3, 'name': 'Okie', 'age': None, 'address': '7 Ocean Rd', 'hobby': 'Fishing'}
    3 {'id': 4, 'name': 'Maria', 'age': None, 'address': None, 'hobby': 'Digging'}
    4 {'id': 5, 'name': 'Bing', 'age': None, 'address': None, 'hobby': 'Digging'}
 
@@ -174,18 +175,20 @@ Insert a record into a table.
    bt.create_table('Person') 
    p = bt.get_table('Person') # get table object for Person
    # insert data directly from table object instead throug bt object.
-   p.insert((1,'John','Smith','1 Station St'), ('id','name','surname','address'))
-   p.insert([2,'Jane','Brown','Digging','8 Parade Rd'], ('id','name','surname','hobby','address'))
-   p.insert((3,'Nutmeg','Spaniel','7 Ocean Rd'), ('id','name','surname','Address'))
-   p.insert((4,'Maria','Digging',None), ('id','name','hobby','Address'))
+   p.insert([1,'John','Smith','1 Station St'], ['id','name','surname','address'])
+   p.insert([2,'Jane','Brown','Digging','8 Parade Rd'], ['id','name','surname','hobby','address'])
+   p.insert([3,'Okie','Dokie','7 Ocean Rd'], ['id','name','surname','Address'])
+   p.insert((4,'Maria','Digging','Heaven'), ('id','name','hobby','Address'))
    p.insert((5,'Bing','Digging',None), ('id','name','hobby','Address'))
 
    bt.create_table('FishingClub')
-   bt['FishingClub'].insert(('Ajes','Freeman','Active'), ('FirstName','LastName','Membership'))
-   bt['FishingClub'].insert(('John','Smith','Active'), ('FirstName','LastName','Membership'))
-   bt['FishingClub'].insert(('John','Brown','Active'), ('FirstName','LastName','Membership'))
-   bt['FishingClub'].insert(('Nutmeg','Spaniel','Active'), ('FirstName','LastName','Membership'))
-   bt['FishingClub'].insert(('Zekey','Pokey','Active'), ('FirstName','LastName','Membership'))
+   # lets make a list of columns so we can pass it to insert.
+   columns = ['FirstName','LastName','Membership']
+   bt['FishingClub'].insert(['Ajes','Freeman','Active'], columns)
+   bt['FishingClub'].insert(['John','Smith','Active'], columns)
+   bt['FishingClub'].insert(['John','Brown','Active'], columns)
+   bt['FishingClub'].insert(['Okie','Dokie','Active'], columns)
+   bt['FishingClub'].insert(['Zekey','Pokey','Active'], columns)
 
 
    bt.create_table("Product")
@@ -201,7 +204,7 @@ Bintang.Table.iterrows(columns=None, row_type='dict')
 
 Loop through Bintang table's rows and yield index and row. Row can be called out as dict (default) or list.
 
-| columns: a list of columns for each row will contain. If None, contain all columns.
+| columns: a list of columns for each row will output. If None, output all columns.
 | row_type: either 'dict' (default) or 'list'.
 
 .. code:: python
@@ -222,3 +225,42 @@ Write Bintang table to an Excel file.
 .. code:: python
 
    bt['tablename'].to_excel('/path/to/file.xlsx')
+
+
+Bintang.Table.to_sql(conn, schemaname, table, columns, method='prep', max_rows = 1)
+-----------------------------------------------------------------------------------
+
+Insert records into sql table.
+Notes: Currently tested for SQL Server 2019. However this function should work with other dbms supportted by pyodbc.
+
+| conn: pyodbc database connection
+| schemaname: the schema name the sql table belong to.
+| table: the table name in the sql database
+| columns: a dictionary of column mappings where the key is sql column (destination) and the value is bintang columns (source). If columns is a list, column mapping will be created automatically assuming source columns and destination columns are the same.
+| method: prep to use prepared statement (default) or string to use sql string. Use string only for known/'internal' datasource.
+| max_rows: maximum rows per insert. Insert more then 1 record when using prep require all data in a column to use the same type, otherwise will raise error.
+
+.. code:: python
+
+   bt = bintang.Bintang('my bintang')
+   bt.create_table('Person')
+   person = bt.get_table('Person')
+   person.insert([1,'John','Smith','1 Station St'], ['id','name','surname','address'])
+   person.insert([2,'Jane','Brown','Digging','8 Parade Rd'], ['id','name','surname','address'])
+   person.insert([3,'Okie','Dokey','7 Ocean Rd'], ['id','name','surname','address'])
+   person.insert((4,'Maria','Digging','Heaven'), ('id','name','hobby','Address'))
+   person.insert((5,'Bing','Digging',None), ('id','name','hobby','Address'))
+    
+   # let map column ID, FirstName, LastName, Address
+   columns = {'ID':'id', 'FirstName':'name', 'LastName':'surname', 'Address':'address'}
+   # connect to database
+   conn = pyodbc.connect("DRIVER={ODBC Driver 17 for SQL Server};SERVER=localhost;PORT=1443;DATABASE=test;Trusted_Connection=yes;")  
+   # send data to sql
+   ret = person.to_sql(conn, 'dbo', 'Person', columns)
+   print(f'{ret} record(s) affected.')
+   conn.commit()
+   conn.close()   
+
+
+
+

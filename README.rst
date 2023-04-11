@@ -190,7 +190,7 @@ Insert a record into a table.
 
    bt.create_table("Product")
    prod = bt['Product']
-   # example of assign a dictionary argument for record parameter.
+   # example of assigning a dictionary argument for record parameter.
    prod.insert({'id':1, 'name':'Hook','price':1.60})
    prod.insert({'id':2, 'name':'Sinker','price':1.20})
    prod.insert({'id':3, 'name':'Reels','price':75})
@@ -199,7 +199,7 @@ Insert a record into a table.
 Bintang.Table.iterrows(columns=None, row_type='dict')
 -----------------------------------------------------
 
-Loop through Bintang table's rows and yield index and row. Row can be yield in as dict (default) or list.
+Loop through Bintang table's rows and yield index and row. Row can be called out as dict (default) or list.
 
 | columns: a list of columns for each row will contain. If None, contain all columns.
 | row_type: either 'dict' (default) or 'list'.

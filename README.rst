@@ -44,7 +44,7 @@ Examples of Usage
       ]  
    }  
 
-Use insert function to insert data. The parameter is a pair of record and columns.
+Use insert function to insert data. The parameters are record and columns.
 
 .. code-block:: console
 
@@ -126,11 +126,11 @@ Bintang.innerjoin(left_table, right_table, on, into, out_leftcolumns, out_rightc
 return a new table from an inner join operation.
 
 :left_table: name of left table or the first table.
-:right_table: name if right table or the second table.
+:right_table: name of right table or the second table.
 :on: a list of pair columns used for the join.
 :into: a new table name to hold the result.
-:out_leftcolumns: column output from left table.
-:out_rightcolumns: column outpout from right table.
+:out_leftcolumns: columns output from left table.
+:out_rightcolumns: columns outpout from right table.
 
 .. code:: python
 
@@ -220,7 +220,7 @@ Write Bintang table to an Excel file.
    bt['tablename'].to_excel('/path/to/file.xlsx')
 
 
-Bintang.Table.to_sql(conn, schemaname, table, columns, method='prep', max_rows = 1)
+Bintang.Table.to_sql(conn, schema, table, columns, method='prep', max_rows = 1)
 -----------------------------------------------------------------------------------
 
 Insert records into sql table.

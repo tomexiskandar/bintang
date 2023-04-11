@@ -47,11 +47,11 @@ Use insert function to insert data. The parameter is a pair of column names and 
 
 .. code-block:: console
 
-   bt['Person'].insert(['id','name','age','address'], [1,'John',35,'1 Station St'])  
-   bt['Person'].insert(['id','name','age','hobby','address'], [2,'Jane',17,'Reading','8 Parade Rd'])  
-   bt['Person'].insert(['id','name','hobby','address'], [3,'Nutmeg','Fishing','7 Ocean Rd'])  
-   bt['Person'].insert(['id','name','hobby','address'], [4,'Maria','Digging',None])  
-   bt['Person'].insert(['id','name','hobby'], [5,'Bing','Digging'])
+   bt['Person'].insert([1,'John',35,'1 Station St'], ['id','name','age','address'])  
+   bt['Person'].insert([2,'Jane',17,'Reading','8 Parade Rd'], ['id','name','age','hobby','address'])  
+   bt['Person'].insert([3,'Nutmeg','Fishing','7 Ocean Rd'], ['id','name','hobby','address'])
+   bt['Person'].insert( [4,'Maria','Digging',None], ['id','name','hobby','address'])
+   bt['Person'].insert([5,'Bing','Digging'], ['id','name','hobby'])
 
 Loop your data using iterrows function. This will loop through all the rows one by one in a python dict.
 
@@ -141,20 +141,12 @@ return a new table from an inner join operation.
 .. code:: python
 
    bt.create_table('Person') # This will be a left table
-   person = bt.get_table('Person') # get table object for Person
-   # insert data directly from table object instead throug bt object.
-   person.insert(('id','name','surname','address'),(1,'John','Smith','1 Station St'))
-   person.insert(('id','name','surname','hobby','address'),[2,'Jane','Brown','Digging','8 Parade Rd'])
-   person.insert(('id','name','surname','Address'),(3,'Nutmeg','Spaniel','7 Ocean Rd'))
-   person.insert(('id','name','hobby','Address'),(4,'Maria','Digging',None))
-   person.insert(('id','name','hobby','Address'),(5,'Bing','Digging',None))
+   # insert some record here. See insert below for an example.
+   # ...
 
    bt.create_table('FishingClub') # this will be a right table
-   bt['FishingClub'].insert(('FirstName','LastName','Membership'),('Ajes','Freeman','Active'))
-   bt['FishingClub'].insert(('FirstName','LastName','Membership'),('John','Smith','Active'))
-   bt['FishingClub'].insert(('FirstName','LastName','Membership'),('John','Brown','Active'))
-   bt['FishingClub'].insert(('FirstName','LastName','Membership'),('Nutmeg','Spaniel','Active'))
-   bt['FishingClub'].insert(('FirstName','LastName','Membership'),('Zekey','Pokey','Active'))
+   # insert some records here. See insert below for an example.
+   # ...
 
    # let's match the two tables for their firt name and last name.
    res = bt.innerjoin('Person'
@@ -169,8 +161,43 @@ return a new table from an inner join operation.
    for idx, row in bt['Fisherman'].iterrows():
       print(idx, row)
 
+
+Bintang.Table.insert(record, columns=None)
+------------------------------------------
+Insert a record into a table.
+
+| record: a list/tuple of data. Or a dict where key=column, value=record
+| columns: a list/tuple of columns in the right order of the record.
+
+.. code:: python
+
+   bt.create_table('Person') 
+   p = bt.get_table('Person') # get table object for Person
+   # insert data directly from table object instead throug bt object.
+   p.insert((1,'John','Smith','1 Station St'), ('id','name','surname','address'))
+   p.insert([2,'Jane','Brown','Digging','8 Parade Rd'], ('id','name','surname','hobby','address'))
+   p.insert((3,'Nutmeg','Spaniel','7 Ocean Rd'), ('id','name','surname','Address'))
+   p.insert((4,'Maria','Digging',None), ('id','name','hobby','Address'))
+   p.insert((5,'Bing','Digging',None), ('id','name','hobby','Address'))
+
+   bt.create_table('FishingClub')
+   bt['FishingClub'].insert(('Ajes','Freeman','Active'), ('FirstName','LastName','Membership'))
+   bt['FishingClub'].insert(('John','Smith','Active'), ('FirstName','LastName','Membership'))
+   bt['FishingClub'].insert(('John','Brown','Active'), ('FirstName','LastName','Membership'))
+   bt['FishingClub'].insert(('Nutmeg','Spaniel','Active'), ('FirstName','LastName','Membership'))
+   bt['FishingClub'].insert(('Zekey','Pokey','Active'), ('FirstName','LastName','Membership'))
+
+
+   bt.create_table("Product")
+   prod = bt['Product']
+   # example of assign a dictionary argument for record parameter.
+   prod.insert({'id':1, 'name':'Hook','price':1.60})
+   prod.insert({'id':2, 'name':'Sinker','price':1.20})
+   prod.insert({'id':3, 'name':'Reels','price':75})
+
+
 Bintang.Table.iterrows(columns=None, row_type='dict')
---------------------------------------------------
+-----------------------------------------------------
 
 Loop through Bintang table's rows and yield index and row. Row can be yield in as dict (default) or list.
 
@@ -185,7 +212,7 @@ Loop through Bintang table's rows and yield index and row. Row can be yield in a
 
 
 Bintang.Table.to_excel(path, index=False)
----------------------------------
+-----------------------------------------
 
 Write Bintang table to an Excel file.
 

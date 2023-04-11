@@ -472,7 +472,34 @@ class Table(object):
         return row
 
 
-    def insert(self,columns,values):
+    def insert(self, record, columns=None):
+        """ restrict arguments for record insertion for this function as the followings:
+        1. a pair of columns and its single-row values
+        deprecated2. a pair of columns and its multiple-row values (as a list of tuple)
+        """
+
+        if isinstance(record, dict):
+            row = self.make_row()
+            for idx, (col, val) in enumerate(record.items()):
+                cell = self.make_cell(col,val)
+                row.add_cell(cell) # add to row
+            self.add_row(row)                                    
+        elif isinstance(columns,list) or isinstance(columns,tuple) or isinstance(record,list) or isinstance(record,tuple):
+            row = self.make_row()
+            for idx, col in enumerate(columns):
+                cell = self.make_cell(col,record[idx])
+                row.add_cell(cell) # add to rows
+            if self.__be is not None:
+                self.__temprows.append(json.dumps({v.columnid: v.value for v in row.cells.values()}))
+                if len(self.__temprows) == self.__be.max_row_for_sql_insert:
+                    self.add_row_into_be()
+            else:
+                self.add_row(row)    
+        else:
+            raise ValueError("Arg for record set for dictionary or list/tuple of values with list/tuple of columns.")
+            
+            
+    def insert_old(self,columns,values):
         """ restrict arguments for data insertion for this function as the followings:
         1. a pair of columns and its single-row values
         deprecated2. a pair of columns and its multiple-row values (as a list of tuple)

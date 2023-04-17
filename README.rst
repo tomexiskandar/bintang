@@ -223,7 +223,7 @@ Bintang.Table.to_sql(conn, schema, table, columns, method='prep', max_rows = 1)
 -----------------------------------------------------------------------------------
 
 Insert records into sql table.
-Notes: Currently tested for SQL Server 2019. However this function should work with other dbms supportted by pyodbc.
+Notes: Currently tested for SQL Server 2019. However this function should work with other dbms supported by pyodbc.
 
 :conn: pyodbc database connection
 :schema: the schema name the sql table belong to.

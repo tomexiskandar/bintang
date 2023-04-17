@@ -243,7 +243,7 @@ Notes: Currently tested for SQL Server 2019. However this function should work w
    person.insert((4,'Maria','Digging','7 Heaven Ave'), ('id','name','hobby','Address'))
    person.insert((5,'Bing','Digging',None), ('id','name','hobby','Address'))
     
-   # let map column ID, FirstName, LastName, Address
+   # let's map column ID, FirstName, LastName, Address in database to bintang's Person table.
    columns = {'ID':'id', 'FirstName':'name', 'LastName':'surname', 'Address':'address'}
    # connect to database
    conn = pyodbc.connect("DRIVER={ODBC Driver 17 for SQL Server};SERVER=localhost;PORT=1443;DATABASE=test;Trusted_Connection=yes;")  

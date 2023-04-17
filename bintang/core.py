@@ -5,7 +5,7 @@ import json
 import copy
 from bintang.table import Table, Table_Path
 from bintang.table import _match_primitive, _match_caseless, _match_caseless_unicode
-from bintang import travdict
+from bintang import iterdict
 from pathlib import Path
 from bintang.log import log
 from thefuzz import process as thefuzzprocess
@@ -27,6 +27,7 @@ from thefuzz import process as thefuzzprocess
 class Bintang():
     def __init__(self, name=None, backend=None):
         self.name = name
+        self.parent = 'dad'
         self.__tables = {} # this must be a dict of id:table object
         self.__last_assigned_tableid= -1 #
         self.__be = None
@@ -70,7 +71,7 @@ class Bintang():
 
 
     def create_table(self, name, columns=None):
-        tobj = Table(name) # create a tobj object
+        tobj = Table(name, bing=self) # create a tobj object
         self.add_table(tobj)
         if self.__be is not None:   # if is_persistent is True then update the tobj attributes and pass the connection
             tobj._Table__be = self.__be           
@@ -78,6 +79,7 @@ class Bintang():
         if columns is not None:
             for column in columns: # add column
                 tobj.add_column(column)
+        return tobj        
 
     def delete_table(self, tablename):
         tableid = self.get_tableid(tablename)
@@ -171,7 +173,7 @@ class Bintang():
         self.get_table(tablename).insert(columns,values)
         
 
-    def get_cells_bycolumnnames(self,tablename,row,columns):
+    def _get_cells_bycolumns(self,tablename,row,columns):
         _cells = {} # to hold the results cells
         for name in columns:
             columnid = self.__tables[tablename].get_columnid(name)
@@ -212,15 +214,19 @@ class Bintang():
             raise ValueError('Tablename {} does not exist.'.format(tablename))
 
 
-    def iterrows(self, tablename, columns=None, row_type = 'dict', rowid=False):
+    def iterrows(self, table, columns=None, row_type = 'dict', rowid=False):
         """get the table form the collection
         then yield idx and row from table's iterrows()
         """
         
-        self.raise_valueerror_tablename(tablename)
-        for idx, row in self.get_table(tablename).iterrows(columns, row_type=row_type, rowid=rowid):
-            yield idx, row
-            
+        #self.raise_valueerror_tablename(tablename)
+        if isinstance(table, Table):
+            for idx, row in table.iterrows(columns, row_type=row_type, rowid=rowid):
+                yield idx, row
+        else:
+            for idx, row in self.get_table(table).iterrows(columns, row_type=row_type, rowid=rowid):
+                yield idx, row
+                
 
     def dev_read_db(self, connstr, tablename, columns = None):
         self.create_table(tablename)
@@ -292,8 +298,8 @@ class Bintang():
         table_ = sheetname
         if table is not None:
             table_ = table
-  
-        self.create_table(table_)        
+        if table_ not in self.get_tables():
+            self.create_table(table_)        
         if self.__be is not None:
             self.__be.create_table(table_)
         wb = load_workbook(path, read_only=True, data_only=True)
@@ -316,14 +322,18 @@ class Bintang():
             if rownum > 1:
                 for cell in row_cells:
                     values.append(cell.value)
-                self.get_table(table_).insert(values, columns)
+                # if rownum == 370:
+                #     log.debug(f'{values} at rownum 370.')
+                #     log.debug(any(values))
+                if any(values):
+                    self.get_table(table_).insert(values, columns)
         if self.__be is not None:
             self.get_table(table_).add_row_into_be()
 
 
     def read_dict(self, dict_obj, tablepaths=[]):
         debug = False
-        for tprow in travdict.traverse_dict(dict_obj, tablepaths):
+        for tprow in iterdict.iterdict(dict_obj, tablepaths):
             # if debug:
             #     print("\n---------------------in bintang---------------------")
             #     print(row)
@@ -367,7 +377,7 @@ class Bintang():
             cursor.execute(sql_str)
         columns = [col[0] for col in cursor.description]
         for row in cursor.fetchall():
-            self.insert(tablename, columns, row)
+            self.insert(tablename, row, columns)
              
 
     def VOID_get_row_asdict(self, tablename, idx, columns=None):
@@ -389,7 +399,7 @@ class Bintang():
 
 
     def _add_rcell(self, ridx, rtable, outrow, out_table, out_rcolumns, rcol_resolved, rowid):
-        for k, v in self[rtable].get_row_asdict(ridx,rowid=rowid).items():
+        for k, v in rtable.get_row_asdict(ridx,rowid=rowid).items():
             if out_rcolumns is None:
                 cell = self[out_table].make_cell(rcol_resolved[k],v)
                 outrow.add_cell(cell)
@@ -401,16 +411,16 @@ class Bintang():
         return outrow
 
 
-    def _resolve_join_columns (self,ltable, rtable, rowid=False):
+    def _resolve_join_columns (self,ltable, rtable_obj, rowid=False):
         # resolve any conflict column by prefixing its tablename
         # notes: conflict column occurs when the same column being used in two joining table.
         rcol_resolved = {}
         if rowid:
             rcol_resolved['rowid_'] = ltable + '_' + 'rowid_'
         lcolumns = self[ltable].get_columns()
-        for col in self[rtable].get_columns():
+        for col in rtable_obj.get_columns():
             if col in lcolumns:
-                rcol_resolved[col] = rtable + '_' + col
+                rcol_resolved[col] = rtable_obj.name + '_' + col
             else:
                 rcol_resolved[col] = col
         return rcol_resolved  
@@ -467,25 +477,33 @@ class Bintang():
 
     def innerjoin(self
                 ,ltable: str #, lkeys
-                ,rtable: str #, rkeys
-                ,on: list # list of lkey & r key tuple
+                ,rtable: str | Table #, rkeys
+                ,on: list[tuple] # list of lkey & r key tuple
                 ,into: str
                 ,out_lcolumns: list=None
                 ,out_rcolumns: list=None
                 ,rowid=False) -> Table:
-
+        
+        rtable_obj = None
+        if isinstance(rtable,Table):
+            rtable_obj = rtable
+            rtable = rtable.name
+        else:
+            rtable_obj = self[rtable]
         # validate input eg. column etc
         lkeys = [x[0] for x in on] # generate lkeys from on (1st sequence)
         rkeys = [x[1] for x in on] # generate rkeys from on (2nd sequence)
         lkeys = self[ltable].validate_columns(lkeys)
-        rkeys = self[rtable].validate_columns(rkeys)
+        #rkeys = self[rtable].validate_columns(rkeys)
+        rkeys = rtable_obj.validate_columns(rkeys)
         if out_lcolumns is not None:
             out_lcolumns = self[ltable].validate_columns(out_lcolumns)
         if out_rcolumns is not None:
-            out_rcolumns = self[rtable].validate_columns(out_rcolumns)
+            # out_rcolumns = self[rtable].validate_columns(out_rcolumns)
+            out_rcolumns = rtable_obj.validate_columns(out_rcolumns)
 
         # resolve columns conflicts
-        rcol_resolved = self._resolve_join_columns(ltable, rtable, rowid)
+        rcol_resolved = self._resolve_join_columns(ltable, rtable_obj, rowid)
         # create an output table
         out_table = into
         self.create_table(out_table)
@@ -498,7 +516,7 @@ class Bintang():
         # loop left table
         for lidx, lrow in self.iterrows(ltable, columns=lkeys, rowid=rowid):
             # loop right table
-            for ridx, rrow in self.iterrows(rtable, columns=rkeys, rowid=rowid):
+            for ridx, rrow in self.iterrows(rtable_obj, columns=rkeys, rowid=rowid):
                 matches = 0 # store matches for each rrow
                 # compare value for any matching keys, if TRUE then increment matches
                 for i in range(numof_keys): 
@@ -511,7 +529,7 @@ class Bintang():
                     # add cells from left table
                     outrow = self._add_lcell(lidx, ltable, outrow, out_table, out_lcolumns, rowid)
                     # add cells from right table
-                    outrow = self._add_rcell(ridx, rtable, outrow, out_table, out_rcolumns, rcol_resolved, rowid)   
+                    outrow = self._add_rcell(ridx, rtable_obj, outrow, out_table, out_rcolumns, rcol_resolved, rowid)   
                     out_tobj.add_row(outrow)
         #debug merged.print() 
         return out_tobj

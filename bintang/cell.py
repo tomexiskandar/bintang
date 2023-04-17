@@ -24,18 +24,25 @@ class Cell_Path_List(Cell):
             
 
     def __repr__(self):
-        return "{}(columnid:{}, value:{}, path_list:{}, get_columnname():{}, is_parent_key:{})".format\
+        return "{}(columnid:{}, value:{}, path_list:{}, get_column():{}, is_parent_key:{})".format\
             (__class__.__name__, str(self.columnid), str(self.value)\
-            ,str(self.path_list), self.get_columnname(), self.is_key)    
+            ,str(self.path_list), self.get_column(), self.is_key)    
         
     def gen_path_list_norowid(self):
         pathl_norowid = [x for x in self.path_list if not isinstance(x, int)]
         return pathl_norowid
      
 
-    def get_columnname(self):
+    def get_column(self):
         pathl_norowid = self.gen_path_list_norowid()
-        return pathl_norowid[-1]
+        colname = pathl_norowid[-1]
+        if pathl_norowid.count(colname) > 1: # resolve name if table and column would use the same name
+            return colname + '_' + colname
+        else:
+            return pathl_norowid[-1]
+    
+
+    
         
             
         

@@ -2,7 +2,7 @@
 Bintang
 =======
 A tiny and temporary db for quick data cleansing and transformation.
-It is a high level python coding and would help any beginners up to speed with ETL work.
+It is a high-level python coding and would help any beginners up to speed with ETL work.
 
 .. contents:: Overview
    :depth: 3
@@ -120,12 +120,11 @@ Read an Excel file into Bintang table.
    bt.read_excel('/path/to/file.xlsx', 'Sheet1')
 
 
-Bintang.innerjoin(left_table, right_table, on, into, out_leftcolumns, out_rightcolumns)
+Bintang.Table.innerjoin(right_table, on, into, out_leftcolumns, out_rightcolumns)
 ---------------------------------------------------------------------------------------
 
 return a new table from an inner join operation.
 
-:left_table: name of left table or the first table.
 :right_table: name of right table or the second table.
 :on: a list of pair columns used for the join.
 :into: a new table name to hold the result.
@@ -161,7 +160,7 @@ Bintang.Table.insert(record, columns=None)
 Insert a record into a table.
 
 :record: a list/tuple of data. Or a dict where key=column, value=record
-:columns: a list/tuple of columns in the right order of the record.
+:columns: a list/tuple of columns (in the same order as in the record)
 
 .. code:: python
 

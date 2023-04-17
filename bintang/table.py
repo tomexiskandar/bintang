@@ -1,3 +1,4 @@
+#from bintang.core import Bintang
 from bintang.column import Column
 from bintang.cell import Cell
 from bintang.row import Row
@@ -15,6 +16,7 @@ from bintang.log import log
 # logging.basicConfig(format=FORMAT)
 # log.setLevel(logging.DEBUG)
 
+PARENT_PREFIX = ''
 
 class ColumnNotFoundError(Exception):
     def __init__(self,table, column):
@@ -28,7 +30,8 @@ class Table(object):
        - provide columns to store a dictionary of column objects
        - provide rows to store a dictionary of row objects
     """
-    def __init__(self,name):
+    def __init__(self,name, bing=None):
+        self.bing = bing
         self.name = name
         self.__columns = {}
         self.__rows = {}
@@ -36,6 +39,7 @@ class Table(object):
         self.__last_assigned_columnid= -1 #
         self.__last_assigned_rowid = -1
         self.__be = None
+        
 
 
     def __getitem__(self, idx): # subscriptable version of self.get_row_asdict()
@@ -74,7 +78,7 @@ class Table(object):
         if method == 'prep':
             return self.to_sql_prep(conn, schema, table, columns, max_rows=max_rows)
         elif method =='string':
-            return self.to_sql_string(self, conn, schema, table, columns, max_rows=max_rows)
+            return self.to_sql_string(conn, schema, table, columns, max_rows=max_rows)
 
  
     def to_sql_string(self, conn, schema, table, columns, max_rows = 300):
@@ -133,20 +137,20 @@ class Table(object):
     def get_sql_typeinfo_table(self, conn):
         cursor = conn.cursor()
         sql_type_info_tuple = cursor.getTypeInfo(sqlType = None)
-        columnnames = [column[0] for column in cursor.description]
+        columns_ = [column[0] for column in cursor.description]
         tobj = Table('sql_typeinfo')
         for row in sql_type_info_tuple:
-            tobj.insert(columnnames, row)        
+            tobj.insert(row, columns_)        
         return tobj
     
 
     def set_sql_datatype(self, dest_columns, conn, schema, table):
         cursor = conn.cursor()
         sql_columns = cursor.columns(schema=schema, table=table)
-        columns = [column[0] for column in cursor.description]
+        columns_ = [column[0] for column in cursor.description]
         tobj = Table('sql_columns_')
         for row in sql_columns: #cursor.columns(schema=schema, table=table):
-            tobj.insert(columns, row)
+            tobj.insert(row, columns_)
         sql_columns_withtype = {}
         for col in dest_columns:
             _type = tobj.get_value('type_name', where = lambda row: row['column_name']==col)
@@ -188,6 +192,8 @@ class Table(object):
             for v in row:
                 temp_rows.append(v)
             if len(temp_rows) == (mrpb * numof_col):
+                # log.debug(prep_stmt)
+                # log.debug(temp_rows)
                 cursor.execute(prep_stmt, temp_rows)
                 total_rowcount += cursor.rowcount
                 temp_rows.clear()     
@@ -211,16 +217,30 @@ class Table(object):
 
     def gen_create_sqltable(self, dbms):
         # scanning table to get column properties
-        # and assin the data type and size (when able)
+        # and assign the data type and size (when able)
         self.set_data_props()
         for col in self.get_columns():
             cobj = self.__columns[self.get_columnid(col)]
-            for type, prop in cobj.data_props.items():
-                if type == 'str':
-                    cobj.data_type = 'str' #type_map['str'][0]
-                    cobj.column_size = prop['column_size']
-                else:
-                    cobj.data_type = type #type_map[type][0]    
+            if cobj.data_type is None:
+                if len(cobj.data_props) == 0: # a column that has no data at all
+                    cobj.data_type = 'str'  # force to str
+                    cobj.column_size = 50 # force to 50
+                # loop through the data props for column that has it
+                if 'str' in cobj.data_props:
+                    cobj.data_type = 'str'
+                    col_size = cobj.data_props['str']['column_size']
+                    # loop through any other type if the column_size bigger, if it is assign it.
+                    for k, v in cobj.data_props.items():
+                        if v['column_size'] > col_size:
+                            col_size = v['column_size']
+                    cobj.column_size = col_size #cobj.data_props['str']['column_size']
+                elif 'datetime' in cobj.data_props:
+                    cobj.data_type = 'datetime'
+                    cobj.column_size = cobj.dataprops['datetime']['column_size']
+                else: # just get the first one and break. to be observed later on!
+                    for type, prop in cobj.data_props.items():
+                        cobj.data_type = type
+                        break
         
         # use type_map to translate the type
         create_columns = []
@@ -243,6 +263,9 @@ class Table(object):
             create_columns_str.append(' '.join(create_item_str))
         create_sqltable_templ = "CREATE TABLE {} (\n{})".format(self.name, '\t,'.join(create_columns_str))
         return create_sqltable_templ 
+    
+
+
         
 
     def add_column(self,name, data_type=None, column_size=None):
@@ -576,23 +599,19 @@ class Table(object):
 
 
     def upsert_table_path_row(self, tprow):
-        debug = False
-        if debug:
-            print("\n  ------------------in upsert_table_path_row (table.py) --------------------")
+        #log.debug("\n  ------------------in upsert_table_path_row (table.py) --------------------")
         # extract the rowid and use it as the table index (the key of rows{})
         # create a row if the rowid not found in the table's index
         res_idx = self.get_rowidx_byrowid(tprow.id)
         
         if res_idx is None:
-            if debug:
-                print("inserting... row does not exist", tprow)
+            #log.debug(f'inserting... row does not exist {tprow}')
             row = self.make_row(tprow.id)
             # re-make cells from tprow
             for id, c in tprow.cells.items():
-                if debug:
-                    print('cell:', id, ";", c)
+                #log.debug(f'{id} cell: {c}')
                 if c.is_key == True:
-                    cell = self.make_cell('/' + c.get_column(), c.value)
+                    cell = self.make_cell(PARENT_PREFIX + c.get_column(), c.value)
                 else:
                     cell = self.make_cell(c.get_column(), c.value)
 
@@ -601,16 +620,14 @@ class Table(object):
             self.add_row(row)
             
         elif res_idx is not None:
-            if debug:
-                print("updating... row exists", tprow)
+            #log.debug(f"updating... row exists {tprow}")
             for id, c in tprow.cells.items():
                 if c.is_key == True:
-                    cell = self.make_cell('/' + c.get_column(), c.value)
+                    cell = self.make_cell(PARENT_PREFIX + c.get_column(), c.value)
                 else:
                     cell = self.make_cell(c.get_column(), c.value)
                 self.__rows[res_idx].add_cell(cell)        
-        if debug:
-            print("\n  ------------------out upsert_table_path_row (table.py)-------------------"    )
+        #log.debug("\n  ------------------out upsert_table_path_row (table.py)-------------------")
 
 
     def make_cell(self,column,value,new_column=True):
@@ -702,17 +719,21 @@ class Table(object):
 
 
     def _gen_row_aslist(self, row, columnids):
-        #columnids = self.get_columnids(columns)
         return row.get_values(columnids)
 
        
-    def iterrows(self, columns=None, row_type='dict', rowid=False):
+    def iterrows(self, columns=None, row_type='dict', where=None, rowid=False):
         if columns is None:
                 columns = self.get_columns() # assign all available column names
         if row_type == 'dict': 
             if self.__be is None:
-                for idx, row in self.__rows.items():
-                    yield idx, self._gen_row_asdict(row,columns,rowid)
+                if where is not None:
+                    for idx, row in self.__rows.items():
+                        if where(self._gen_row_asdict(row, columns, rowid)):
+                            yield idx, self._gen_row_asdict(row,columns,rowid)
+                else:
+                    for idx, row in self.__rows.items():
+                        yield idx, self._gen_row_asdict(row,columns,rowid)
             if self.__be is not None:
                 for idx, row in self.__be.iterrows_asdict(self.name, columns):
                     yield idx, row
@@ -978,10 +999,107 @@ class Table(object):
         return tobj
 
 
+    def innerjoin(self
+                #,ltable: str #, lkeys
+                ,rtable: str #, rkeys
+                ,on: list[tuple] # list of lkey & r key tuple
+                ,into: str
+                ,out_lcolumns: list=None
+                ,out_rcolumns: list=None
+                ,rowid=False):
+        
+        rtable_obj = None
+        if isinstance(rtable,Table):
+            rtable_obj = rtable
+            rtable = rtable.name
+        else:
+            rtable_obj = self.bing[rtable]
+        
+        # validate input eg. column etc
+        lkeys = [x[0] for x in on] # generate lkeys from on (1st sequence)
+        rkeys = [x[1] for x in on] # generate rkeys from on (2nd sequence)
+        lkeys = self.validate_columns(lkeys)
+        #rkeys = self[rtable].validate_columns(rkeys)
+        rkeys = rtable_obj.validate_columns(rkeys)
+        if out_lcolumns is not None:
+            out_lcolumns = self.validate_columns(out_lcolumns)
+        if out_rcolumns is not None:
+            # out_rcolumns = self[rtable].validate_columns(out_rcolumns)
+            out_rcolumns = rtable_obj.validate_columns(out_rcolumns)
+
+        # resolve columns conflicts
+        rcol_resolved = self._resolve_join_columns(rtable_obj, rowid)
+        # create an output table
+        out_table = into
+        out_tobj = self.bing.create_table(out_table)
+        out_tobj = self.bing.get_table(out_table)
+        
+        # for debuging create merged table to store the matching rowids
+        #merged = self.create_table("merged",["lrowid","rrowid"])
+
+        numof_keys = len(on) #(lkeys)
+        # loop left table
+        for lidx, lrow in self.iterrows(columns=lkeys, rowid=rowid):
+            # loop right table
+            for ridx, rrow in rtable_obj.iterrows(columns=rkeys, rowid=rowid):
+                matches = 0 # store matches for each rrow
+                # compare value for any matching keys, if TRUE then increment matches
+                for i in range(numof_keys): 
+                    if _match_caseless_unicode(lrow[lkeys[i]], rrow[rkeys[i]]):
+                        matches += 1 # incremented!
+                if matches == numof_keys: # if fully matched, create the row & add into the output table
+                    #debug merged.insert(["lrowid","rrowid"], [lrow["_rowid"], rrow["_rowid"]])
+                    #and add the row to output table
+                    outrow = out_tobj.make_row()
+                    # add cells from left table
+                    log.debug(f'{lidx}')
+                    outrow = self._add_lcell(lidx,  outrow, out_table, out_lcolumns, rowid)
+                    # add cells from right table
+                    outrow = self._add_rcell(ridx, rtable_obj, outrow, out_table, out_rcolumns, rcol_resolved, rowid)   
+                    out_tobj.add_row(outrow)
+        #debug merged.print() 
+        return out_tobj
+
+
+    def _resolve_join_columns (self, rtable_obj, rowid=False):
+        # resolve any conflict column by prefixing its tablename
+        # notes: conflict column occurs when the same column being used in two joining table.
+        rcol_resolved = {}
+        if rowid:
+            rcol_resolved['rowid_'] = rtable_obj.name + '_' + 'rowid_'
+        lcolumns = self.get_columns()
+        for col in rtable_obj.get_columns():
+            if col in lcolumns:
+                rcol_resolved[col] = rtable_obj.name + '_' + col
+            else:
+                rcol_resolved[col] = col
+        return rcol_resolved
     
+    def _add_lcell(self, lidx, outrow, out_table, out_lcolumns, rowid):
+        for k, v in self.get_row_asdict(lidx,rowid=rowid).items():
+            if out_lcolumns is None:
+                # incude all columns
+                cell = self.bing[out_table].make_cell(k,v)
+                outrow.add_cell(cell)
+            if out_lcolumns is not None:
+                # include only the passed columns
+                if k in out_lcolumns:
+                    cell = self.bing[out_table].make_cell(k,v)
+                    outrow.add_cell(cell)
+        return outrow            
 
 
-
+    def _add_rcell(self, ridx, rtable, outrow, out_table, out_rcolumns, rcol_resolved, rowid):
+        for k, v in rtable.get_row_asdict(ridx,rowid=rowid).items():
+            if out_rcolumns is None:
+                cell = self.bing[out_table].make_cell(rcol_resolved[k],v)
+                outrow.add_cell(cell)
+            if out_rcolumns is not None:
+                # include only the passed columns
+                if k in out_rcolumns:
+                    cell = self.bing[out_table].make_cell(rcol_resolved[k],v)
+                    outrow.add_cell(cell)
+        return outrow
     # def get_type_used(self, column):
     #     # iterate through the table and suss out the type
     #     used_types = []
@@ -1010,27 +1128,29 @@ class Table(object):
 
 
     #def blookup(self, rtable, keys, lkkeys, out_rcolumns, ret_ascolumns = None):
-    def blookup(self, rtable, on, out_rcolumns):    
+    def blookup(self, rtable, on, out_rcolumns):
+        #rtable = self.bing[rtable] 
+        
         # validate input eg. column etc
         lkeys = [x[0] for x in on] # generate lkeys from on (1st sequence)
         rkeys = [x[1] for x in on] # generate rkeys from on (2nd sequence)
         lkeys = self.validate_columns(lkeys)
-        rkeys = rtable.validate_columns(rkeys)
+        rkeys = self.bing[rtable].validate_columns(rkeys)
         lcolumn_prematch = self.get_columns() # will use this list when matching occurs below
         # validate out_rcolumns once:
         # otherwise will make lots of call later
         valid_out_rcolumns = []
         for item in out_rcolumns:
             if isinstance(item,str):
-                item = rtable.validate_column(item)
+                item = self.bing[rtable].validate_column(item)
                 valid_out_rcolumns.append(item)
             if isinstance(item, tuple):
-                valid_column  = rtable.validate_column(item[0])
+                valid_column  = self.bing[rtable].validate_column(item[0])
                 item_ = tuple([valid_column,item[1]])
                 valid_out_rcolumns.append(item_)
         numof_keys = len(on)
         for lidx, lrow in self.iterrows(lkeys, rowid=True):
-            for ridx, rrow in rtable.iterrows():
+            for ridx, rrow in self.bing[rtable].iterrows():
                 matches = 0
                 for i in range(numof_keys):
                     # if lrow[lkeys[i]] == rrow[rkeys[i]]:
@@ -1040,15 +1160,15 @@ class Table(object):
                     # update this table lrow for each out_rcolumns
                     for item in valid_out_rcolumns:
                         if isinstance(item, str): # if item is a column
-                            value = rtable[ridx][item]
+                            value = self.bing[rtable][ridx][item]
                             if item in lcolumn_prematch:
                                 print('item',item,'in',self.name)
-                                self.update_row(lidx, rtable.name + '_' + item, value)
+                                self.update_row(lidx, self.bing[rtable].name + '_' + item, value)
                             else:
                                 self.update_row(lidx, item, value)
                         if isinstance(item, tuple): # if a tuple
-                            value = rtable[ridx][item[0]]
-                            self.update_row(lidx, item[1], value)
+                            value = self.bing[rtable][ridx][item[0]]
+                            self.update_row(lidx, item[1], value)                   
 
     def groupbycount(self, column):
         res_dict = {}
@@ -1160,7 +1280,7 @@ class Table_Path(Table):
         return json.dumps(tbl, indent=2)
 
 
-    def get_path_aslist(self):
+    def DEPRECATED_get_path_aslist(self):
         path_as_list = []
         if self.path == '/': # if root
             path_as_list.append('/')
@@ -1210,6 +1330,8 @@ type_map = {
                 ,'int':'int'
                 ,'datetime':'datetime'
                 ,'float':'float'
+                ,'bool':'bit'
+                ,'bytes':'varbinary'
                 }
     }
 

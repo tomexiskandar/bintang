@@ -229,7 +229,7 @@ Notes: Currently tested for SQL Server 2019. However this function should work w
 :schema: the schema name the sql table belong to.
 :table: the table name in the sql database
 :columns: a dictionary of column mappings where the key is sql column (destination) and the value is bintang columns (source). If columns is a list, column mapping will be created automatically assuming source columns and destination columns are the same.
-:method: prep to use prepared statement (default) or string to use sql string. To avoid sql injection, never use method string when the datasource is not known or from they are from external.
+:method: 'prep' to use prepared statement (default) or 'string' to use sql string. To avoid sql injection, never use method string when the datasource is not known or from they are from external.
 :max_rows: maximum rows per insert. Insert more then 1 record when using prep require all data in a column to use the same type, otherwise will raise error.
 
 .. code:: python

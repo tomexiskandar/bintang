@@ -7,7 +7,9 @@ import sqlite3
 import uuid
 import re
 import types
+import sys
 import unicodedata
+from thefuzz import process as thefuzzprocess
 from bintang.log import log
 # import logging
 
@@ -309,6 +311,7 @@ class Table(object):
             if cobj.get_name_uppercased() == column.upper():
                 return id
         return None
+        
 
     
     def get_columnids(self,columns=None):
@@ -384,7 +387,16 @@ class Table(object):
                 res.append(self._get_columnnames_lced().get(column.lower()))
             else:
                 raise ColumnNotFoundError(self.name, column)
-        return res                
+        return res
+
+
+    def check_column(self, column):
+        """check if column exits in table.columns"""
+        if column.lower() not in self._get_columnnames_lced().keys():
+            extracted = thefuzzprocess.extract(column, self.get_columns(), limit=2)
+            fuzzies = [x[0] for x in extracted if x[1]>85]
+            raise ValueError ('could not find column {}. Did you mean {}?'.format(column,' or '.join(fuzzies)))
+            
 
 
     def VOID_validate_columns(self,columns):
@@ -722,7 +734,15 @@ class Table(object):
         return row.get_values(columnids)
 
        
-    def iterrows(self, columns=None, row_type='dict', where=None, rowid=False):
+    def iterrows(self, 
+                 columns: list=None, 
+                 row_type: str='dict', 
+                 where=None, 
+                 rowid: bool=False):
+        # validate user's args
+        if columns is not None:
+            for column in columns:
+                self.check_column(column)
         if columns is None:
                 columns = self.get_columns() # assign all available column names
         if row_type == 'dict': 
@@ -1000,8 +1020,7 @@ class Table(object):
 
 
     def innerjoin(self
-                #,ltable: str #, lkeys
-                ,rtable: str #, rkeys
+                ,rtable # either string or Table object
                 ,on: list[tuple] # list of lkey & r key tuple
                 ,into: str
                 ,out_lcolumns: list=None
@@ -1128,29 +1147,38 @@ class Table(object):
 
 
     #def blookup(self, rtable, keys, lkkeys, out_rcolumns, ret_ascolumns = None):
-    def blookup(self, rtable, on, out_rcolumns):
+    def blookup(self, 
+                rtable, 
+                on: str, 
+                out_rcolumns: list[str] | list[tuple]):
         #rtable = self.bing[rtable] 
+        rtable_obj = None
+        if isinstance(rtable,Table):
+            rtable_obj = rtable
+            rtable = rtable.name
+        else:
+            rtable_obj = self.bing[rtable]
         
         # validate input eg. column etc
         lkeys = [x[0] for x in on] # generate lkeys from on (1st sequence)
         rkeys = [x[1] for x in on] # generate rkeys from on (2nd sequence)
         lkeys = self.validate_columns(lkeys)
-        rkeys = self.bing[rtable].validate_columns(rkeys)
+        rkeys = rtable_obj.validate_columns(rkeys)
         lcolumn_prematch = self.get_columns() # will use this list when matching occurs below
         # validate out_rcolumns once:
         # otherwise will make lots of call later
         valid_out_rcolumns = []
         for item in out_rcolumns:
             if isinstance(item,str):
-                item = self.bing[rtable].validate_column(item)
+                item = rtable_obj.validate_column(item)
                 valid_out_rcolumns.append(item)
             if isinstance(item, tuple):
-                valid_column  = self.bing[rtable].validate_column(item[0])
+                valid_column  = rtable_obj.validate_column(item[0])
                 item_ = tuple([valid_column,item[1]])
                 valid_out_rcolumns.append(item_)
         numof_keys = len(on)
         for lidx, lrow in self.iterrows(lkeys, rowid=True):
-            for ridx, rrow in self.bing[rtable].iterrows():
+            for ridx, rrow in rtable_obj.iterrows():
                 matches = 0
                 for i in range(numof_keys):
                     # if lrow[lkeys[i]] == rrow[rkeys[i]]:
@@ -1160,15 +1188,16 @@ class Table(object):
                     # update this table lrow for each out_rcolumns
                     for item in valid_out_rcolumns:
                         if isinstance(item, str): # if item is a column
-                            value = self.bing[rtable][ridx][item]
+                            value = rtable_obj[ridx][item]
                             if item in lcolumn_prematch:
                                 print('item',item,'in',self.name)
-                                self.update_row(lidx, self.bing[rtable].name + '_' + item, value)
+                                self.update_row(lidx, rtable_obj.name + '_' + item, value)
                             else:
                                 self.update_row(lidx, item, value)
-                        if isinstance(item, tuple): # if a tuple
-                            value = self.bing[rtable][ridx][item[0]]
+                        if isinstance(item, tuple): # if a tuple (0=column to return from rtable, 1=as_column)
+                            value = rtable_obj[ridx][item[0]]
                             self.update_row(lidx, item[1], value)                   
+
 
     def groupbycount(self, column):
         res_dict = {}
@@ -1261,6 +1290,7 @@ class Table(object):
             return res_list    
         else:
             raise ValueError('column must be a single column string!')
+
 
 class Table_Path(Table):
     def __init__(self, name):

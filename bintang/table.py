@@ -1349,7 +1349,7 @@ class Table(object):
                 res_list.append(next(iter(row.values())))
             return res_list    
         else:
-            raise ValueError('column must be a single column string!')
+            raise ValueError('column must be a single column string!')    
 
 
     def _to_json_file(self, path, columns=None):
@@ -1370,8 +1370,14 @@ class Table(object):
                 if not (idx + 1) == len(self): 
                     f.write(',') # if not eof then write obj seperator
             f.write(']') # write closing array
-            f.write('}') # write closing json obj        
+            f.write('}') # write closing json obj
 
+
+    def to_json(self):
+        """This is just a placeholder.
+        Converting dict to Json is trivia by using Json dumps/dump.
+        No need a function to write here"""
+        
 
 class Table_Path(Table):
     def __init__(self, name):

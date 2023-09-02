@@ -230,6 +230,41 @@ Write Bintang table to an Excel file.
    bt['tablename'].to_excel('/path/to/file.xlsx')
 
 
+Bintang.Table.to_json()
+-----------------------
+This is just a placeholder. In python, serializing dict object to JSON is trivia. Conversion will be done by json.JSONEncoder().
+Here an example of using our to_dict() function then use build-in module json to convert/export dict to JSON.
+
+.. code:: python
+
+   import json
+   # other modules here
+
+   # other codes here
+
+   dict_obj = bt['table_name'].to_dict()
+
+   # example to serialise dict_obj to json string
+   json_str = json.dumps(dict_obj)
+   # use json_str here!
+   
+
+   # example to write dict_obj to a json file
+   with open ('myfile.json', 'w') as fp:
+       json.dump(dict_obj, fp) # this would serialise dict_obj into myfile.json
+
+
+
+
+
+
+
+
+
+
+
+
+
 Bintang.Table.to_sql(conn, schema, table, columns, method='prep', max_rows = 1)
 -----------------------------------------------------------------------------------
 

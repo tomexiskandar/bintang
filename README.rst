@@ -206,6 +206,17 @@ Loop through Bintang table's rows and yield index and row. Row can be called out
        print(idx, row) 
 
 
+Bintang.Table.to_dict(columns=None)
+-----------------------------------
+Return bintang table object as a simple dictionary.
+
+:columns: a list of columns for each row will output. If None, output all columns.
+
+.. code:: python
+
+   res = bt['tablename'].to_dict(columns=None)
+
+
 Bintang.Table.to_excel(path, index=False)
 -----------------------------------------
 

@@ -1302,6 +1302,19 @@ class Table(object):
             self.__rows[i] = self.__rows[idx] # reassign
             if i != idx:
                 del self.__rows[idx]
+
+
+    def to_dict(self, columns=None):
+        if columns is None:
+            columns = self.get_columns()
+        res = {}
+        res['table'] = self.name
+        res['columns'] = columns
+        res['rows'] = []
+        # add row
+        for idx, row in self.iterrows(columns):
+            res['rows'].append(row)
+        return res    
             
 
     def to_excel(self, path, index=False, columns=None):
@@ -1328,6 +1341,7 @@ class Table(object):
                 ws.append(row)          
         wb.save(path)
 
+
     def to_list(self, column):
         if isinstance(column, str):
             res_list = []
@@ -1336,6 +1350,27 @@ class Table(object):
             return res_list    
         else:
             raise ValueError('column must be a single column string!')
+
+
+    def _to_json_file(self, path, columns=None):
+        """ this will be useful for big table
+        and we are going to write row by row into a file
+        instead a one-oof write"""
+        if columns is None:
+            columns = self.get_columns()
+        with open(path, 'w') as f:
+            f.write('{') # write opening json obj
+            f.write('{}'.format(json.dumps(self.name)))
+            f.write(':')
+            f.write('[') # write opening array
+
+            for idx, row in self.iterrows(columns=columns):
+                print(json.dumps(row))
+                f.write(json.dumps(row))
+                if not (idx + 1) == len(self): 
+                    f.write(',') # if not eof then write obj seperator
+            f.write(']') # write closing array
+            f.write('}') # write closing json obj        
 
 
 class Table_Path(Table):

@@ -1,4 +1,5 @@
 #from bintang.core import Bintang
+from openpyxl import load_workbook
 from bintang.column import Column
 from bintang.cell import Cell
 from bintang.row import Row
@@ -39,7 +40,8 @@ class Table(object):
         self.__rows = {}
         self.__temprows = []
         self.__last_assigned_columnid= -1 #
-        self.__last_assigned_rowid = -1
+        self.__last_assigned_rowid = -1 # for use when row created
+        self.__last_assigned_idx = -1 # for use when add idx
         self.__be = None
         
 
@@ -194,8 +196,8 @@ class Table(object):
             for v in row:
                 temp_rows.append(v)
             if len(temp_rows) == (mrpb * numof_col):
-                # log.debug(prep_stmt)
-                # log.debug(temp_rows)
+                log.debug(prep_stmt)
+                log.debug(temp_rows)
                 cursor.execute(prep_stmt, temp_rows)
                 total_rowcount += cursor.rowcount
                 temp_rows.clear()     
@@ -656,11 +658,15 @@ class Table(object):
         return Cell(columnid,value)
 
 
-
-
-    def add_row(self,row):
-        rows_idx = len(self.__rows)
+    def add_row_deprecated(self,row):
+        rows_idx = len(self.__rows) # can cause re-assign a deleted row
         self.__rows[rows_idx] = row
+
+    def add_row(self, row):
+        rows_idx = self.__last_assigned_idx + 1
+        self.__last_assigned_idx += 1
+        self.__rows[rows_idx] = row
+
 
     def _XXgen_row_asdict(self, row, columns, rowid=False):
         res = {}
@@ -1242,7 +1248,7 @@ class Table(object):
     
 
     def DEV_groupby_count(self, columns, count_column):
-        group_tobj = Table('test')
+        group_tobj = Table('testq')
         res_dict = {} #key=a tuple of columns, value=count
         for idx, row in self.iterrows(columns, row_type='list'):
             trow = tuple(row)
@@ -1254,17 +1260,57 @@ class Table(object):
         for k, v in res_dict.items():
             columns_ = columns + [count_column]
             values = list(k) + [v]
-            group_tobj.insert(columns_, values)       
+            group_tobj.insert(values, columns_,)       
         return group_tobj
     
-    
 
-    def to_excel(self, path, index=False):
+    def read_excel(self, path, sheetname):
+        wb = load_workbook(path, read_only=True, data_only=True)
+        ws = wb[sheetname]
+        columns = []
+        Nonecolumn_cnt = 0
+        for rownum, row_cells in enumerate(ws.iter_rows(),start=1):
+            values = [] # hold column value for each row
+            if rownum == 1:
+                for cell in row_cells:
+                    if cell.value is None:
+                        columname = 'noname' + str(Nonecolumn_cnt)
+                        Nonecolumn_cnt += 1
+                        columns.append(columname)
+                    else:
+                        columns.append(cell.value)
+                if Nonecolumn_cnt > 0:
+                    log.warning('Warning! Noname column detected!')          
+            
+            if rownum > 1:
+                for cell in row_cells:
+                    values.append(cell.value)
+                # if rownum == 370:
+                #     log.debug(f'{values} at rownum 370.')
+                #     log.debug(any(values))
+                if any(values):
+                    self.insert(values, columns)
+        if self.__be is not None:
+            self.add_row_into_be()
+
+
+    def reindex(self):
+        # dict is already indexed with python 3.7+
+        # this only means we rebuild row id so any deleted idx can be reused
+        idxs = list(self.__rows)
+        for i, idx in enumerate(idxs):
+            self.__rows[i] = self.__rows[idx] # reassign
+            if i != idx:
+                del self.__rows[idx]
+            
+
+    def to_excel(self, path, index=False, columns=None):
         from openpyxl import Workbook
         wb = Workbook()
         ws = wb.active
         # add header
-        columns = self.get_columns()
+        if columns is None:
+            columns = self.get_columns()
         log.debug('index: {}'.format(index))
         if index:
             if index == True:
@@ -1274,11 +1320,11 @@ class Table(object):
         ws.append(columns)
         # add row
         if index:
-            for idx, row in self.iterrows(row_type='list'):
+            for idx, row in self.iterrows(columns, row_type='list'):
                 row.insert(0,idx)
                 ws.append(row)
         if not index:
-            for idx, row in self.iterrows(row_type='list'):
+            for idx, row in self.iterrows(columns, row_type='list'):
                 ws.append(row)          
         wb.save(path)
 

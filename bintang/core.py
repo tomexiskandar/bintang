@@ -135,7 +135,7 @@ class Bintang():
     #     return self.__tables[tableid].get_columnids
     
 
-    def add_table(self,table):
+    def add_table(self,table: str):
         tableid = self.get_tableid(table.name)
         if tableid is None:
             tableid = self.__last_assigned_tableid + 1

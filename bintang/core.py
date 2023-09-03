@@ -331,7 +331,7 @@ class Bintang():
             self.get_table(table_).add_row_into_be()
 
 
-    def read_dict(self, dict_obj, tablepaths=[]):
+    def read_dict(self, dict_obj, tablepaths=None):
         debug = False
         for tprow in iterdict.iterdict(dict_obj, tablepaths):
             # if debug:
@@ -350,9 +350,10 @@ class Bintang():
             # if debug:
             #     print("---------------------out bintang--------------------")
 
+
     def set_child_tables(self):
         for tab1 in self.get_tablepaths():
-            # print('table name',tab1)
+            print('table name',tab1)
             # print(self[tab1].get_path_aslist())
             tab1_pathlist = self[tab1].get_path_aslist()
             for tab2 in self.get_tablepaths():

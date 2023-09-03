@@ -1397,7 +1397,7 @@ class Table_Path(Table):
         return json.dumps(tbl, indent=2)
 
 
-    def DEPRECATED_get_path_aslist(self):
+    def get_path_aslist(self):
         path_as_list = []
         if self.path == '/': # if root
             path_as_list.append('/')

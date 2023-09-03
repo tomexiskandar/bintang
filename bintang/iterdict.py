@@ -3,7 +3,8 @@ from bintang.cell import Cell_Path_List
 from bintang.row import Row_Table_Path
 from bintang.log import log
 
-TABLEPATH_SEP = '_'
+ROOT_STR = '/'
+TABLEPATH_SEP = '/'
 
 def gen_tablepath(path_list):
     pathl_norowid = [x for x in path_list if not isinstance(x, int)]
@@ -11,6 +12,9 @@ def gen_tablepath(path_list):
         # this should work for pattern #1 and #2
         del pathl_norowid[-1]
         tablepath = TABLEPATH_SEP.join(pathl_norowid)
+        if tablepath =='':
+            tablepath = ROOT_STR
+
         # if len(tablepath) > 2:
         #     tablepath = tablepath[1:]
         #log.debug(tablepath)
@@ -22,6 +26,7 @@ def gen_tablepath(path_list):
         # if len(tablepath) > 2:
         #     tablepath = tablepath[1:]
         #log.debug(tablepath)
+        
         return tablepath
 
 
@@ -98,7 +103,7 @@ def gen_table_path_row(path_list, value):
     return row           
     
 
-def _iterdict(dict_or_list, path=['root']):
+def _iterdict(dict_or_list, path=['']):
     if isinstance(dict_or_list, dict):
         iterator = dict_or_list.items()
     else:
@@ -113,16 +118,16 @@ def _iterdict(dict_or_list, path=['root']):
 def iterdict(dict_obj, tablepaths=None):
     # yield a tprow (row with a table path)
     # also allow to yield only the row that matches tablepath list arg.
-    for i, (path_list, value) in enumerate(_iterdict(dict_obj),0): # path=['/']):
+    for path_list, value in _iterdict(dict_obj): 
         #log.debug(f'{i} k-> {path_list} v--> {value}')
         if isinstance(value,(list,dict)):
             continue # use continue and comment the below line value = None to create column with list/dict
             #value = '[]'  # include column with list/dict in the table but set value as None
         # print(path_list, value)
-        if len(tablepaths) == 0:
+        if tablepaths is None: #len(tablepaths) == 0:
             # client wants to return all available tablepaths
             yield gen_table_path_row(path_list,value)
-        elif len(tablepaths) > 0:
+        else: #elif len(tablepaths) > 0:
             # client wants to return specific tablepaths
             for tp in tablepaths:
                 if tp == gen_tablepath(path_list):

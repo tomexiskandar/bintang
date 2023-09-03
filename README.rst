@@ -106,6 +106,76 @@ Common Functions
 
 We are going to provide some functions that may be needed most when working with Bintang objects.
 
+
+Bintang.read_dict(dict_obj, tablepaths)
+---------------------------
+Read a dictionary object and create one or more table according different hierarchy paths contained in object.
+
+:dict_obj: a python dictionary object.
+:tablepaths: a list of paths which contain a list of objects (equivalent to records).
+
+.. code:: python
+
+   dict_obj = {
+        'Person': [
+            {'id': 1,'name': 'John','surname': 'Smith',
+                'Address': {'number': 1, 'street': 'Station','street_type': 'Street'}
+            },
+            {'id': 2,'name': 'Jane','surname': 'Brown',
+                'Address': {'number': 8,'street': 'Parade','street_type': 'Road'}
+            }
+        ],
+        'PersonDetails': [
+            {'person_id': '1', 'hobby': 'Blogging','is_meat_eater': True
+            },
+            {'person_id': '2','hobby': 'Reading','is_meat_eater': None,
+                'LuckyNo': [13,17,19]
+            }
+        ]
+   }
+   
+   bt = bintang.Bintang('some tables') # create bintang object.
+   bt.read_dict(dict_obj)              # call this function
+   print(bt) # show bt tables
+   {
+      "name": "some tables",
+      "tables": [
+         "/Person",
+         "/Person/Address",
+         "/PersonDetails"
+      ]
+   }
+
+   # loop through  /Person table.
+   for idx, row in bt['/Person'].iterrows():
+       print(idx, row)
+   0 {'Person': 0, 'id': 1, 'name': 'John', 'surname': 'Smith'}
+   1 {'Person': 1, 'id': 2, 'name': 'Jane', 'surname': 'Brown'} 
+
+   # loop through /Person/Address table. Because this table under /Person, then each record will have their own reference to /Person table.
+   for idx, row in bt['/Person'].iterrows():
+       print(idx, row) 
+   0 {'Address': 'Address', 'Person': 0, 'number': 1, 'street': 'Station', 'street_type': 'Street'}
+   1 {'Address': 'Address', 'Person': 1, 'number': 8, 'street': 'Parade', 'street_type': 'Road'}
+
+   # loop through /PersonDetails table.
+   for idx, row in bt['/PersonDetails'].iterrows():
+        print(idx, row)
+   0 {'PersonDetails': 0, 'person_id': '1', 'hobby': 'Blogging', 'is_meat_eater': True}
+   1 {'PersonDetails': 1, 'person_id': '2', 'hobby': 'Reading', 'is_meat_eater': None}
+
+   # loop through /PersonDetails/LuckyNo table.
+   for idx, row in bt['/PersonDetails/LuckyNo'].iterrows():
+        print(idx, row)
+   0 {'PersonDetails': 1, 'LuckyNo': 13}
+   1 {'PersonDetails': 1, 'LuckyNo': 17}
+   2 {'PersonDetails': 1, 'LuckyNo': 19}
+   
+
+This function can generate three different tables. Then user can use all the functions under Bintang's Table, eg. innerjoin, update row, dump to excel, to sql database etc.
+Please note that since a dictionary can contain complex hierarchy paths and still valid (eg. system configuration), you may get unexpected results.  
+
+
 Bintang.read_excel(path, sheetname, table=None)
 -----------------------------------------------
 
@@ -232,7 +302,7 @@ Write Bintang table to an Excel file.
 
 Bintang.Table.to_json()
 -----------------------
-This is just a placeholder. In python, serializing dict object to JSON is trivia. Conversion will be done by json.JSONEncoder().
+This is just a placeholder. In python, serializing a dict object to JSON is trivia. Conversion will be done by json.JSONEncoder().
 Here an example of using our to_dict() function then use build-in module json to convert/export dict to JSON.
 
 .. code:: python
@@ -247,22 +317,11 @@ Here an example of using our to_dict() function then use build-in module json to
    # example to serialise dict_obj to json string
    json_str = json.dumps(dict_obj)
    # use json_str here!
-   
+
 
    # example to write dict_obj to a json file
    with open ('myfile.json', 'w') as fp:
        json.dump(dict_obj, fp) # this would serialise dict_obj into myfile.json
-
-
-
-
-
-
-
-
-
-
-
 
 
 Bintang.Table.to_sql(conn, schema, table, columns, method='prep', max_rows = 1)

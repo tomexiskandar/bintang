@@ -108,14 +108,15 @@ We are going to provide some functions that may be needed most when working with
 
 
 Bintang.read_dict(dict_obj, tablepaths)
----------------------------
+---------------------------------------
 Read a dictionary object and create one or more table according different hierarchy paths contained in object.
 
 :dict_obj: a python dictionary object.
 :tablepaths: a list of paths which contain a list of objects (equivalent to records).
 
 .. code:: python
-
+   
+   # example data
    dict_obj = {
         'Person': [
             {'id': 1,'name': 'John','surname': 'Smith',
@@ -134,15 +135,16 @@ Read a dictionary object and create one or more table according different hierar
         ]
    }
    
-   bt = bintang.Bintang('some tables') # create bintang object.
+   bt = bintang.Bintang('FromDict') # create bintang object.
    bt.read_dict(dict_obj)              # call this function
    print(bt) # show bt tables
    {
-      "name": "some tables",
+      "name": "FromDict",
       "tables": [
          "/Person",
          "/Person/Address",
-         "/PersonDetails"
+         "/PersonDetails",
+         "/PersonDetails/LuckyNo"
       ]
    }
 
@@ -171,8 +173,6 @@ Read a dictionary object and create one or more table according different hierar
    1 {'PersonDetails': 1, 'LuckyNo': 17}
    2 {'PersonDetails': 1, 'LuckyNo': 19}
    
-
-This function can generate three different tables. Then user can use all the functions under Bintang's Table, eg. innerjoin, update row, dump to excel, to sql database etc.
 Please note that since a dictionary can contain complex hierarchy paths and still valid (eg. system configuration), you may get unexpected results.  
 
 

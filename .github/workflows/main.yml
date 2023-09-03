@@ -1,1 +1,17 @@
+- name: pypi-publish
+  uses: pypa/gh-action-pypi-publish@v1.8.10
+  with:
+    user: tomex
+    password: 
+    repository-url: https://pypi.org/project/bintang/
+    repository_url: null
+    packages-dir: null
+    packages_dir: null
+    verify-metadata: null
+    verify_metadata: null
+    skip-existing: null
+    skip_existing: null
+    verbose: null
+    print-hash: null
+    print_hash: null
 

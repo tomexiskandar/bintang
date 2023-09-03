@@ -2,7 +2,7 @@
 Bintang
 =======
 A tiny and temporary db for quick data cleansing and transformation.
-It is a high-level python coding and would help any beginners up to speed with ETL work.
+It is a high-level Python coding and would help any beginners up to speed with ETL work.
 
 .. contents:: Overview
    :depth: 3
@@ -54,7 +54,7 @@ Use insert function to insert data. The parameters are record and columns.
    bt['Person'].insert([4,'Maria','Digging','7 Heaven Ave'], ['id','name','hobby','address'])
    bt['Person'].insert([5,'Bing','Digging'], ['id','name','hobby'])
 
-Loop your data using iterrows function. This will loop through all the rows one by one in a python dict.
+Loop your data using iterrows function. This will loop through all the rows one by one in a Python dict.
 
 .. code-block:: console
 
@@ -111,7 +111,7 @@ Bintang.read_dict(dict_obj, tablepaths)
 ---------------------------------------
 Read a dictionary object and create one or more table according different hierarchy paths contained in object.
 
-:dict_obj: a python dictionary object.
+:dict_obj: a Python dictionary object.
 :tablepaths: a list of paths which contain a list of objects (equivalent to records).
 
 .. code:: python
@@ -173,7 +173,8 @@ Read a dictionary object and create one or more table according different hierar
    1 {'PersonDetails': 1, 'LuckyNo': 17}
    2 {'PersonDetails': 1, 'LuckyNo': 19}
    
-Please note that since a dictionary can contain complex hierarchy paths and still valid (eg. system configuration), you may get unexpected results.  
+Please note that since a dictionary can contain complex hierarchy paths and still valid (eg. system configuration), then this function may not in your favour. It might be better to manually extract/locate a certain path manually (hard coded).
+
 
 
 
@@ -189,6 +190,28 @@ Read an Excel file into Bintang table.
 .. code:: python
 
    bt.read_excel('/path/to/file.xlsx', 'Sheet1')
+
+
+Bintang.read_json()
+-------------------
+This is just a placeholder. Python make it easy when serializing JSON object to dictionary object. Conversion would be done by build-in json.JSONDecoder(). 
+Here an example of using json.loads then pass the results to Bintang's read_dict().
+
+.. code:: python
+   
+   # other module import
+   # ...
+   import json
+   
+   # example json data
+   json_str = '{"Person": [{"id": 1, "name": "John", "surname": "Smith", "Address": {"number": 1, "street": "Station", "street_type": "Street"}}, {"id": 2, "name": "Jane", "surname": "Brown", "Address": {"number": 8, "street": "Parade", "street_type": "Road"}}], "PersonDetails": [{"person_id": "1", "hobby": "Blogging", "is_meat_eater": true}, {"person_id": "2", "hobby": "Reading", "is_meat_eater": null, "LuckyNo": [13, 17, 19]}]}'
+
+   # serialise JSON to Python dictionary
+   dict_obj = json.loads(json_str)
+
+   # use dict_obj here. Note: look at Bintang.read_dict()
+   # ...
+
 
 
 Bintang.Table.innerjoin(right_table, on, into, out_leftcolumns, out_rightcolumns)
@@ -307,21 +330,24 @@ Write Bintang table to an Excel file.
 
 Bintang.Table.to_json()
 -----------------------
-This is just a placeholder. In python, serializing a dict object to JSON is trivia. Conversion will be done by json.JSONEncoder().
+This is just a placeholder. Python make it easy when serializing a dict object to JSON. Conversion would be done by built-in json.JSONEncoder().
 Here an example of using our to_dict() function then use build-in module json to convert/export dict to JSON.
 
 .. code:: python
 
-   import json
    # other modules here
-
+   # ...
+   import json
+   
    # other codes here
+   # ...
 
    dict_obj = bt['table_name'].to_dict()
 
    # example to serialise dict_obj to json string
    json_str = json.dumps(dict_obj)
    # use json_str here!
+   # ...
 
 
    # example to write dict_obj to a json file

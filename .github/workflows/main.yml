@@ -2,10 +2,10 @@
   uses: pypa/gh-action-pypi-publish@v1.8.10
   with:
     user: tomex
-    password: 
+    password: PyP!11021
     repository-url: https://pypi.org/project/bintang/
     repository_url: null
-    packages-dir: null
+    packages-dir: dist
     packages_dir: null
     verify-metadata: null
     verify_metadata: null

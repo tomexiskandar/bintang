@@ -176,6 +176,7 @@ Read a dictionary object and create one or more table according different hierar
 Please note that since a dictionary can contain complex hierarchy paths and still valid (eg. system configuration), you may get unexpected results.  
 
 
+
 Bintang.read_excel(path, sheetname, table=None)
 -----------------------------------------------
 
@@ -225,6 +226,7 @@ return a new table from an inner join operation.
       print(idx, row)
 
 
+
 Bintang.Table.insert(record, columns=None)
 ------------------------------------------
 Insert a record into a table.
@@ -261,6 +263,7 @@ Insert a record into a table.
    prod.insert({'id':3, 'name':'Reels','price':75})
 
 
+
 Bintang.Table.iterrows(columns=None, row_type='dict')
 -----------------------------------------------------
 
@@ -274,6 +277,7 @@ Loop through Bintang table's rows and yield index and row. Row can be called out
    for idx, row in bt['tablename'].iterrows():
        # do something with idx or row
        print(idx, row) 
+
 
 
 Bintang.Table.to_dict(columns=None)
@@ -300,6 +304,7 @@ Write Bintang table to an Excel file.
    bt['tablename'].to_excel('/path/to/file.xlsx')
 
 
+
 Bintang.Table.to_json()
 -----------------------
 This is just a placeholder. In python, serializing a dict object to JSON is trivia. Conversion will be done by json.JSONEncoder().
@@ -322,6 +327,7 @@ Here an example of using our to_dict() function then use build-in module json to
    # example to write dict_obj to a json file
    with open ('myfile.json', 'w') as fp:
        json.dump(dict_obj, fp) # this would serialise dict_obj into myfile.json
+
 
 
 Bintang.Table.to_sql(conn, schema, table, columns, method='prep', max_rows = 1)
@@ -356,9 +362,4 @@ Notes: Currently tested for SQL Server 2019. However this function should work w
    ret = person.to_sql(conn, 'dbo', 'Person', columns)
    print(f'{ret} record(s) affected.')
    conn.commit()
-   conn.close()   
-
-
-
-
-   
+   conn.close()

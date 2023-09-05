@@ -107,7 +107,7 @@ Common Functions
 We are going to provide some functions that may be needed most when working with Bintang objects.
 
 
-Bintang.read_dict(dict_obj, tablepaths)
+Bintang.read_dict(dict_obj, tablepaths=None)
 ---------------------------------------
 Read a dictionary object and create one or more table according to different hierarchy paths contained in object.
 

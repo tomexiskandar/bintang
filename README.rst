@@ -209,7 +209,7 @@ Here an example of using json.loads then pass the results to Bintang's read_dict
    # serialise JSON to Python dictionary
    dict_obj = json.loads(json_str)
 
-   # use dict_obj here. Note: look at Bintang.read_dict()
+   # use dict_obj here. Note: look at Bintang.read_dict() for more example.
    bt = bintang.Bintang('From JSON')
    bt.read_dict(dict_obj)
 

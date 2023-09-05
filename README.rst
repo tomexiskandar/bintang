@@ -109,7 +109,7 @@ We are going to provide some functions that may be needed most when working with
 
 Bintang.read_dict(dict_obj, tablepaths)
 ---------------------------------------
-Read a dictionary object and create one or more table according different hierarchy paths contained in object.
+Read a dictionary object and create one or more table according to different hierarchy paths contained in object.
 
 :dict_obj: a Python dictionary object.
 :tablepaths: a list of paths which contain a list of objects (equivalent to records).

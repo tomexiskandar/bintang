@@ -139,7 +139,7 @@ Read a dictionary object and create one or more table according different hierar
    bt.read_dict(dict_obj)              # call this function
    print(bt) # show bt tables
    {
-      "name": "FromDict",
+      "name": "From Dict",
       "tables": [
          "/Person",
          "/Person/Address",

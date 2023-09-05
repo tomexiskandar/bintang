@@ -165,11 +165,11 @@ Read an Excel file into Bintang table.
 
 
 
-Bintang.read_json(json_str, tablepaths)
----------------------------------------
+Bintang.read_json(json_str, tablepaths=None)
+--------------------------------------------
 Read JSON string and create one or more table according to different hierarchy paths contained in object.
 
-:dict_obj: a Python dictionary object.
+:json_str: a json string
 :tablepaths: a list of paths which contain a list of objects (equivalent to records).
 
 .. code:: python

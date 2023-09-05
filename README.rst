@@ -108,7 +108,7 @@ We are going to provide some functions that may be needed most when working with
 
 
 Bintang.read_dict(dict_obj, tablepaths=None)
----------------------------------------
+--------------------------------------------
 Read a dictionary object and create one or more table according to different hierarchy paths contained in object.
 
 :dict_obj: a Python dictionary object.
@@ -135,7 +135,7 @@ Read a dictionary object and create one or more table according to different hie
         ]
    }
    
-   bt = bintang.Bintang('From Dict') # create bintang object.
+   bt = bintang.Bintang('From Dict')   # create bintang object.
    bt.read_dict(dict_obj)              # call this function
    print(bt) # show bt tables
    {
@@ -147,6 +147,66 @@ Read a dictionary object and create one or more table according to different hie
          "/PersonDetails/LuckyNo"
       ]
    }
+
+
+
+Bintang.read_excel(path, sheetname, table=None)
+-----------------------------------------------
+
+Read an Excel file into Bintang table.
+
+:path: an excel file path to read from.
+:sheetname: the sheetname to read from.
+:table: table name to hold the data. If not given, table name will be the sheetname.
+
+.. code:: python
+
+   bt.read_excel('/path/to/file.xlsx', 'Sheet1')
+
+
+
+Bintang.read_json(json_str, tablepaths)
+---------------------------------------
+Read JSON string and create one or more table according to different hierarchy paths contained in object.
+
+:dict_obj: a Python dictionary object.
+:tablepaths: a list of paths which contain a list of objects (equivalent to records).
+
+.. code:: python
+   
+   # other module import
+   # ...
+   import bintang
+   import json
+   
+   # example json data
+   json_str = '{"Page:": 100, "Time": "2033-09-05T00:00:00Z", \
+               "Person": [{"id": 1, "name": "John", "surname": "Smith", \
+                            "Address": {"number": 1, "street": "Station", "street_type": "Street"}}, \
+                          {"id": 2, "name": "Jane", "surname": "Brown", \
+                            "Address": {"number": 8, "street": "Parade", "street_type": "Road"}}], \
+               "PersonDetails": [{"person_id": "1", "hobby": "Blogging", "is_meat_eater": true}, \
+                                 {"person_id": "2", "hobby": "Reading", "is_meat_eater": null,"LuckyNo": [13, 17, 19]}]}'
+
+   bt = bintang.Bintang('From JSON')
+   bt.read_json(json_str)
+
+   print(bt) # show bt tables
+   {
+      "name": "some tables",
+      "tables": [
+         "/",
+         "/Person",
+         "/Person/Address",
+         "/PersonDetails",
+         "/PersonDetails/LuckyNo"
+      ]
+   }
+
+   # loop through root table ('/')
+   for idx, row in bt['/'].iterrows():
+       print(idx, row)
+   0 {'Page:': 100, 'Time': '2033-09-05T00:00:00Z'}
 
    # loop through  /Person table.
    for idx, row in bt['/Person'].iterrows():
@@ -173,45 +233,7 @@ Read a dictionary object and create one or more table according to different hie
    1 {'PersonDetails': 1, 'LuckyNo': 17}
    2 {'PersonDetails': 1, 'LuckyNo': 19}
    
-Please note that since a dictionary can contain complex hierarchy paths and still valid (eg. system configuration), then this function may not in your favour. It might be better to manually extract/locate a certain path manually (hard coded).
-
-
-
-Bintang.read_excel(path, sheetname, table=None)
------------------------------------------------
-
-Read an Excel file into Bintang table.
-
-:path: an excel file path to read from.
-:sheetname: the sheetname to read from.
-:table: table name to hold the data. If not given, table name will be the sheetname.
-
-.. code:: python
-
-   bt.read_excel('/path/to/file.xlsx', 'Sheet1')
-
-
-Bintang.read_json()
--------------------
-This is just a placeholder. Python make it easy when serializing JSON object to dictionary object. Conversion would be done by build-in json.JSONDecoder(). 
-Here an example of using json.loads then pass the results to Bintang's read_dict().
-
-.. code:: python
-   
-   # other module import
-   # ...
-   import bintang
-   import json
-   
-   # example json data
-   json_str = '{"Person": [{"id": 1, "name": "John", "surname": "Smith", "Address": {"number": 1, "street": "Station", "street_type": "Street"}}, {"id": 2, "name": "Jane", "surname": "Brown", "Address": {"number": 8, "street": "Parade", "street_type": "Road"}}], "PersonDetails": [{"person_id": "1", "hobby": "Blogging", "is_meat_eater": true}, {"person_id": "2", "hobby": "Reading", "is_meat_eater": null, "LuckyNo": [13, 17, 19]}]}'
-
-   # serialise JSON to Python dictionary
-   dict_obj = json.loads(json_str)
-
-   # use dict_obj here. Note: look at Bintang.read_dict() for more example.
-   bt = bintang.Bintang('From JSON')
-   bt.read_dict(dict_obj)
+Please note that since json can contain complex hierarchy paths and still valid (eg. system configuration), then this function may not in your favour. It might be better to manually extract/locate a certain path manually (hard coded).
 
 
 

@@ -135,7 +135,7 @@ Read a dictionary object and create one or more table according different hierar
         ]
    }
    
-   bt = bintang.Bintang('FromDict') # create bintang object.
+   bt = bintang.Bintang('From Dict') # create bintang object.
    bt.read_dict(dict_obj)              # call this function
    print(bt) # show bt tables
    {
@@ -177,7 +177,6 @@ Please note that since a dictionary can contain complex hierarchy paths and stil
 
 
 
-
 Bintang.read_excel(path, sheetname, table=None)
 -----------------------------------------------
 
@@ -201,6 +200,7 @@ Here an example of using json.loads then pass the results to Bintang's read_dict
    
    # other module import
    # ...
+   import bintang
    import json
    
    # example json data
@@ -210,7 +210,8 @@ Here an example of using json.loads then pass the results to Bintang's read_dict
    dict_obj = json.loads(json_str)
 
    # use dict_obj here. Note: look at Bintang.read_dict()
-   # ...
+   bt = bintang.Bintang('From JSON')
+   bt.read_dict(dict_obj)
 
 
 

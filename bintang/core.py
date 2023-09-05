@@ -351,8 +351,10 @@ class Bintang():
             #     print("---------------------out bintang--------------------")
 
 
-    def read_json(self, path):
-        pass
+    def read_json(self, json_str, tablepaths=None):
+        dict_obj = json.loads(json_str) # parse json_str
+        self.read_dict(dict_obj, tablepaths) 
+
 
     def set_child_tables(self):
         for tab1 in self.get_tablepaths():

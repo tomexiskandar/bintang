@@ -1152,12 +1152,10 @@ class Table(object):
     #     return used_types    
 
 
-    #def blookup(self, rtable, keys, lkkeys, out_rcolumns, ret_ascolumns = None):
     def blookup(self, 
-                rtable, 
+                rtable: object, 
                 on: str, 
                 out_rcolumns: list[str] | list[tuple]):
-        #rtable = self.bing[rtable] 
         rtable_obj = None
         if isinstance(rtable,Table):
             rtable_obj = rtable

@@ -30,6 +30,7 @@ Installation
 
 Examples of Usage
 -----------------
+
 .. code-block:: console
 
    import bintang          # import the package
@@ -44,15 +45,26 @@ Examples of Usage
       ]  
    }  
 
-Use insert function to insert data. The parameters are record and columns.
+
+The parameters are record and columns.
 
 .. code-block:: console
 
-   bt['Person'].insert([1,'John',35,'1 Station St'], ['id','name','age','address'])  
-   bt['Person'].insert([2,'Jane',17,'Reading','8 Parade Rd'], ['id','name','age','hobby','address'])  
-   bt['Person'].insert([3,'Okie','Fishing','7 Ocean Rd'], ['id','name','hobby','address'])
-   bt['Person'].insert([4,'Maria','Digging','7 Heaven Ave'], ['id','name','hobby','address'])
-   bt['Person'].insert([5,'Bing','Digging'], ['id','name','hobby'])
+   # Create a couple of tables and use insert function to insert data.
+   bt.create_table('Person') 
+
+   bt['Person'].insert([1,'John','Smith','1 Station St'], ['id','name','surname','address'])
+   bt['Person'].insert([2,'Jane','Brown','Digging','8 Parade Rd'], ['id','name','surname','hobby','address'])
+   bt['Person'].insert([3,'Okie','Dokie','7 Ocean Rd'], ['id','name','surname','Address'])
+   bt['Person'].insert((4,'Maria','Digging','7 Heaven Ave'), ('id','name','hobby','Address'))
+   bt['Person'].insert((5,'Bing','Digging',None), ('id','name','hobby','Address'))
+
+   bt.create_table("FishingClub")
+   bt['FishingClub'].insert(['Ajes','Freeman','Active'], ['FirstName','LastName','Membership'])
+   bt['FishingClub'].insert(['John','Smith','Active'], ['FirstName','LastName','Membership'])
+   bt['FishingClub'].insert(['Jane','Brown','Active'], ['FirstName','LastName','Membership'])
+   bt['FishingClub'].insert(['Nutmeg','Spaniel','Active'], ['FirstName','LastName','Membership'])
+   bt['FishingClub'].insert(['Zekey','Pokey','Active'], ['FirstName','LastName','Membership'])
 
 Loop your data using iterrows function. This will loop through all the rows one by one in a Python dict.
 
@@ -61,11 +73,10 @@ Loop your data using iterrows function. This will loop through all the rows one 
    for idx, row in bt['Person'].iterrows():
        print(idx, row)  
   
-   0 {'id': 1, 'name': 'John', 'age': 35, 'address': '1 Station St', 'hobby': None}
-   1 {'id': 2, 'name': 'Jane', 'age': 17, 'address': '8 Parade Rd', 'hobby': 'Reading'}
-   2 {'id': 3, 'name': 'Okie', 'age': None, 'address': '7 Ocean Rd', 'hobby': 'Fishing'}
-   3 {'id': 4, 'name': 'Maria', 'age': None, 'address': '7 Heaven Ave', 'hobby': 'Digging'}
-   4 {'id': 5, 'name': 'Bing', 'age': None, 'address': None, 'hobby': 'Digging'}
+   0 {'id': 1, 'name': 'John', 'surname': 'Smith', 'address': '1 Station St', 'hobby': None}
+   1 {'id': 2, 'name': 'Jane', 'surname': 'Brown', 'address': '8 Parade Rd', 'hobby': 'Digging'}
+   2 {'id': 3, 'name': 'Okie', 'surname': 'Dokie', 'address': '7 Ocean Rd', 'hobby': None}
+   3 {'id': 4, 'name': 'Maria', 'surname': None, 'address': '7 Heaven Ave', 'hobby': 'Digging'}
 
 You should notice that all columns now have been normalised for each row, even though all records have not used all column names during insertion.\
 When the 1st record (idx 0) is inserted, four columns created. id, name, age and address.
@@ -107,8 +118,39 @@ Common Functions
 We are going to provide some functions that may be needed most when working with Bintang objects.
 
 
+Bintang.blookup(rtable, on, out_rcolumns)
+-----------------------------------------
+
+Return one or more columns from lookup table.
+
+:rtable: lookup table or right table
+:on: lookup key tuples
+:out_rcolumns: lookup columns to return
+
+
+.. code:: python
+    
+   # using tables from Example of Usage section above.
+   bt['Person'].blookup('FishingClub')], \
+       [('name','FirstName')], \
+       ['Membership'])
+
+   # check results
+   for idx, row in bt['Person'].iterrows(['name','Membership']):
+       print(idx, row)
+
+   0 {'name': 'John', 'Membership': 'Active'}
+   1 {'name': 'Jane', 'Membership': 'Active'}
+   2 {'name': 'Okie', 'Membership': None}
+   3 {'name': 'Maria', 'Membership': None}    
+   
+We can see only John and Jane got the membership because from John and Jane exist in both tables.
+       
+
+
 Bintang.read_dict(dict_obj, tablepaths=None)
 --------------------------------------------
+
 Read a dictionary object and create one or more table according to different hierarchy paths contained in object.
 
 :dict_obj: a Python dictionary object.

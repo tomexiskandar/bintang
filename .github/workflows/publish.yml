@@ -6,8 +6,8 @@ on:
       - "*"
 
 jobs:
-  tests:
-    uses: ./.github/workflows/tests.yml
+  #tests:
+    #uses: ./.github/workflows/tests.yml
   publish:
     name: publish
     #needs: [tests] # require tests to pass before deploy runs

@@ -144,7 +144,7 @@ Return one or more columns from lookup table.
    2 {'name': 'Okie', 'Membership': None}
    3 {'name': 'Maria', 'Membership': None}    
    
-We can see only John and Jane got the membership because from John and Jane exist in both tables.
+We can see only John and Jane got the membership because only John and Jane exist in both tables.
        
 
 

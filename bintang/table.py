@@ -1154,53 +1154,53 @@ class Table(object):
 
 
     def blookup(self, 
-                rtable: object, 
+                lkp_table: object, 
                 on: str, 
-                out_rcolumns: list[str] | list[tuple]):
-        rtable_obj = None
-        if isinstance(rtable,Table):
-            rtable_obj = rtable
-            rtable = rtable.name
+                ret_columns: list[str] | list[tuple]):
+        lkp_table_obj = None
+        if isinstance(lkp_table,Table):
+            lkp_table_obj = lkp_table
+            lkp_table = lkp_table.name
         else:
-            rtable_obj = self.bing[rtable]
+            lkp_table_obj = self.bing[lkp_table]
         
         # validate input eg. column etc
         lkeys = [x[0] for x in on] # generate lkeys from on (1st sequence)
         rkeys = [x[1] for x in on] # generate rkeys from on (2nd sequence)
         lkeys = self.validate_columns(lkeys)
-        rkeys = rtable_obj.validate_columns(rkeys)
+        rkeys = lkp_table_obj.validate_columns(rkeys)
         lcolumn_prematch = self.get_columns() # will use this list when matching occurs below
-        # validate out_rcolumns once:
+        # validate ret_columns once:
         # otherwise will make lots of call later
-        valid_out_rcolumns = []
-        for item in out_rcolumns:
+        valid_ret_columns = []
+        for item in ret_columns:
             if isinstance(item,str):
-                item = rtable_obj.validate_column(item)
-                valid_out_rcolumns.append(item)
+                item = lkp_table_obj.validate_column(item)
+                valid_ret_columns.append(item)
             if isinstance(item, tuple):
-                valid_column  = rtable_obj.validate_column(item[0])
+                valid_column  = lkp_table_obj.validate_column(item[0])
                 item_ = tuple([valid_column,item[1]])
-                valid_out_rcolumns.append(item_)
+                valid_ret_columns.append(item_)
         numof_keys = len(on)
         for lidx, lrow in self.iterrows(lkeys, rowid=True):
-            for ridx, rrow in rtable_obj.iterrows():
+            for ridx, rrow in lkp_table_obj.iterrows():
                 matches = 0
                 for i in range(numof_keys):
                     # if lrow[lkeys[i]] == rrow[rkeys[i]]:
                     if _match_caseless_unicode(lrow[lkeys[i]], rrow[rkeys[i]]):
                         matches += 1 # increment
                 if matches == numof_keys:
-                    # update this table lrow for each out_rcolumns
-                    for item in valid_out_rcolumns:
+                    # update this table lrow for each ret_columns
+                    for item in valid_ret_columns:
                         if isinstance(item, str): # if item is a column
-                            value = rtable_obj[ridx][item]
+                            value = lkp_table_obj[ridx][item]
                             if item in lcolumn_prematch:
                                 print('item',item,'in',self.name)
-                                self.update_row(lidx, rtable_obj.name + '_' + item, value)
+                                self.update_row(lidx, lkp_table_obj.name + '_' + item, value)
                             else:
                                 self.update_row(lidx, item, value)
-                        if isinstance(item, tuple): # if a tuple (0=column to return from rtable, 1=as_column)
-                            value = rtable_obj[ridx][item[0]]
+                        if isinstance(item, tuple): # if a tuple (0=column to return from lkp_table, 1=as_column)
+                            value = lkp_table_obj[ridx][item[0]]
                             self.update_row(lidx, item[1], value)                   
 
 

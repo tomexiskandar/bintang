@@ -118,14 +118,14 @@ Common Functions
 We are going to provide some functions that may be needed most when working with Bintang objects.
 
 
-Bintang.blookup(rtable, on, out_rcolumns)
+Bintang.blookup(lkp_table, on, ret_columns)
 -----------------------------------------
 
 Return one or more columns from lookup table.
 
-:rtable: lookup table or right table
+:lkp_table: lookup table
 :on: lookup key tuples
-:out_rcolumns: lookup columns to return
+:ret_columns: lookup columns to be returned
 
 
 .. code:: python

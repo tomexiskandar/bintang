@@ -86,15 +86,15 @@ Inspect Person table column list. You can also use function table.get_columns() 
 
 .. code-block:: console
 
-   bt['Person']  
-   {  
-     "table name": "Person",  
-     "columns": [
-         {"id": 0,"name": "id"},  
-         {"id": 1,"name": "name"},  
-         {"id": 2,"name": "age"},  
-         etc...
-   }
+   print(bt['Person'])
+   # {  
+   #   "table name": "Person",  
+   #   "columns": [
+   #       {"id": 0,"name": "id"},  
+   #       {"id": 1,"name": "name"},  
+   #       {"id": 2,"name": "age"},  
+   #       etc...
+   # }
 
 Use update function to change the data. The function signature is table.update(column, value, where=None). The value and where parameters can use lambda function argument for smarter expression.
 
@@ -139,10 +139,10 @@ Return one or more columns from lookup table.
    for idx, row in bt['Person'].iterrows(['name','Membership']):
        print(idx, row)
 
-   0 {'name': 'John', 'Membership': 'Active'}
-   1 {'name': 'Jane', 'Membership': 'Active'}
-   2 {'name': 'Okie', 'Membership': None}
-   3 {'name': 'Maria', 'Membership': None}    
+   # 0 {'name': 'John', 'Membership': 'Active'}
+   # 1 {'name': 'Jane', 'Membership': 'Active'}
+   # 2 {'name': 'Okie', 'Membership': None}
+   # 3 {'name': 'Maria', 'Membership': None}    
    
 We can see only John and Jane got the membership because only John and Jane exist in both tables.
        
@@ -172,7 +172,7 @@ Read a dictionary object and create one or more table according to different hie
             {'person_id': '1', 'hobby': 'Blogging','is_meat_eater': True
             },
             {'person_id': '2','hobby': 'Reading','is_meat_eater': None,
-                'LuckyNo': [13,17,19]
+                'LuckyDays': [13,17,19]
             }
         ]
    }
@@ -180,15 +180,15 @@ Read a dictionary object and create one or more table according to different hie
    bt = bintang.Bintang('From Dict')   # create bintang object.
    bt.read_dict(dict_obj)              # call this function
    print(bt) # show bt tables
-   {
-      "name": "From Dict",
-      "tables": [
-         "/Person",
-         "/Person/Address",
-         "/PersonDetails",
-         "/PersonDetails/LuckyNo"
-      ]
-   }
+   # {
+   #    "name": "From Dict",
+   #    "tables": [
+   #       "/Person",
+   #       "/Person/Address",
+   #       "/PersonDetails",
+   #       "/PersonDetails/LuckyDays"
+   #    ]
+   # }
 
 
 
@@ -228,52 +228,53 @@ Read JSON string and create one or more table according to different hierarchy p
                           {"id": 2, "name": "Jane", "surname": "Brown", \
                             "Address": {"number": 8, "street": "Parade", "street_type": "Road"}}], \
                "PersonDetails": [{"person_id": "1", "hobby": "Blogging", "is_meat_eater": true}, \
-                                 {"person_id": "2", "hobby": "Reading", "is_meat_eater": null,"LuckyNo": [13, 17, 19]}]}'
+                                 {"person_id": "2", "hobby": "Reading", "is_meat_eater": null,"LuckyDays": [13, 17, 19]}]}'
 
    bt = bintang.Bintang('From JSON')
    bt.read_json(json_str)
 
    print(bt) # show bt tables
-   {
-      "name": "some tables",
-      "tables": [
-         "/",
-         "/Person",
-         "/Person/Address",
-         "/PersonDetails",
-         "/PersonDetails/LuckyNo"
-      ]
-   }
+   # {
+   #    "name": "some tables",
+   #    "tables": [
+   #       "/",
+   #       "/Person",
+   #       "/Person/Address",
+   #       "/PersonDetails",
+   #       "/PersonDetails/LuckyDays"
+   #    ]
+   # }
 
    # loop through root table ('/')
    for idx, row in bt['/'].iterrows():
        print(idx, row)
-   0 {'Page:': 100, 'Time': '2033-09-05T00:00:00Z'}
+   # 0 {'Page:': 100, 'Time': '2033-09-05T00:00:00Z'}
 
    # loop through  /Person table.
    for idx, row in bt['/Person'].iterrows():
        print(idx, row)
-   0 {'Person': 0, 'id': 1, 'name': 'John', 'surname': 'Smith'}
-   1 {'Person': 1, 'id': 2, 'name': 'Jane', 'surname': 'Brown'} 
+   # 0 {'Person': 0, 'id': 1, 'name': 'John', 'surname': 'Smith'}
+   # 1 {'Person': 1, 'id': 2, 'name': 'Jane', 'surname': 'Brown'} 
 
-   # loop through /Person/Address table. Because this table under /Person, then each record will have their own reference to /Person table.
+   # loop through /Person/Address table. Because this table under /Person, 
+   # then each record will have their own reference to /Person table.
    for idx, row in bt['/Person'].iterrows():
        print(idx, row) 
-   0 {'Address': 'Address', 'Person': 0, 'number': 1, 'street': 'Station', 'street_type': 'Street'}
-   1 {'Address': 'Address', 'Person': 1, 'number': 8, 'street': 'Parade', 'street_type': 'Road'}
+   # 0 {'Address': 'Address', 'Person': 0, 'number': 1, 'street': 'Station', 'street_type': 'Street'}
+   # 1 {'Address': 'Address', 'Person': 1, 'number': 8, 'street': 'Parade', 'street_type': 'Road'}
 
    # loop through /PersonDetails table.
    for idx, row in bt['/PersonDetails'].iterrows():
         print(idx, row)
-   0 {'PersonDetails': 0, 'person_id': '1', 'hobby': 'Blogging', 'is_meat_eater': True}
-   1 {'PersonDetails': 1, 'person_id': '2', 'hobby': 'Reading', 'is_meat_eater': None}
+   # 0 {'PersonDetails': 0, 'person_id': '1', 'hobby': 'Blogging', 'is_meat_eater': True}
+   # 1 {'PersonDetails': 1, 'person_id': '2', 'hobby': 'Reading', 'is_meat_eater': None}
 
-   # loop through /PersonDetails/LuckyNo table.
-   for idx, row in bt['/PersonDetails/LuckyNo'].iterrows():
+   # loop through /PersonDetails/LuckyDays table.
+   for idx, row in bt['/PersonDetails/LuckyDays'].iterrows():
         print(idx, row)
-   0 {'PersonDetails': 1, 'LuckyNo': 13}
-   1 {'PersonDetails': 1, 'LuckyNo': 17}
-   2 {'PersonDetails': 1, 'LuckyNo': 19}
+   # 0 {'PersonDetails': 1, 'LuckyDays': 13}
+   # 1 {'PersonDetails': 1, 'LuckyDays': 17}
+   # 2 {'PersonDetails': 1, 'LuckyDays': 19}
    
 Please note that since json can contain complex hierarchy paths and still valid (eg. system configuration), then this function may not in your favour. It might be better to manually extract/locate a certain path manually (hard coded).
 
@@ -377,6 +378,7 @@ Return bintang table object as a simple dictionary.
 .. code:: python
 
    res = bt['tablename'].to_dict(columns=None)
+
 
 
 Bintang.Table.to_excel(path, index=False)

@@ -70,6 +70,7 @@ class Table(object):
     def __len__(self):
         """ return the length of rows"""    
         return len(self.__rows)
+            
 
     def set_to_sql_colmap(self, columns):
         if isinstance(columns, list):

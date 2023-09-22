@@ -119,7 +119,7 @@ We are going to provide some functions that may be needed most when working with
 
 
 Bintang.blookup(lkp_table, on, ret_columns)
------------------------------------------
+-------------------------------------------
 
 Return one or more columns from lookup table.
 
@@ -209,7 +209,8 @@ Read an Excel file into Bintang table.
 
 Bintang.read_json(json_str, tablepaths=None)
 --------------------------------------------
-Read JSON string and create one or more table according to different hierarchy paths contained in object.
+Read JSON string and create a table or more according to hierarchy paths contained in json 'object'.
+This function wraps built-in json.load() then read_dict() to generate table(s).
 
 :json_str: a json string
 :tablepaths: a list of paths which contain a list of objects (equivalent to records).
@@ -366,6 +367,35 @@ Loop through Bintang table's rows and yield index and row. Row can be called out
    for idx, row in bt['tablename'].iterrows():
        # do something with idx or row
        print(idx, row) 
+
+
+
+Bintang.Table.read_sql(conn, sql_str=None, params=None)
+-------------------------------------------------------
+
+Read sql table and populate the data to Bintang table.
+
+:conn: pyodbc database connection
+:sql_str: sql query, if none it will select * from a same sql table name.
+:params: sql parameters
+
+.. code:: python
+
+   # connect to sql server
+   conn_str = "DRIVER={ODBC Driver 17 for SQL Server};SERVER=EHL5CD8434KLM;PORT=1443;DATABASE=test;Trusted_Connection=yes;"
+   conn = pyodbc.connect(conn_str)
+   sql_str = "SELECT * FROM Person WHERE LastName=?"
+   params = ('Dokey')
+
+   bt = bintang.Bintang()
+   bt.create_table('Person')
+   bt['Person'].read_sql(conn, sql_str, params)
+
+   for idx, row in bt['Person'].iterrows():
+       print(idx, row)
+       # would print {'ID': 3, 'FirstName': 'Okie', 'LastName': 'Dokey', 'address': '7 Ocean Rd'}
+
+   conn.close()    
 
 
 

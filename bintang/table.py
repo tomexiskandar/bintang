@@ -19,6 +19,7 @@ from bintang.log import log
 # logging.basicConfig(format=FORMAT)
 # log.setLevel(logging.DEBUG)
 
+INDEX_COLUMN_NAME = 'idx'
 PARENT_PREFIX = ''
 
 class ColumnNotFoundError(Exception):
@@ -270,10 +271,7 @@ class Table(object):
         return create_sqltable_templ 
     
 
-
-        
-
-    def add_column(self,name, data_type=None, column_size=None):
+    def add_column(self, name, data_type=None, column_size=None):
         # check if the passed name already exists
         columnid = self.get_columnid(name)
         if columnid is None:
@@ -1254,13 +1252,34 @@ class Table(object):
             if trow not in res_dict.keys():
                 res_dict[trow] = 1
             else:
-                res_dict[trow] += 1
-                
+                res_dict[trow] += 1      
         for k, v in res_dict.items():
             columns_ = columns + [count_column]
             values = list(k) + [v]
             group_tobj.insert(values, columns_,)       
         return group_tobj
+    
+
+    def DEV_groupby(self, columns, save_as):
+        res_dict = {} #key=a tuple of columns, value=count
+        for idx, row in self.iterrows(columns, row_type='list'):
+            trow = tuple(row)
+            if trow not in res_dict.keys():
+                res_dict[trow] = 1
+            else:
+                res_dict[trow] += 1
+        # create a table object
+        tobj = self.bing.create_table(save_as)
+        tobj = self.bing.get_table(save_as)
+        # loop dict and insert to table object
+        for k, v in res_dict.items():
+            print(k,v)
+            columns_toinsert = columns + ['count']
+            print('columns_toinsert',columns_toinsert)
+            values = list(k) + [v]
+            print('values',values)
+            tobj.insert(values, columns_toinsert,)
+        return tobj
     
 
     def read_excel(self, path, sheetname):
@@ -1293,6 +1312,19 @@ class Table(object):
             self.add_row_into_be()
 
 
+    def read_sql(self, conn, sql_str=None, params=None ):
+        cursor = conn.cursor()
+        if sql_str is None:
+            sql_str = "SELECT * FROM {}".format(self.name)
+        if params is not None:
+            cursor.execute(sql_str, params)
+        else:
+            cursor.execute(sql_str)
+        columns = [col[0] for col in cursor.description]
+        for row in cursor.fetchall():
+            self.insert(row, columns)        
+
+
     def reindex(self):
         # dict is already indexed with python 3.7+
         # this only means we rebuild row id so any deleted idx can be reused
@@ -1302,6 +1334,30 @@ class Table(object):
             if i != idx:
                 del self.__rows[idx]
 
+
+    def to_csv(self, path, columns=None, index=False, delimiter=',',\
+               quotechar='"', quoting=3): #csv.QUOTE_NONE is 3
+        import csv
+        if columns is None:
+            columns = self.get_columns()
+        with open(path, 'w', newline = '\n') as csvfile:
+            csvwriter = csv.writer(csvfile, dialect='excel', delimiter=delimiter,
+                                   quotechar=quotechar, quoting=quoting)
+            columns_towrite = [col for col in columns]
+            if index:                       # if column index wanted
+                idx_col = INDEX_COLUMN_NAME
+                if isinstance(index, str):  # if user wanted own index column name
+                    idx_col = index
+                columns_towrite.insert(0,idx_col)
+            # write header to csvfile
+            csvwriter.writerow(columns_towrite)
+            if index:
+                for idx, row in self.iterrows(columns, row_type='list'):
+                    csvwriter.writerow([idx] + row)
+            else:
+                for idx, row in self.iterrows(columns, row_type='list'):
+                    csvwriter.writerow(row)
+            
 
     def to_dict(self, columns=None):
         if columns is None:
@@ -1316,20 +1372,27 @@ class Table(object):
         return res    
             
 
-    def to_excel(self, path, index=False, columns=None):
+    def to_excel(self, path, columns=None, index=False):
         from openpyxl import Workbook
         wb = Workbook()
         ws = wb.active
+        ws.title = 'Sheet1'
         # add header
+        columns_towrite = []
         if columns is None:
-            columns = self.get_columns()
+            columns_towrite = self.get_columns()
+        else:
+            columns_towrite = [col for col in columns]
         log.debug('index: {}'.format(index))
         if index:
-            if index == True:
-                columns.insert(0,'_idx')
+            if index:                          # if column index wanted
+                idx_column = INDEX_COLUMN_NAME
+                if isinstance(index, str):     # if user wanted own index column name
+                    idx_column = index      
+                columns_towrite.insert(0,idx_column)
             if index != True:
-                columns.insert(0,str(index))        
-        ws.append(columns)
+                columns_towrite.insert(0,str(index))        
+        ws.append(columns_towrite)
         # add row
         if index:
             for idx, row in self.iterrows(columns, row_type='list'):

@@ -37,13 +37,13 @@ Examples of Usage
    bt = bintang.Bintang()  # bintang object created
 
    bt.create_table('Person')  
-   bt  
-   {  
-      "name": null,  
-      "tables": [  
-      "Person"  
-      ]  
-   }  
+   print(bt  )
+   #{  
+   #   "name": null,  
+   #   "tables": [  
+   #   "Person"  
+   #   ]  
+   #}  
 
 
 The parameters are record and columns.

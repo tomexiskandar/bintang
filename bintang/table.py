@@ -689,7 +689,7 @@ class Table(object):
             self.delete_row(index)
 
 
-    def get_row(self,idx):
+    def _get_row(self,idx):
         if idx in self.__rows:
             return self.__rows[idx]
         else:

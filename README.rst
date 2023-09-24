@@ -160,6 +160,8 @@ Read a dictionary object and create one or more table according to different hie
    
    # example data
    dict_obj = {
+        'Page:': 100,
+        'Time': '2033-09-05T00:00:00Z',
         'Person': [
             {'id': 1,'name': 'John','surname': 'Smith',
                 'Address': {'number': 1, 'street': 'Station','street_type': 'Street'}
@@ -183,12 +185,46 @@ Read a dictionary object and create one or more table according to different hie
    # {
    #    "name": "From Dict",
    #    "tables": [
+   #       "/",
    #       "/Person",
    #       "/Person/Address",
    #       "/PersonDetails",
    #       "/PersonDetails/LuckyDays"
    #    ]
    # }
+
+   # loop through root table ('/')
+   for idx, row in bt['/'].iterrows():
+       print(idx, row)
+   # 0 {'Page:': 100, 'Time': '2033-09-05T00:00:00Z'}
+
+   # loop through  /Person table.
+   for idx, row in bt['/Person'].iterrows():
+       print(idx, row)
+   # 0 {'Person': 0, 'id': 1, 'name': 'John', 'surname': 'Smith'}
+   # 1 {'Person': 1, 'id': 2, 'name': 'Jane', 'surname': 'Brown'} 
+
+   # loop through /Person/Address table. Because this table under /Person, 
+   # then each record will have their own reference to /Person table.
+   for idx, row in bt['/Person'].iterrows():
+       print(idx, row) 
+   # 0 {'Address': 'Address', 'Person': 0, 'number': 1, 'street': 'Station', 'street_type': 'Street'}
+   # 1 {'Address': 'Address', 'Person': 1, 'number': 8, 'street': 'Parade', 'street_type': 'Road'}
+
+   # loop through /PersonDetails table.
+   for idx, row in bt['/PersonDetails'].iterrows():
+        print(idx, row)
+   # 0 {'PersonDetails': 0, 'person_id': '1', 'hobby': 'Blogging', 'is_meat_eater': True}
+   # 1 {'PersonDetails': 1, 'person_id': '2', 'hobby': 'Reading', 'is_meat_eater': None}
+
+   # loop through /PersonDetails/LuckyDays table.
+   for idx, row in bt['/PersonDetails/LuckyDays'].iterrows():
+        print(idx, row)
+   # 0 {'PersonDetails': 1, 'LuckyDays': 13}
+   # 1 {'PersonDetails': 1, 'LuckyDays': 17}
+   # 2 {'PersonDetails': 1, 'LuckyDays': 19}
+   
+Please note that since dict (or parsed json) can contain complex hierarchy paths and still valid (eg. system configuration), then this function may not in your favour. It might be better to manually extract/locate a certain path manually (hard coded).
 
 
 
@@ -246,39 +282,6 @@ This function wraps built-in json.load() then pass the result to read_dict() to 
    #       "/PersonDetails/LuckyDays"
    #    ]
    # }
-
-   # loop through root table ('/')
-   for idx, row in bt['/'].iterrows():
-       print(idx, row)
-   # 0 {'Page:': 100, 'Time': '2033-09-05T00:00:00Z'}
-
-   # loop through  /Person table.
-   for idx, row in bt['/Person'].iterrows():
-       print(idx, row)
-   # 0 {'Person': 0, 'id': 1, 'name': 'John', 'surname': 'Smith'}
-   # 1 {'Person': 1, 'id': 2, 'name': 'Jane', 'surname': 'Brown'} 
-
-   # loop through /Person/Address table. Because this table under /Person, 
-   # then each record will have their own reference to /Person table.
-   for idx, row in bt['/Person'].iterrows():
-       print(idx, row) 
-   # 0 {'Address': 'Address', 'Person': 0, 'number': 1, 'street': 'Station', 'street_type': 'Street'}
-   # 1 {'Address': 'Address', 'Person': 1, 'number': 8, 'street': 'Parade', 'street_type': 'Road'}
-
-   # loop through /PersonDetails table.
-   for idx, row in bt['/PersonDetails'].iterrows():
-        print(idx, row)
-   # 0 {'PersonDetails': 0, 'person_id': '1', 'hobby': 'Blogging', 'is_meat_eater': True}
-   # 1 {'PersonDetails': 1, 'person_id': '2', 'hobby': 'Reading', 'is_meat_eater': None}
-
-   # loop through /PersonDetails/LuckyDays table.
-   for idx, row in bt['/PersonDetails/LuckyDays'].iterrows():
-        print(idx, row)
-   # 0 {'PersonDetails': 1, 'LuckyDays': 13}
-   # 1 {'PersonDetails': 1, 'LuckyDays': 17}
-   # 2 {'PersonDetails': 1, 'LuckyDays': 19}
-   
-Please note that since json can contain complex hierarchy paths and still valid (eg. system configuration), then this function may not in your favour. It might be better to manually extract/locate a certain path manually (hard coded).
 
 
 

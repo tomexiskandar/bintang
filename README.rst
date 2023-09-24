@@ -73,10 +73,10 @@ Loop your data using iterrows function. This will loop through all the rows one 
    for idx, row in bt['Person'].iterrows():
        print(idx, row)  
   
-   0 {'id': 1, 'name': 'John', 'surname': 'Smith', 'address': '1 Station St', 'hobby': None}
-   1 {'id': 2, 'name': 'Jane', 'surname': 'Brown', 'address': '8 Parade Rd', 'hobby': 'Digging'}
-   2 {'id': 3, 'name': 'Okie', 'surname': 'Dokie', 'address': '7 Ocean Rd', 'hobby': None}
-   3 {'id': 4, 'name': 'Maria', 'surname': None, 'address': '7 Heaven Ave', 'hobby': 'Digging'}
+   #0 {'id': 1, 'name': 'John', 'surname': 'Smith', 'address': '1 Station St', 'hobby': None}
+   #1 {'id': 2, 'name': 'Jane', 'surname': 'Brown', 'address': '8 Parade Rd', 'hobby': 'Digging'}
+   #2 {'id': 3, 'name': 'Okie', 'surname': 'Dokie', 'address': '7 Ocean Rd', 'hobby': None}
+   #3 {'id': 4, 'name': 'Maria', 'surname': None, 'address': '7 Heaven Ave', 'hobby': 'Digging'}
 
 You should notice that all columns now have been normalised for each row, even though all records have not used all column names during insertion.\
 When the 1st record (idx 0) is inserted, four columns created. id, name, age and address.
@@ -210,7 +210,7 @@ Read an Excel file into Bintang table.
 Bintang.read_json(json_str, tablepaths=None)
 --------------------------------------------
 Read JSON string and create a table or more according to hierarchy paths contained in json 'object'.
-This function wraps built-in json.load() then read_dict() to generate table(s).
+This function wraps built-in json.load() then pass the result to read_dict() to generate table(s).
 
 :json_str: a json string
 :tablepaths: a list of paths which contain a list of objects (equivalent to records).
@@ -229,7 +229,8 @@ This function wraps built-in json.load() then read_dict() to generate table(s).
                           {"id": 2, "name": "Jane", "surname": "Brown", \
                             "Address": {"number": 8, "street": "Parade", "street_type": "Road"}}], \
                "PersonDetails": [{"person_id": "1", "hobby": "Blogging", "is_meat_eater": true}, \
-                                 {"person_id": "2", "hobby": "Reading", "is_meat_eater": null,"LuckyDays": [13, 17, 19]}]}'
+                                 {"person_id": "2", "hobby": "Reading", "is_meat_eater": null, \
+                                   "LuckyDays": [13, 17, 19]}]}'
 
    bt = bintang.Bintang('From JSON')
    bt.read_json(json_str)

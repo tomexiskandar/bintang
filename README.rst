@@ -2,7 +2,7 @@
 Bintang
 =======
 A tiny and temporary db for quick data cleansing and transformation.
-It is a high-level Python coding and would help any beginners up to speed with ETL work.
+It is a high-level Python coding and would help anyone up to speed with ETL work.
 
 .. contents:: Overview
    :depth: 3
@@ -23,7 +23,7 @@ Requirements
 Installation
 ------------
 
-.. code-block:: console
+.. code-block:: python
 
    pip install bintang
 
@@ -31,7 +31,7 @@ Installation
 Examples of Usage
 -----------------
 
-.. code-block:: console
+.. code-block:: python
 
    import bintang          # import the package
    bt = bintang.Bintang()  # bintang object created
@@ -48,7 +48,7 @@ Examples of Usage
 
 The parameters are record and columns.
 
-.. code-block:: console
+.. code-block:: python
 
    # Create a couple of tables and use insert function to insert data.
    bt.create_table('Person') 
@@ -68,7 +68,7 @@ The parameters are record and columns.
 
 Loop your data using iterrows function. This will loop through all the rows one by one in a Python dict.
 
-.. code-block:: console
+.. code-block:: python
 
    for idx, row in bt['Person'].iterrows():
        print(idx, row)  
@@ -84,7 +84,7 @@ When insert 4th record is inserted (idx 3), a hobby column added.
  
 Inspect Person table column list. You can also use function table.get_columns() to list all columns.
 
-.. code-block:: console
+.. code-block:: python
 
    print(bt['Person'])
    # {  
@@ -98,7 +98,7 @@ Inspect Person table column list. You can also use function table.get_columns() 
 
 Use update function to change the data. The function signature is table.update(column, value, where=None). The value and where parameters can use lambda function argument for smarter expression.
 
-.. code-block:: console
+.. code-block:: python
 
    bt['Person'].update('age', 10, where=lambda row: row['name']=='Maria') 
 
@@ -107,7 +107,7 @@ Retrieve the row stored at the 3rd index by passing 3 inside the list next to ta
 .. code:: console
 
    bt['Person'][3] 
-   {'id': 4, 'name': 'Maria', 'age': 10, 'address': '7 Heaven Ave', 'hobby': 'Digging'} 
+   #{'id': 4, 'name': 'Maria', 'age': 10, 'address': '7 Heaven Ave', 'hobby': 'Digging'} 
 
 
 
@@ -224,7 +224,7 @@ Read a dictionary object and create one or more table according to different hie
    # 1 {'PersonDetails': 1, 'LuckyDays': 17}
    # 2 {'PersonDetails': 1, 'LuckyDays': 19}
    
-Please note that since dict (or parsed json) can contain complex hierarchy paths and still valid (eg. system configuration), then this function may not in your favour. It might be better to manually extract/locate a certain path manually (hard coded).
+Please note that since dict (or parsed json) can contain complex hierarchy paths and still valid (eg. system configuration), then this function may not be in your favour. It might be better to manually extract/locate a certain path manually (hard coded).
 
 
 
@@ -467,7 +467,7 @@ Notes: Currently tested for SQL Server 2019. However this function should work w
 :schema: the schema name the sql table belong to.
 :table: the table name in the sql database
 :columns: a dictionary of column mappings where the key is sql column (destination) and the value is bintang columns (source). If columns is a list, column mapping will be created automatically assuming source columns and destination columns are the same.
-:method: 'prep' to use prepared statement (default) or 'string' to use sql string. To avoid sql injection, never use method string when the datasource is not known or from they are from external.
+:method: 'prep' to use prepared statement (default) or 'string' to use sql string. To avoid sql injection, never use string method when the datasource is external or not known.
 :max_rows: maximum rows per insert. Insert more then 1 record when using prep require all data in a column to use the same type, otherwise will raise error.
 
 .. code:: python

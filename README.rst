@@ -202,7 +202,7 @@ Bintang.read_excel(path)
 ------------------------
 
 Read an Excel file and create Bintang tables from available sheets. The first row will be assumed as column header.
-Go to :ref:'Bintang.Table.read_excel(path, sheetname)' to read a single sheet and populate the data into created table.
+Go to Bintang.Table.read_excel() to read a single sheet and populate the data into created table.
 
 :path: an excel file path to read from.
 

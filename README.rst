@@ -33,8 +33,8 @@ Examples of Usage
 
 .. code-block:: python
 
-   import bintang          # import the package
-   bt = bintang.Bintang()  # bintang object created
+   from bintang import Bintang # import the package
+   bt = Bintang()              # bintang object created
 
    bt.create_table('Person')  
    print(bt  )
@@ -118,36 +118,6 @@ Common Functions
 We are going to provide some functions that may be needed most when working with Bintang objects.
 
 
-Bintang.blookup(lkp_table, on, ret_columns)
--------------------------------------------
-
-Return one or more columns from lookup table.
-
-:lkp_table: lookup table
-:on: lookup key tuples
-:ret_columns: lookup columns to be returned
-
-
-.. code:: python
-    
-   # using tables from Example of Usage section above.
-   bt['Person'].blookup('FishingClub')], \
-       [('name','FirstName')], \
-       ['Membership'])
-
-   # check results
-   for idx, row in bt['Person'].iterrows(['name','Membership']):
-       print(idx, row)
-
-   # 0 {'name': 'John', 'Membership': 'Active'}
-   # 1 {'name': 'Jane', 'Membership': 'Active'}
-   # 2 {'name': 'Okie', 'Membership': None}
-   # 3 {'name': 'Maria', 'Membership': None}    
-   
-We can see only John and Jane got the membership because only John and Jane exist in both tables.
-       
-
-
 Bintang.read_dict(dict_obj, tablepaths=None)
 --------------------------------------------
 
@@ -228,18 +198,17 @@ Please note that since dict (or parsed json) can contain complex hierarchy paths
 
 
 
-Bintang.read_excel(path, sheetname, table=None)
------------------------------------------------
+Bintang.read_excel(path)
+------------------------
 
-Read an Excel file into Bintang table.
+Read an Excel file and create Bintang tables from available sheets. The first row will be assumed as column header.
+Go to :ref:'Bintang.Table.read_excel(path, sheetname)' to read a single sheet and populate the data into created table.
 
 :path: an excel file path to read from.
-:sheetname: the sheetname to read from.
-:table: table name to hold the data. If not given, table name will be the sheetname.
 
 .. code:: python
 
-   bt.read_excel('/path/to/file.xlsx', 'Sheet1')
+   bt.read_excel('/path/to/file.xlsx')
 
 
 
@@ -283,6 +252,36 @@ This function wraps built-in json.load() then pass the result to read_dict() to 
    #    ]
    # }
 
+
+
+Bintang.Table.blookup(lkp_table, on, ret_columns)
+-------------------------------------------
+
+Return one or more columns from lookup table.
+
+:lkp_table: lookup table
+:on: lookup key tuples
+:ret_columns: lookup columns to be returned
+
+
+.. code:: python
+    
+   # using tables from Example of Usage section above.
+   bt['Person'].blookup('FishingClub')], \
+       [('name','FirstName')], \
+       ['Membership'])
+
+   # check results
+   for idx, row in bt['Person'].iterrows(['name','Membership']):
+       print(idx, row)
+
+   # 0 {'name': 'John', 'Membership': 'Active'}
+   # 1 {'name': 'Jane', 'Membership': 'Active'}
+   # 2 {'name': 'Okie', 'Membership': None}
+   # 3 {'name': 'Maria', 'Membership': None}    
+   
+We can see only John and Jane got the membership because their names exists in both tables.
+       
 
 
 Bintang.Table.innerjoin(right_table, on, into, out_leftcolumns, out_rightcolumns)
@@ -373,6 +372,21 @@ Loop through Bintang table's rows and yield index and row. Row can be called out
        print(idx, row) 
 
 
+
+Bintang.Table.read_excel(path, sheetname)
+-----------------------------------------------
+
+Read an Excel file into Bintang table.
+
+:path: an excel file path to read from.
+:sheetname: the sheetname to read from.
+
+.. code:: python
+
+   bt.create_table('Person')
+   bt['Person'].read_excel('/path/to/file.xlsx', 'Sheet1')
+   
+   
 
 Bintang.Table.read_sql(conn, sql_str=None, params=None)
 -------------------------------------------------------

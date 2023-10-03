@@ -294,7 +294,7 @@ class Bintang():
         conn.close() 
 
 
-    def read_excel(self, path, sheetname, table=None):
+    def _read_excel_OLD(self, path, sheetname, table=None):
         table_ = sheetname
         if table is not None:
             table_ = table
@@ -330,6 +330,38 @@ class Bintang():
         if self.__be is not None:
             self.get_table(table_).add_row_into_be()
 
+
+    def read_excel(self, path, sheetnames=None):
+        wb = load_workbook(path, read_only=True, data_only=True)
+        for ws in wb:
+            # create Bintang table
+            table_ = ws.title
+            self.create_table(table_)
+            columns = []
+            Nonecolumn_cnt = 0
+            for rownum, row_cells in enumerate(ws.iter_rows(),start=1):
+                values = [] # hold column value for each row
+                if rownum == 1:
+                    for cell in row_cells:
+                        if cell.value is None:
+                            columname = 'noname' + str(Nonecolumn_cnt)
+                            Nonecolumn_cnt += 1
+                            columns.append(columname)
+                        else:
+                            columns.append(cell.value)
+                    if Nonecolumn_cnt > 0:
+                        log.warning('Warning! Noname column detected!')          
+                
+                if rownum > 1:
+                    for cell in row_cells:
+                        values.append(cell.value)
+                    # if rownum == 370:
+                    #     log.debug(f'{values} at rownum 370.')
+                    #     log.debug(any(values))
+                    if any(values):
+                        self.get_table(table_).insert(values, columns)
+            if self.__be is not None:
+                self.get_table(table_).add_row_into_be()
 
     def read_dict(self, dict_obj, tablepaths=None):
         debug = False

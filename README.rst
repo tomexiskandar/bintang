@@ -118,86 +118,6 @@ Common Functions
 We are going to provide some functions that may be needed most when working with Bintang objects.
 
 
-Bintang.read_dict(dict_obj, tablepaths=None)
---------------------------------------------
-
-Read a dictionary object and create one or more table according to different hierarchy paths contained in object.
-
-:dict_obj: a Python dictionary object.
-:tablepaths: a list of paths which contain a list of objects (equivalent to records).
-
-.. code:: python
-   
-   # example data
-   dict_obj = {
-        'Page:': 100,
-        'Time': '2033-09-05T00:00:00Z',
-        'Person': [
-            {'id': 1,'name': 'John','surname': 'Smith',
-                'Address': {'number': 1, 'street': 'Station','street_type': 'Street'}
-            },
-            {'id': 2,'name': 'Jane','surname': 'Brown',
-                'Address': {'number': 8,'street': 'Parade','street_type': 'Road'}
-            }
-        ],
-        'PersonDetails': [
-            {'person_id': '1', 'hobby': 'Blogging','is_meat_eater': True
-            },
-            {'person_id': '2','hobby': 'Reading','is_meat_eater': None,
-                'LuckyDays': [13,17,19]
-            }
-        ]
-   }
-   
-   bt = bintang.Bintang('From Dict')   # create bintang object.
-   bt.read_dict(dict_obj)              # call this function
-   print(bt) # show bt tables
-   # {
-   #    "name": "From Dict",
-   #    "tables": [
-   #       "/",
-   #       "/Person",
-   #       "/Person/Address",
-   #       "/PersonDetails",
-   #       "/PersonDetails/LuckyDays"
-   #    ]
-   # }
-
-   # loop through root table ('/')
-   for idx, row in bt['/'].iterrows():
-       print(idx, row)
-   # 0 {'Page:': 100, 'Time': '2033-09-05T00:00:00Z'}
-
-   # loop through  /Person table.
-   for idx, row in bt['/Person'].iterrows():
-       print(idx, row)
-   # 0 {'Person': 0, 'id': 1, 'name': 'John', 'surname': 'Smith'}
-   # 1 {'Person': 1, 'id': 2, 'name': 'Jane', 'surname': 'Brown'} 
-
-   # loop through /Person/Address table. Because this table under /Person, 
-   # then each record will have their own reference to /Person table.
-   for idx, row in bt['/Person'].iterrows():
-       print(idx, row) 
-   # 0 {'Address': 'Address', 'Person': 0, 'number': 1, 'street': 'Station', 'street_type': 'Street'}
-   # 1 {'Address': 'Address', 'Person': 1, 'number': 8, 'street': 'Parade', 'street_type': 'Road'}
-
-   # loop through /PersonDetails table.
-   for idx, row in bt['/PersonDetails'].iterrows():
-        print(idx, row)
-   # 0 {'PersonDetails': 0, 'person_id': '1', 'hobby': 'Blogging', 'is_meat_eater': True}
-   # 1 {'PersonDetails': 1, 'person_id': '2', 'hobby': 'Reading', 'is_meat_eater': None}
-
-   # loop through /PersonDetails/LuckyDays table.
-   for idx, row in bt['/PersonDetails/LuckyDays'].iterrows():
-        print(idx, row)
-   # 0 {'PersonDetails': 1, 'LuckyDays': 13}
-   # 1 {'PersonDetails': 1, 'LuckyDays': 17}
-   # 2 {'PersonDetails': 1, 'LuckyDays': 19}
-   
-Please note that since dict (or parsed json) can contain complex hierarchy paths and still valid (eg. system configuration), then this function may not be in your favour. It might be better to manually extract/locate a certain path manually (hard coded).
-
-
-
 Bintang.read_excel(path)
 ------------------------
 
@@ -215,7 +135,6 @@ Go to Bintang.Table.read_excel() to read a single sheet and populate the data in
 Bintang.read_json(json_str, tablepaths=None)
 --------------------------------------------
 Read JSON string and create a table or more according to hierarchy paths contained in json 'object'.
-This function wraps built-in json.load() then pass the result to read_dict() to generate table(s).
 
 :json_str: a json string
 :tablepaths: a list of paths which contain a list of objects (equivalent to records).
@@ -252,6 +171,25 @@ This function wraps built-in json.load() then pass the result to read_dict() to 
    #    ]
    # }
 
+   # loop through root table ('/')
+   for idx, row in bt['/'].iterrows():
+       print(idx, row)
+   0 {'Page:': 100, 'Time': '2033-09-05T00:00:00Z'}
+
+   # loop through  /Person table.
+   for idx, row in bt['/Person'].iterrows():
+       print(idx, row)
+   # 0 {'Person': 0, 'id': 1, 'name': 'John', 'surname': 'Smith'}
+   # 1 {'Person': 1, 'id': 2, 'name': 'Jane', 'surname': 'Brown'} 
+
+   # loop through /Person/Address table. Because this table under /Person, then each record will have their own reference to /Person table.
+   for idx, row in bt['/Person'].iterrows():
+       print(idx, row) 
+   # 0 {'Address': 'Address', 'Person': 0, 'number': 1, 'street': 'Station', 'street_type': 'Street'}
+   # 1 {'Address': 'Address', 'Person': 1, 'number': 8, 'street': 'Parade', 'street_type': 'Road'}
+
+Please note that since json can contain complex hierarchy paths and still valid (eg. system configuration), then this function may not be in your favour. It might be better to manually extract/locate a certain path manually (hard coded).
+   
 
 
 Bintang.Table.blookup(lkp_table, on, ret_columns)
@@ -417,17 +355,22 @@ Read sql table and populate the data to Bintang table.
 
 
 
-Bintang.Table.to_dict(columns=None)
------------------------------------
-Return bintang table object as a simple dictionary.
+Bintang.table.to_csv(path, index=False, delimiter=',', quotechar='"', quoting=0)
+---------------------------------------------------------------------------------------------------------------
 
-:columns: a list of columns for each row will output. If None, output all columns.
+Write bintang table to a csv file.
+
+:path: a csv file path to write to.
+:index: write row index if it sets True.
+:delimiter: field seperator
+:quotechar: a character to quote the data
+:quoting: the csv enum for quoting, csv.QUOTE_MINIMAL or  0, csv.QUOTE_ALL or 1, csv.QUOTE_NONNUMERIC or 2, csv.QUOTE_NONE or 3
 
 .. code:: python
 
-   res = bt['tablename'].to_dict(columns=None)
+   bt['tablename'].to_csv('/path/to/file.csv')
 
-
+                  
 
 Bintang.Table.to_excel(path, index=False)
 -----------------------------------------

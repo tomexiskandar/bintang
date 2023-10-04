@@ -1335,13 +1335,19 @@ class Table(object):
                 del self.__rows[idx]
 
 
-    def to_csv(self, path, columns=None, index=False, delimiter=',',\
-               quotechar='"', quoting=3): #csv.QUOTE_NONE is 3
+    def to_csv(self, path, columns=None, index=False, \
+               dialect='excel', delimiter=',', \
+               quotechar='"', quoting=0): 
         import csv
+        # csv.QUOTE_MINIMAL = 0
+        # csv.QUOTE_ALL = 1
+        # csv.QUOTE_NONNUMERIC = 2
+        # csv.QUOTE_NONE = 3
+        
         if columns is None:
             columns = self.get_columns()
         with open(path, 'w', newline = '\n') as csvfile:
-            csvwriter = csv.writer(csvfile, dialect='excel', delimiter=delimiter,
+            csvwriter = csv.writer(csvfile, dialect=dialect, delimiter=delimiter,
                                    quotechar=quotechar, quoting=quoting)
             columns_towrite = [col for col in columns]
             if index:                       # if column index wanted

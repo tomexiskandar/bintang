@@ -193,7 +193,7 @@ Please note that since json can contain complex hierarchy paths and still valid 
 
 
 Bintang.Table.blookup(lkp_table, on, ret_columns)
--------------------------------------------
+-------------------------------------------------
 
 Return one or more columns from lookup table.
 

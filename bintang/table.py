@@ -242,7 +242,7 @@ class Table(object):
                     cobj.column_size = col_size #cobj.data_props['str']['column_size']
                 elif 'datetime' in cobj.data_props:
                     cobj.data_type = 'datetime'
-                    cobj.column_size = cobj.dataprops['datetime']['column_size']
+                    cobj.column_size = cobj.data_props['datetime']['column_size']
                 else: # just get the first one and break. to be observed later on!
                     for type, prop in cobj.data_props.items():
                         cobj.data_type = type

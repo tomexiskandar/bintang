@@ -338,7 +338,7 @@ Read sql table and populate the data to Bintang table.
 .. code:: python
 
    # connect to sql server
-   conn_str = "DRIVER={ODBC Driver 17 for SQL Server};SERVER=EHL5CD8434KLM;PORT=1443;DATABASE=test;Trusted_Connection=yes;"
+   conn_str = "DRIVER={ODBC Driver 17 for SQL Server};SERVER=localhost;PORT=1443;DATABASE=test;Trusted_Connection=yes;"
    conn = pyodbc.connect(conn_str)
    sql_str = "SELECT * FROM Person WHERE LastName=?"
    params = ('Dokey')

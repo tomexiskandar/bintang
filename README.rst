@@ -46,7 +46,7 @@ Examples of Usage
    #}  
 
 
-The parameters are record and columns.
+Use insert function to populate a table. The parameters are record and columns.
 
 .. code-block:: python
 

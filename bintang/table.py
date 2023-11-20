@@ -490,37 +490,39 @@ class Table(object):
                 raise 'param column must be either column name or lambda and param where must be a lambda.'
 
 
-                
+    def index_exists(self, idx):
+        if idx in self.__rows:
+            return True
+        else:
+            return False
         
-
 
 
     def make_row(self,id=None, option=None):
         """make a new row.
-        by default it sets uuid4 for id.
+        by default it increments id.
         """
-        if id is None and option is None:
+        if id is None:
             row = Row(self.__last_assigned_rowid + 1)
             self.__last_assigned_rowid += 1 #increment rowid
-        elif id is not None and option is None:
+        elif id is not None:
             row = Row(id)
-        elif id is None and option == 'uuid':
-            row = Row(uuid.uuid4())
+        # elif id is None and option == 'uuid':
+        #     row = Row(uuid.uuid4())
         return row
 
 
-    def insert(self, record, columns=None):
+    def insert(self, record, columns=None, index=None):
         """ restrict arguments for record insertion for this function as the followings:
         1. a pair of columns and its single-row values
         deprecated2. a pair of columns and its multiple-row values (as a list of tuple)
         """
-
         if isinstance(record, dict):
             row = self.make_row()
             for idx, (col, val) in enumerate(record.items()):
                 cell = self.make_cell(col,val)
                 row.add_cell(cell) # add to row
-            self.add_row(row)                                    
+            self.add_row(row, index)                                    
         elif isinstance(columns,list) or isinstance(columns,tuple) or isinstance(record,list) or isinstance(record,tuple):
             row = self.make_row()
             for idx, col in enumerate(columns):
@@ -531,9 +533,34 @@ class Table(object):
                 if len(self.__temprows) == self.__be.max_row_for_sql_insert:
                     self.add_row_into_be()
             else:
-                self.add_row(row)    
+                self.add_row(row, index)    
         else:
             raise ValueError("Arg for record set for dictionary or list/tuple of values with list/tuple of columns.")
+        
+    def _insert(self, record, columns=None, index=None):
+        """ restrict arguments for record insertion for this function as the followings:
+        1. a pair of columns and its single-row values
+        deprecated2. a pair of columns and its multiple-row values (as a list of tuple)
+        """
+        if isinstance(record, dict):
+            row = self.make_row()
+            for idx, (col, val) in enumerate(record.items()):
+                cell = self.make_cell(col,val)
+                row.add_cell(cell) # add to row
+            self.add_row(row, index)                                    
+        elif isinstance(columns,list) or isinstance(columns,tuple) or isinstance(record,list) or isinstance(record,tuple):
+            row = self.make_row()
+            for idx, col in enumerate(columns):
+                cell = self.make_cell(col,record[idx])
+                row.add_cell(cell) # add to rows
+            if self.__be is not None:
+                self.__temprows.append(json.dumps({v.columnid: v.value for v in row.cells.values()}))
+                if len(self.__temprows) == self.__be.max_row_for_sql_insert:
+                    self.add_row_into_be()
+            else:
+                self.add_row(row, index)    
+        else:
+            raise ValueError("Arg for record set for dictionary or list/tuple of values with list/tuple of columns.")    
             
             
     def insert_old(self,columns,values):
@@ -574,7 +601,7 @@ class Table(object):
         self.__temprows.clear()      
 
 
-    def insert_dict(self, adict):
+    def _insert_dict(self, adict):
         self.insert([x for x in adict.keys()], [x for x in adict.values()])
 
 
@@ -661,10 +688,17 @@ class Table(object):
         rows_idx = len(self.__rows) # can cause re-assign a deleted row
         self.__rows[rows_idx] = row
 
-    def add_row(self, row):
+    def add_row_OLD(self, row):
         rows_idx = self.__last_assigned_idx + 1
         self.__last_assigned_idx += 1
         self.__rows[rows_idx] = row
+
+
+    def add_row(self, row, index=None):
+        if index is None:
+            index = self.__last_assigned_idx + 1
+            self.__last_assigned_idx += 1
+        self.__rows[index] = row   
 
 
     def _XXgen_row_asdict(self, row, columns, rowid=False):
@@ -1151,7 +1185,7 @@ class Table(object):
     #     return used_types    
 
 
-    def blookup(self, 
+    def _blookup_old(self, 
                 lkp_table: object, 
                 on: str, 
                 ret_columns: list[str] | list[tuple]):
@@ -1202,49 +1236,64 @@ class Table(object):
                             self.update_row(lidx, item[1], value)                   
 
 
-    def groupbycount(self, column):
-        res_dict = {}
-        for idx, row in self.iterrows(column):
-            value = next(iter(row.values()))
-            if value not in res_dict:
-                res_dict[value] = 1
-            else:
-                res_dict[value] += 1
-        return res_dict
-    
-    
-    
-    def groupby2count(self, columns):
-        res_dict = {} #key=a tuple of columns, value=count
-        for idx, row in self.iterrows(columns, row_type='list'):
-            # DEPRECATED - No need tobe a string trow = tuple([str(x or 'None') for x in row])
-            trow = tuple(row)
-            keys = res_dict.keys()
-            if trow not in res_dict.keys():
-                res_dict[trow] = 1
-            else:
-                res_dict[trow] += 1       
-        return res_dict
-    
-    
-    def DEV_groupby3count(self, columns):
-        group_tobj = Table('test')
-        res_dict = {} #key=a tuple of columns, value=count
-        for idx, row in self.iterrows(columns, row_type='list'):
-            trow = tuple(row)
-            if trow not in res_dict.keys():
-                res_dict[trow] = 1
-            else:
-                res_dict[trow] += 1
-                
-        for k, v in res_dict.items():
-            columns_ = columns + ['count']
-            values = list(k) + [v]
-            group_tobj.insert(columns_, values)       
-        return group_tobj
+    def blookup(self, 
+                lkp_table: object, 
+                on: str, 
+                ret_columns: list[str] | list[tuple]):
+        lkp_table_obj = None
+        if isinstance(lkp_table,Table):
+            lkp_table_obj = lkp_table
+            lkp_table = lkp_table.name
+        else:
+            lkp_table_obj = self.bing[lkp_table]
+        
+        # validate input eg. column etc
+        lkeys = [x[0] for x in on] # generate lkeys from on (1st sequence)
+        rkeys = [x[1] for x in on] # generate rkeys from on (2nd sequence)
+        lkeys = self.validate_columns(lkeys)
+        rkeys = lkp_table_obj.validate_columns(rkeys)
+        lcolumn_prematch = self.get_columns() # will use this list when matching occurs below
+        # validate ret_columns once:
+        # otherwise will make lots of call later
+        valid_ret_columns = []
+        for item in ret_columns:
+            if isinstance(item,str):
+                item = lkp_table_obj.validate_column(item)
+                valid_ret_columns.append(item)
+            if isinstance(item, tuple):
+                valid_column  = lkp_table_obj.validate_column(item[0])
+                item_ = tuple([valid_column,item[1]])
+                valid_ret_columns.append(item_)
+        # for each matching, update it
+        for lidx, ridx in self._scan(lkeys, lkp_table_obj, rkeys):
+            # update this table lrow for each ret_columns
+            for item in valid_ret_columns:
+                if isinstance(item, str): # if item is a column
+                    value = lkp_table_obj[ridx][item]
+                    if item in lcolumn_prematch:
+                        print('item',item,'in',self.name)
+                        self.update_row(lidx, lkp_table_obj.name + '_' + item, value)
+                    else:
+                        self.update_row(lidx, item, value)
+                if isinstance(item, tuple): # if a tuple (0=column to return from lkp_table, 1=as_column)
+                    value = lkp_table_obj[ridx][item[0]]
+                    self.update_row(lidx, item[1], value)
     
 
-    def DEV_groupby_count(self, columns, count_column):
+    def _scan(self, lkeys, lkp_table_obj, rkeys):
+        lenof_keys = len(lkeys)
+        for lidx, lrow in self.iterrows(lkeys, rowid=True):
+            for ridx, rrow in lkp_table_obj.iterrows():
+                matches = 0
+                for i in range(lenof_keys):
+                    # if lrow[lkeys[i]] == rrow[rkeys[i]]:
+                    if _match_caseless_unicode(lrow[lkeys[i]], rrow[rkeys[i]]):
+                        matches += 1 # increment
+                if matches == lenof_keys:
+                    yield lidx, ridx
+    
+
+    def DEV_groupby_count_OLD(self, columns, count_column):
         group_tobj = Table('testq')
         res_dict = {} #key=a tuple of columns, value=count
         for idx, row in self.iterrows(columns, row_type='list'):
@@ -1258,36 +1307,107 @@ class Table(object):
             values = list(k) + [v]
             group_tobj.insert(values, columns_,)       
         return group_tobj
-    
 
-    def DEV_groupby(self, columns, save_as):
-        res_dict = {} #key=a tuple of columns, value=count
-        for idx, row in self.iterrows(columns, row_type='list'):
-            trow = tuple(row)
-            if trow not in res_dict.keys():
-                res_dict[trow] = 1
+
+    def groupby(self, 
+                    columns, 
+                    save_as: str, 
+                    group_count: bool = False, 
+                    counts: list[str] | list[tuple] = None,
+                    sums: list[str] | list[tuple] = None) -> None:
+        group_tobj = self.bing.create_table(save_as)
+        group_count_column = 'group_count' if group_count == True else group_count
+        # loop the table
+        for idx, row in self.iterrows():
+            index_records = []
+            index_records = [row[x] for x in columns]
+            index = tuple(index_records)
+            #print('index',records)
+            if not group_tobj.index_exists(index):
+                # add record for the first time
+                group_tobj.insert(index_records, columns=columns, index=index)
+                if group_count:
+                    group_tobj.update_row(index, group_count_column, 1)
+                if counts:
+                    self._groupby_new_index_count(index, row, counts, group_tobj) 
+                if sums:
+                    self._groupby_new_index_sum(index, row, sums, group_tobj)
             else:
-                res_dict[trow] += 1
-        # create a table object
-        tobj = self.bing.create_table(save_as)
-        tobj = self.bing.get_table(save_as)
-        # loop dict and insert to table object
-        for k, v in res_dict.items():
-            print(k,v)
-            columns_toinsert = columns + ['count']
-            print('columns_toinsert',columns_toinsert)
-            values = list(k) + [v]
-            print('values',values)
-            tobj.insert(values, columns_toinsert,)
-        return tobj
-    
+                if group_count:
+                    incremented = group_tobj[index][group_count_column] + 1
+                    group_tobj.update_row(index, group_count_column, incremented)
+                if counts:
+                    self._groupby_existing_index_count(index, row, counts, group_tobj)
+                if sums:
+                    self._groupby_existing_index_sum(index, row, sums, group_tobj)
+      
 
-    def read_excel(self, path, sheetname):
+    def _groupby_new_index_count(self, index, row, counts, group_tobj):
+        for col in counts:
+            if isinstance(col, str):
+                col_cnt = 'count_' + col
+                if row[col] is not None:
+                    group_tobj.update_row(index, col_cnt, 1)
+                else:
+                    group_tobj.update_row(index, col_cnt, 0)
+            if isinstance(col, tuple):
+                col_cnt = col[1]
+                if row[col[0]] is not None:
+                    group_tobj.update_row(index, col_cnt, 1)
+                else:
+                    group_tobj.update_row(index, col_cnt, 0)
+
+
+    def _groupby_existing_index_count(self, index, row, counts, group_tobj):
+        for col in counts:
+            if isinstance(col, str):
+                col_cnt = 'count_' + col
+                if row[col] is not None:
+                    incremented = group_tobj[index][col_cnt] + 1
+                    group_tobj.update_row(index, col_cnt, incremented)
+            if isinstance(col, tuple):
+                col_cnt = col[1]
+                if row[col[0]] is not None:
+                    incremented = group_tobj[index][col_cnt] + 1
+                    group_tobj.update_row(index, col_cnt, incremented)
+                
+
+    def _groupby_new_index_sum(self, index, row, sums, group_tobj):
+        for col in sums:
+            if isinstance(col, str):
+                col_sum = 'sum_' + col
+                if isinstance(row[col], (int,float)):
+                    group_tobj.update_row(index, col_sum, row[col])
+                else:
+                    group_tobj.update_row(index, col_sum, 0)
+            if isinstance(col, tuple):
+                col_sum = col[1]
+                if isinstance(row[col[0]], (int,float)):
+                    group_tobj.update_row(index, col_sum, row[col[0]])
+                else:
+                    group_tobj.update_row(index, col_sum, 0)
+
+
+    def _groupby_existing_index_sum(self, index, row, sums, group_tobj):
+        for col in sums:
+            if isinstance(col, str):
+                col_sum = 'sum_' + col
+                if isinstance(row[col], (int,float)):
+                    summed = group_tobj[index][col_sum] + row[col]
+                    group_tobj.update_row(index, col_sum, summed)
+            if isinstance(col, tuple):
+                col_sum = col[1]
+                if isinstance(row[col[0]], (int,float)):
+                    summed = group_tobj[index][col_sum] + row[col[0]]
+                    group_tobj.update_row(index, col_sum, summed)
+
+
+    def read_excel(self, path, sheetname, header_row=1):
         wb = load_workbook(path, read_only=True, data_only=True)
         ws = wb[sheetname]
         columns = []
         Nonecolumn_cnt = 0
-        for rownum, row_cells in enumerate(ws.iter_rows(),start=1):
+        for rownum, row_cells in enumerate(ws.iter_rows(min_row=header_row),start=1):
             values = [] # hold column value for each row
             if rownum == 1:
                 for cell in row_cells:
@@ -1296,7 +1416,7 @@ class Table(object):
                         Nonecolumn_cnt += 1
                         columns.append(columname)
                     else:
-                        columns.append(cell.value)
+                        columns.append(str(cell.value))
                 if Nonecolumn_cnt > 0:
                     log.warning('Warning! Noname column detected!')          
             

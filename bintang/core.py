@@ -70,7 +70,8 @@ class Bintang():
         shutil.copy(self.__be.dbpath, dest)      
 
 
-    def create_table(self, name, columns=None):
+    def create_table(self, name: str, 
+                     columns: list = None) -> Table:
         tobj = Table(name, bing=self) # create a tobj object
         self.add_table(tobj)
         if self.__be is not None:   # if is_persistent is True then update the tobj attributes and pass the connection
@@ -81,7 +82,7 @@ class Bintang():
                 tobj.add_column(column)
         return tobj        
 
-    def delete_table(self, tablename):
+    def drop_table(self, tablename):
         tableid = self.get_tableid(tablename)
         if tableid is None:
             tablenames = self.get_tables()

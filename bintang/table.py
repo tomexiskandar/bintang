@@ -40,7 +40,7 @@ class Table(object):
         self.__columns = {}
         self.__rows = {}
         self.__temprows = []
-        self.__last_assigned_columnid= -1 #
+        self.__last_assigned_columnid= 9 #
         self.__last_assigned_rowid = -1 # for use when row created
         self.__last_assigned_idx = -1 # for use when add idx
         self.__be = None
@@ -281,11 +281,12 @@ class Table(object):
             if column_size is not None:
                 cobj.column_size = column_size
             cobj.id = self.__last_assigned_columnid + 1
+            cobj.order = self.__last_assigned_columnid + 1
             self.__columns[cobj.id] = cobj
             self.__last_assigned_columnid= self.__last_assigned_columnid + 1
 
 
-    def update_column(self,name, data_type=None, column_size=None):
+    def update_column(self,name, data_type=None, column_size=None, order=None):
         # check if the passed name already exists
         columnid = self.get_columnid(name)
         if columnid is not None:
@@ -293,9 +294,11 @@ class Table(object):
                 self.__columns[columnid].data_type = data_type
             if column_size is not None:
                 self.__columns[columnid].column_size = column_size
+            if order is not None:
+                self.__columns[columnid].order = order
 
 
-    def _add_column(self,name):
+    def _DEPadd_column(self,name):
         # check if the passed name already exists
         columnid = self._get_columnid(name)
         log.debug(columnid)
@@ -352,14 +355,29 @@ class Table(object):
 
     def get_column(self,columnid):
         return self.__columns[columnid].name
-        
+    
 
-    def get_columns(self, columns=None):
-        return [x.name for x in self.__columns.values()]
+    def order_columns(self, columns):
+        # determine all columns
+        columns_all = [x for x in columns]
+        for col in self.get_columns():
+            if col not in columns_all:
+                columns_all.append(col)
+        for i, col in enumerate(columns_all, 10):
+            self.update_column(col, order=i)
+
+
+    def get_columns(self):
+        # DEP as not sorted wise return [x.name for x in self.__columns.values()]
+        col_objs = [col for col in self.__columns.values()]
+        col_objs.sort(key=lambda col: col.order)
+        sorted_columns = [col.name for col in col_objs]
+        return sorted_columns
 
 
     def _get_columnnames_lced(self, columns=None):
         return {x.name.lower(): x.name  for x in self.__columns.values()}
+
 
 
     def get_data_props(self, column):
@@ -397,10 +415,19 @@ class Table(object):
             extracted = thefuzzprocess.extract(column, self.get_columns(), limit=2)
             fuzzies = [x[0] for x in extracted if x[1]>85]
             raise ValueError ('could not find column {}. Did you mean {}?'.format(column,' or '.join(fuzzies)))
-            
+        
+
+    def copy_index(self, column='idx',at_start=False):
+        for idx in self.__rows:
+            if isinstance(idx, tuple): # if index generated from a groupby
+                self.update_row(idx, column, str(idx))
+            else:
+                self.update_row(idx, column, idx)
+        if at_start:
+            self.order_columns([column])
 
 
-    def VOID_validate_columns(self,columns):
+    def _DEPVOID_validate_columns(self,columns):
         res = []
         for column in columns:
             columnid = self.get_columnid(column)
@@ -563,7 +590,7 @@ class Table(object):
             raise ValueError("Arg for record set for dictionary or list/tuple of values with list/tuple of columns.")    
             
             
-    def insert_old(self,columns,values):
+    def _DEPinsert_old(self,columns,values):
         """ restrict arguments for data insertion for this function as the followings:
         1. a pair of columns and its single-row values
         deprecated2. a pair of columns and its multiple-row values (as a list of tuple)
@@ -814,10 +841,14 @@ class Table(object):
                     if row.cells[columnid].value is not None:
                         if type(row.cells[columnid].value).__name__ == 'str':
                             self.set_data_props_str_column_size(columnid, row.cells[columnid].value)
+                        if type(row.cells[columnid].value).__name__ not in ['str','int','float','bool','datetime']:
+                            self.set_data_props_other_column_size(columnid, row.cells[columnid].value)
 
 
     def set_data_props_datatype(self, columnid,value):
-        # set a column's data_type list
+        # set a column's data_type
+        # set predefined column size for known data type, int, float, bool, datetime
+        # while for str and the rest, need to go through all column cells and get greatest length.
         if value is not None:
             if type(value).__name__ not in self.__columns[columnid].data_props:
                 self.__columns[columnid].data_props[type(value).__name__] = dict(column_size=1)
@@ -833,10 +864,20 @@ class Table(object):
                 
     def set_data_props_str_column_size(self, columnid, value):
         if len(value) > self.__columns[columnid].data_props['str']['column_size']:
-            self.__columns[columnid].data_props['str']['column_size'] = len(value)       
+            self.__columns[columnid].data_props['str']['column_size'] = len(value)
+
+
+    def set_data_props_other_column_size(self, columnid, value):
+        # print(type(value))
+        # print(type(value).__name__)
+        # obj_value = value #type(value).__name__
+        # print('val:',value)
+        # print(len(str(value)))
+        if len(str(value)) > self.__columns[columnid].data_props[type(value).__name__]['column_size']:
+            self.__columns[columnid].data_props[type(value).__name__]['column_size'] = len(str(value))               
     
         
-    def print(self,top=None, columns=None):
+    def print_old(self,top=None, columns=None):
         rows_values = []
         for enum,row in enumerate(self.__rows.values(),1):
             row_values = []
@@ -854,8 +895,90 @@ class Table(object):
         # get and print out rowresult_as
         for row in rows_values:
             print(row)
+    
+    def _get_index_column_size(self):
+        column_size = 0
+        for idx in self.__rows:
+            # print(idx)
+            # print(len(''.join(idx)))
+            if len(str(idx)) > column_size:
+                column_size = len(str(idx))
+        return max(len('idx'),column_size)
+    
 
+    def _gen_line(self, length, col_div_pos):
+        line_chars = []
+        for x in range(length):
+            if x  in col_div_pos:
+                line_chars.append('+')
+            else:
+                line_chars.append('-')
+        return ''.join(line_chars)
+        
 
+    def print(self, show_data_type=False):
+        PAD_SIZE = 4
+        self.set_data_props() # generate data based type and column_size
+        # generate heading_col string
+        header_data_types = []
+        heading_col = []
+        col_div_pos = [] #[idx_max_width]
+        for col in self.get_columns():
+            cobj = self.get_column_object(col)
+            _data_types_str = ','.join(cobj.get_data_types())
+            dp = cobj.get_greatest_column_size_data_prop()
+            max_width = PAD_SIZE # initial value
+            if dp is None:
+                max_width = max(4, len(col)) + PAD_SIZE
+            else:
+                max_width = max(next(iter(dp.values()))['column_size'],len(col)) + PAD_SIZE
+            if len(col_div_pos)==0:
+                col_div_pos.append(max_width)
+            else:    
+                col_divider_pos = col_div_pos[-1] + max_width + 1
+                col_div_pos.append(col_divider_pos)
+
+            if show_data_type:
+                header_dt = _data_types_str.center(max_width)
+                header_data_types.append(header_dt)
+            header_col = col.center(max_width)
+            heading_col.append(header_col)
+
+        if show_data_type:
+            header_data_types_str = '|'.join(header_data_types)
+        heading_col_str = '|'.join(heading_col) 
+        
+  
+        print(('Table: ' + self.name).center(len(heading_col_str))) # title
+        if show_data_type:
+            print(header_data_types_str)
+        print(self._gen_line(len(heading_col_str), col_div_pos))
+        print(heading_col_str) # print heading_col str
+        print(self._gen_line(len(heading_col_str), col_div_pos))
+        
+        # generate row string
+        for idx, row in self.iterrows():
+            padded_cells = []
+            for col, val in row.items():
+                cobj = self.get_column_object(col)
+                dp = cobj.get_greatest_column_size_data_prop()
+                max_width = PAD_SIZE # initial value
+                if dp is None:
+                    max_width = max(4, len(col)) + PAD_SIZE
+                else:
+                    max_width = max(next(iter(dp.values()))['column_size'],len(col)) + PAD_SIZE
+                # if type(val).__name__ not in ['str','int','float','bool','datetime','NoneType']:
+                #     padded_cells.append((' ' + str(type(val).__name__) + ' obj').rjust(max_width))
+                if cobj.has_string_data_type():
+                   padded_cells.append((' ' + str(val)).ljust(max_width))
+                else:
+                    padded_cells.append((str(val) + ' ').rjust(max_width))
+            padded_cells_str = '|'.join(padded_cells)
+            print(padded_cells_str)
+        print(self._gen_line(len(heading_col_str), col_div_pos))
+        print('({} rows)'.format(len(self)))    
+
+   
     def print_aslist(self, top=None, columns=None):
         print("idx",self.get_columns(columns))
         for idx, row in self.iterrows(row_type='list',columns=columns):
@@ -1039,20 +1162,21 @@ class Table(object):
         tobj = Table('mybing3')
         if columns is None:
             for idx, row in self.iterrows():
-                try:
+                #try:
                     if expr(row):
                         columns = tuple(row.keys())
                         values = tuple(row.values())
-                        tobj.insert(columns, values)
-                except:
-                    pass        
+                        tobj.insert(values, columns)
+                # except Exception as e:
+                #     print(e)
+                #     pass        
         else:
             columns_ = self.validate_columns(columns)
             for idx, row in self.iterrows():
                 try:
                     if expr(row):
                         values = self.get_row_aslist(idx,columns_)
-                        tobj.insert(columns_,values)
+                        tobj.insert(values, columns_)
                 except:
                     pass        
         return tobj
@@ -1185,7 +1309,7 @@ class Table(object):
     #     return used_types    
 
 
-    def _blookup_old(self, 
+    def _DEPblookup_old(self, 
                 lkp_table: object, 
                 on: str, 
                 ret_columns: list[str] | list[tuple]):
@@ -1238,7 +1362,7 @@ class Table(object):
 
     def blookup(self, 
                 lkp_table: object, 
-                on: str, 
+                on: list[tuple], 
                 ret_columns: list[str] | list[tuple]):
         lkp_table_obj = None
         if isinstance(lkp_table,Table):
@@ -1293,7 +1417,7 @@ class Table(object):
                     yield lidx, ridx
     
 
-    def DEV_groupby_count_OLD(self, columns, count_column):
+    def _DEPDEV_groupby_count_OLD(self, columns, count_column):
         group_tobj = Table('testq')
         res_dict = {} #key=a tuple of columns, value=count
         for idx, row in self.iterrows(columns, row_type='list'):
@@ -1314,7 +1438,9 @@ class Table(object):
                     save_as: str, 
                     group_count: bool = False, 
                     counts: list[str] | list[tuple] = None,
-                    sums: list[str] | list[tuple] = None) -> None:
+                    sums: list[str] | list[tuple] = None,
+                    group_concat = None) -> None:
+        
         group_tobj = self.bing.create_table(save_as)
         group_count_column = 'group_count' if group_count == True else group_count
         # loop the table
@@ -1332,6 +1458,8 @@ class Table(object):
                     self._groupby_new_index_count(index, row, counts, group_tobj) 
                 if sums:
                     self._groupby_new_index_sum(index, row, sums, group_tobj)
+                if group_concat:
+                    group_tobj.update_row(index, 'group_concat',[row[group_concat]])    
             else:
                 if group_count:
                     incremented = group_tobj[index][group_count_column] + 1
@@ -1340,6 +1468,8 @@ class Table(object):
                     self._groupby_existing_index_count(index, row, counts, group_tobj)
                 if sums:
                     self._groupby_existing_index_sum(index, row, sums, group_tobj)
+                if group_concat:
+                    group_tobj.update_row(index, 'group_concat', group_tobj[index]['group_concat'] + [row[group_concat]])    
       
 
     def _groupby_new_index_count(self, index, row, counts, group_tobj):
@@ -1615,7 +1745,7 @@ def _match_caseless(value1, value2):
             return True    
         
 def _match_caseless_unicode(value1, value2):
-    "Unicode case insensetive matching"
+    "Unicode case insensitive matching"
     if isinstance(value1, str) and isinstance(value2, str):
         if _normalize_caseless(value1) == _normalize_caseless(value2):
             return True

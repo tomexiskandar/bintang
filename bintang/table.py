@@ -1445,10 +1445,8 @@ class Table(object):
         group_count_column = 'group_count' if group_count == True else group_count
         # loop the table
         for idx, row in self.iterrows():
-            index_records = []
-            index_records = [row[x] for x in columns]
-            index = tuple(index_records)
-            #print('index',records)
+            index_records = [row[self.validate_column(x)] for x in columns]
+            index = tuple([_normalize_caseless(x) if isinstance(x, str) else x for x in index_records])
             if not group_tobj.index_exists(index):
                 # add record for the first time
                 group_tobj.insert(index_records, columns=columns, index=index)
@@ -1459,7 +1457,10 @@ class Table(object):
                 if sums:
                     self._groupby_new_index_sum(index, row, sums, group_tobj)
                 if group_concat:
-                    group_tobj.update_row(index, 'group_concat',[row[group_concat]])    
+                    if group_concat == True:
+                        group_tobj.update_row(index, 'group_concat',[idx])  
+                    else:
+                        group_tobj.update_row(index, 'group_concat',[row[self.validate_column(group_concat)]])    
             else:
                 if group_count:
                     incremented = group_tobj[index][group_count_column] + 1
@@ -1469,7 +1470,10 @@ class Table(object):
                 if sums:
                     self._groupby_existing_index_sum(index, row, sums, group_tobj)
                 if group_concat:
-                    group_tobj.update_row(index, 'group_concat', group_tobj[index]['group_concat'] + [row[group_concat]])    
+                    if group_concat == True:
+                        group_tobj.update_row(index, 'group_concat', group_tobj[index]['group_concat'] + [idx])
+                    else:
+                        group_tobj.update_row(index, 'group_concat', group_tobj[index]['group_concat'] + [row[self.validate_column(group_concat)]])    
       
 
     def _groupby_new_index_count(self, index, row, counts, group_tobj):

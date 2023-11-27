@@ -1,3 +1,4 @@
+import unicodedata
 class Column:
     """class to define column object 
     """
@@ -16,6 +17,9 @@ class Column:
 
     def get_name_uppercased(self):
         return self.name.upper()
+    
+    # def get_name_normalize_caseless(self):
+    #     return unicodedata.normalize("NFKD", self.name.casefold())
     
     def get_greatest_column_size_data_prop(self):
         """data props can hold diffrent data type

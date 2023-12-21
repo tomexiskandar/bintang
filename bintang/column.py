@@ -5,7 +5,7 @@ class Column:
     def __init__(self,name):
         self.id = None
         self.name = name
-        self.order = -1
+        self.ordinal_position = -1
         #self.data_types = [] # get this on request. its common data type more than one (inconsistent data)
         self.data_type = None
         self.column_size = 0 # the max. get this on request

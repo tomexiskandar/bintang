@@ -2,6 +2,7 @@ import sqlite3
 import json
 import tempfile
 from pathlib import Path
+import os
 
 class Besqlite():
     def __init__(self, name=None):
@@ -10,33 +11,41 @@ class Besqlite():
         self.conn = None
         self.max_row_for_sql_insert = 100
         self.connect()
-        self.create_flytab()
+        self.create_bingtab()
     
     def connect(self):
         tempdirname = tempfile.gettempdir()
         dbfilename = self.name + '.db'
-        self.dbpath = Path(tempdirname, dbfilename)
-        self.conn = sqlite3.connect(self.dbpath)    
+        # self.dbpath = Path(tempdirname, dbfilename)
+        self.dbpath = Path(os.getcwd(), dbfilename)
+        self.dbpath.unlink()
+        self.conn = sqlite3.connect(self.dbpath)
+        # print(os.getcwd())
+        #sqlite3.connect(self.dbpath)
+        print(self.dbpath)    
+        
 
-    def create_flytab(self):
+    def create_bingtab(self):
         """
             create a schema like table with prefix dunder to avoid name conflict
         """
         #conn = sqlite3.connect("{}.db".format(self.name))
+        print(self.conn)
         cur = self.conn.cursor()
-        cur.execute("SELECT EXISTS (SELECT 1 FROM sqlite_master WHERE type='table' AND name='flytab')")
+        
+        cur.execute("SELECT EXISTS (SELECT 1 FROM sqlite_master WHERE type='table' AND name='__bintang__')")
         ret = cur.fetchone()[0]
+        print(' ',ret)
+        
         if  ret == 0:
-            cur.execute("CREATE TABLE flytab (id INTEGER PRIMARY KEY NOT NULL, name TEXT)")
-        cur.close()
-        # conn.close()
+            cur.execute("CREATE TABLE __bintang__ (id INTEGER PRIMARY KEY NOT NULL, name TEXT)")
 
 
     def add_table(self, tableid, tablename):
         cur = self.conn.cursor()
         # sql= "INSERT INTO __myrb (id, name) VALUES ({}, {});".format(self.get_tableid(tablename),tablename)
         # print(sql)
-        cur.execute("INSERT OR IGNORE INTO flytab (id, name) VALUES (:id, :name);",{"id":tableid, "name":tablename})
+        cur.execute("INSERT OR IGNORE INTO __bintang__ (id, name) VALUES (:id, :name);",{"id":tableid, "name":tablename})
         self.conn.commit()
         cur.close()
 

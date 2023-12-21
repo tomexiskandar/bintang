@@ -9,18 +9,27 @@ import uuid
 import re
 import types
 import sys
+import copy
 import unicodedata
 from thefuzz import process as thefuzzprocess
 from bintang.log import log
-# import logging
-
-# log = logging.getLogger(__name__)
-# FORMAT = "[%(filename)s:%(lineno)s - %(funcName)10s() ] %(message)s"
-# logging.basicConfig(format=FORMAT)
-# log.setLevel(logging.DEBUG)
+from pathlib import Path
+from typing import Callable
+import warnings
+import inspect
 
 INDEX_COLUMN_NAME = 'idx'
 PARENT_PREFIX = ''
+MAX_ROW_SQL_INSERT = 300
+
+import warnings
+
+def custom_formatwarning(msg, *args, **kwargs):
+    # ignore everything except the message
+    return str(msg)
+
+warnings.formatwarning = custom_formatwarning
+
 
 class ColumnNotFoundError(Exception):
     def __init__(self,table, column):
@@ -34,19 +43,22 @@ class Table(object):
        - provide columns to store a dictionary of column objects
        - provide rows to store a dictionary of row objects
     """
-    def __init__(self,name, bing=None):
+    def __init__(self,name, bing=None, conn=None):
         self.bing = bing
         self.name = name
         self.__columns = {}
         self.__rows = {}
         self.__temprows = []
         self.__last_assigned_columnid= 9 #
-        self.__last_assigned_rowid = -1 # for use when row created
-        self.__last_assigned_idx = -1 # for use when add idx
-        self.__be = None
+        self.__last_assigned_rowid = 0 # for use when row created
+        self.__last_assigned_idx = 0 # for use when add idx
+        #self.__be = None
+        self.conn = conn
+        if self.conn:
+            self.conn.row_factory = sqlite3.Row
+            self.create_sql_table()
+
         
-
-
     def __getitem__(self, idx): # subscriptable version of self.get_row_asdict()
         #return self.__rows[idx] # bad design. a raw row isn't that useful at client code
         return self.get_row_asdict(idx)
@@ -69,8 +81,21 @@ class Table(object):
 
 
     def __len__(self):
-        """ return the length of rows"""    
+        """ return the length of rows"""
+        if self.conn is not None:
+            cursor = self.conn.cursor()
+            res = cursor.execute(f'SELECT COUNT(*) FROM {self.name};')
+            return res.fetchone()[0]
         return len(self.__rows)
+
+    def create_sql_table(self):
+        cur = self.conn.cursor()
+        cur.execute("SELECT EXISTS (SELECT 1 FROM sqlite_master WHERE type='table' AND name=:tablename)", {"tablename":self.name})
+        ret = cur.fetchone()[0]
+        if  ret == 0:
+            cur.execute("CREATE TABLE '{}' (idx INTEGER PRIMARY KEY NOT NULL, cells JSON)".format(self.name))
+            cur.execute("CREATE TABLE '__columns__' (id INTEGER PRIMARY KEY NOT NULL, name TEXT COLLATE NOCASE, ordinal_position INTEGER, data_type TEXT, column_size INTEGER, decimal_digits INTEGER, data_props JSON)")
+        cur.close()      
             
 
     def set_to_sql_colmap(self, columns):
@@ -79,25 +104,47 @@ class Table(object):
         elif isinstance(columns, dict):
             return columns
         
+    def _get_sql_conn_name_xp(self, conn):
+        # experimenting to get connector name
+        # so code can act differently for eg. params list used in prepared statement.
+        # at the moment only two db connectors being used, pyodbc and psycopg (specific to Postgresql)
+        if str(type(conn)) == "<class 'pyodbc.Connection'>":
+            return 'pyodbc'
+        elif str(type(conn)) == "<class 'psycopg.Connection'>":
+            return 'psycopg'
+        else:
+            raise ValueError('Sorry Only pyodbc and psycopg connection accepted!')   
 
-    def to_sql(self, conn, schema, table, columns, method='prep', max_rows = 1):
+
+    def to_sql(self, conn: str, 
+               schema: str, 
+               table: str, 
+               columns: list[str], 
+               method: str='prep', 
+               max_rows: str = 1) -> int:
+        """conn: only pyodbc.Connection or psycopg.Connection allowed
+           schema: database schema name
+           table: table name in the database
+           columns: columns on the table
+           method: prep=Prepared (default) or string
+           return-> row_count
+        """
+        conn_name = self._get_sql_conn_name_xp(conn)
         if method == 'prep':
-            return self.to_sql_prep(conn, schema, table, columns, max_rows=max_rows)
+            return self._to_sql_prep(conn, schema, table, columns, max_rows=max_rows,conn_name=conn_name)
         elif method =='string':
-            return self.to_sql_string(conn, schema, table, columns, max_rows=max_rows)
+            return self._to_sql_string(conn, schema, table, columns, max_rows=max_rows, conn_name=conn_name)
 
  
-    def to_sql_string(self, conn, schema, table, columns, max_rows = 300):
+    def _to_sql_string(self, conn, schema, table, columns, max_rows = 300, conn_name='psycopg'):
         colmap = self.set_to_sql_colmap(columns)
         src_cols = [x for x in colmap.values()]
         dest_columns = [x for x in colmap.keys()]
-       
-
+        
         sql_template = 'INSERT INTO {}.{} ({}) VALUES'
         str_stmt = sql_template.format(schema,table,",".join(['"{}"'.format(x) for x in colmap]))
-
         sql_cols_withtype = self.set_sql_datatype(dest_columns, conn, schema, table)
-        sql_cols_withliteral = self.set_sql_literal(sql_cols_withtype, conn)
+        sql_cols_withliteral = None if sql_cols_withtype is None else self.set_sql_literal(sql_cols_withtype, conn)
         
         # start insert to sql
         cursor = conn.cursor()
@@ -106,38 +153,50 @@ class Table(object):
         for idx, values in self.iterrows(src_cols, row_type='list'):
             ## question: can values and d_cols_withliteral align? dict python 3.7 is ordered and will solve it?
             sql_record = self.gen_sql_literal_record(values, sql_cols_withliteral)
+            
             temp_rows.append(sql_record)
             if len(temp_rows) == max_rows:
                 stmt = str_stmt + ' {}'.format(",".join(temp_rows))
-                #log.debug(stmt)
+                log.debug(stmt)
                 cursor.execute(stmt)
                 total_rowcount += cursor.rowcount
                 temp_rows.clear()
         if len(temp_rows) > 0:
             stmt = str_stmt + ' {}'.format(",".join(temp_rows))
-            #log.debug(stmt)
+            log.debug(stmt)
             cursor.execute(stmt)
             total_rowcount += cursor.rowcount
         return total_rowcount           
 
 
-    def gen_sql_literal_record(self, values, sql_cols_withliteral):
+    def gen_sql_literal_record(self, values, sql_cols_withliteral=None):
         sql_record = []
-        sql_columns = [x for x in sql_cols_withliteral.keys()]
+        if sql_cols_withliteral:
+            sql_columns = [x for x in sql_cols_withliteral.keys()]
         for i, value in enumerate(values):
-            col = sql_columns[i]
-            literals = sql_cols_withliteral[col]
-            sql_value = self.gen_sql_literal_value(literals, value)
+            if sql_cols_withliteral:
+                col = sql_columns[i]
+                literals = sql_cols_withliteral[col]
+                sql_value = self.gen_sql_literal_value(value, literals)
+            else:
+                sql_value = self.gen_sql_literal_value(value)
             sql_record.append(sql_value)
         return "({})".format(','.join(sql_record))
         
 
-    def gen_sql_literal_value(self, literals, value):
+    def gen_sql_literal_value(self, value, literals=None):
         if value == "" or value is None:
             return "NULL"
         if isinstance(value, str):
             value = value.replace("'","''")
-        return "{}{}{}".format('' if literals[0] is None else literals[0], value, '' if literals[1] is None else literals[1])
+        if literals:    
+            return "{}{}{}".format('' if literals[0] is None else literals[0], value, '' if literals[1] is None else literals[1])
+        else:
+            if type(value) in [int, float, bool]:
+                return str(value) # so we can just join them later
+            else:
+                return f"'{value}'"
+            # return "{}{}{}".format('' if literals[0] is None else literals[0], value, '' if literals[1] is None else literals[1])
     
 
     def get_sql_typeinfo_table(self, conn):
@@ -146,36 +205,47 @@ class Table(object):
         columns_ = [column[0] for column in cursor.description]
         tobj = Table('sql_typeinfo')
         for row in sql_type_info_tuple:
-            tobj.insert(row, columns_)        
+            tobj.insert(row, columns_)
         return tobj
     
 
     def set_sql_datatype(self, dest_columns, conn, schema, table):
         cursor = conn.cursor()
-        sql_columns = cursor.columns(schema=schema, table=table)
-        columns_ = [column[0] for column in cursor.description]
-        tobj = Table('sql_columns_')
-        for row in sql_columns: #cursor.columns(schema=schema, table=table):
-            tobj.insert(row, columns_)
-        sql_columns_withtype = {}
-        for col in dest_columns:
-            _type = tobj.get_value('type_name', where = lambda row: row['column_name']==col)
-            sql_columns_withtype[col] = _type
-        return sql_columns_withtype
+        try:
+            sql_columns = cursor.columns(schema=schema, table=table)
+            columns_ = [column[0] for column in cursor.description]
+            tobj = Table('sql_columns_')
+            for row in sql_columns: #cursor.columns(schema=schema, table=table):
+                tobj.insert(row, columns_)
+            sql_columns_withtype = {}    
+            for col in dest_columns:
+                _type = tobj.get_value('type_name', where = lambda row: row['column_name']==col)
+                sql_columns_withtype[col] = _type
+            return sql_columns_withtype
+        except: # oppss.. no support then fill up None
+            return None  
     
 
     def set_sql_literal(self, sql_cols_withtype, conn):
-        sql_typeinfo_tab = self.get_sql_typeinfo_table(conn)
-        sql_cols_withliteral = {}
-        for k, v in sql_cols_withtype.items():
-            prefix = sql_typeinfo_tab.get_value('literal_prefix',where=lambda row: row['type_name']==v)
-            suffix = sql_typeinfo_tab.get_value('literal_suffix',where=lambda row: row['type_name']==v)
-            literals = (prefix,suffix)
-            sql_cols_withliteral[k] = literals
-        return sql_cols_withliteral
+        try:
+            sql_typeinfo_tab = self.get_sql_typeinfo_table(conn)
+        
+            # sql_typeinfo_tab.print()
+            # sql_typeinfo_tab.to_excel(r'C:\Users\60145210\Documents\Projects\bintang\test\sql_typeinfo.xlsx')
+            sql_cols_withliteral = {}
+            for k, v in sql_cols_withtype.items():
+                prefix = sql_typeinfo_tab.get_value('literal_prefix',where=lambda row: row['type_name']==v)
+                suffix = sql_typeinfo_tab.get_value('literal_suffix',where=lambda row: row['type_name']==v)
+                literals = (prefix,suffix)
+                sql_cols_withliteral[k] = literals
+            return sql_cols_withliteral    
+        except: # opps... no support
+            literals = (None, None)
+            return {col:literals for col in sql_cols_withtype.keys()}
+        
 
 
-    def to_sql_prep(self, conn, schema, table, columns, max_rows = 1):
+    def _to_sql_prep(self, conn, schema, table, columns, max_rows = 1, conn_name='psycopg'):
         if max_rows <= len(self): # validate max_row
             mrpb = max_rows # assign max row per batch
         else:
@@ -189,7 +259,7 @@ class Table(object):
         
         # create as prepared statement
         sql_template = 'INSERT INTO {}.{} ({}) VALUES {}'
-        param_markers = self.gen_row_param_markers(numof_col, mrpb)
+        param_markers = self.gen_row_param_markers(numof_col, mrpb, conn_name=conn_name)
         prep_stmt = sql_template.format(schema,table,",".join(['"{}"'.format(x) for x in dest_columns]),param_markers)
         cursor = conn.cursor()
         temp_rows = []
@@ -205,22 +275,46 @@ class Table(object):
                 temp_rows.clear()     
         
         if len(temp_rows) > 0: # if any reminder
-            param_markers = self.gen_row_param_markers(numof_col, int(len(temp_rows)/numof_col))
+            param_markers = self.gen_row_param_markers(numof_col, int(len(temp_rows)/numof_col), conn_name=conn_name)
             prep_stmt = sql_template.format(schema,table,",".join(['"{}"'.format(x) for x in dest_columns]),param_markers)
             cursor.execute(prep_stmt, temp_rows)
             total_rowcount += cursor.rowcount
         return total_rowcount        
 
 
-    def gen_row_param_markers(self,numof_col,num_row):
-        param = "(" + ",".join("?"*numof_col) + ")"
+    def gen_row_param_markers(self,numof_col,num_row, conn_name='pyodbc'):
+        p = "%s" if conn_name == 'psycopg' else "?"
+        param = "(" + ",".join([p]  *numof_col) + ")"
         params = []
         for i in range(num_row):
             params.append(param)
         return ",".join(params)
     
+    
+    def to_sql_upsert_dev(self, conn: str,
+                    schema: str,
+                    table: str,
+                    columns: list[str],
+                    on: list[tuple], # keys to match btw bintang and sql
+                    method='prep') -> None:
+        
+        for row in self._iterrow_sql(conn):
+            print(row)
 
 
+    def _iterrow_sql(self, conn, sql_str=None, params=None):
+        cursor = conn.cursor()
+        if sql_str is None:
+            sql_str = "SELECT * FROM {}".format(self.name)
+        if params is not None:
+            cursor.execute(sql_str, params)
+        else:
+            cursor.execute(sql_str)
+        columns = [col[0] for col in cursor.description]
+        for row in cursor.fetchall():
+            yield dict(zip(columns, row))
+
+    
     def gen_create_sqltable(self, dbms):
         # scanning table to get column properties
         # and assign the data type and size (when able)
@@ -252,12 +346,17 @@ class Table(object):
         create_columns = []
         for col in self.get_columns():
             cobj = self.__columns[self.get_columnid(col)]
+            colname = cobj.name
+            dtype = type_map[dbms]['type_mappings'][cobj.data_type]
+            di_start = type_map[dbms]['delimited_identifiers']['start']
+            di_end = type_map[dbms]['delimited_identifiers']['end']
             if cobj.data_type == 'str':
-                create_item = ['[{}]'.format(cobj.name), type_map[dbms][cobj.data_type],'({})'.format(cobj.column_size)]
+                col_size = cobj.column_size
+                create_item = [f'{di_start}{colname}{di_end}', f'{dtype}', f'({col_size})']
                 create_columns.append(create_item)
             else:
-                create_item = ['[{}]'.format(cobj.name), type_map[dbms][cobj.data_type]]
-                create_columns.append(create_item)
+                create_item = [f'{di_start}{colname}{di_end}', f'{dtype}']
+                create_columns.append(create_item)       
         create_columns_str = []
         for i, citem in enumerate(create_columns):
             create_item_str = []
@@ -281,12 +380,43 @@ class Table(object):
             if column_size is not None:
                 cobj.column_size = column_size
             cobj.id = self.__last_assigned_columnid + 1
-            cobj.order = self.__last_assigned_columnid + 1
+            cobj.ordinal_position = self.__last_assigned_columnid + 1
             self.__columns[cobj.id] = cobj
             self.__last_assigned_columnid= self.__last_assigned_columnid + 1
+        else:
+            log.debug(f'Warning! trying to add existing column "{name}".')
 
 
-    def update_column(self,name, data_type=None, column_size=None, order=None):
+    def add_column_sql(self, name, data_type=None, column_size=None):
+        # check if the passed name already exists
+        columnid = self.get_columnid_sql(name)
+        ord_pos = self._get_last_assigned_ord_pos() + 1
+        if columnid is None:
+            sql = "INSERT INTO __columns__ (name, ordinal_position, data_type, column_size) VALUES (?,?,?,?)"
+            params = [name, ord_pos, data_type, column_size]
+            cursor = self.conn.cursor()
+            cursor.execute(sql, params)
+            self.conn.commit()
+            cursor.close()
+        else:
+            log.debug(f'Warning! trying to add existing column "{name}".')
+
+
+    def _get_last_assigned_ord_pos(self) -> int:
+        cursor = self.conn.cursor()
+        sql = 'SELECT MAX(ordinal_position) AS MAXOF_ORD_POS FROM __columns__;'
+        res = cursor.execute(sql)
+        ret = res.fetchone()
+        if ret:
+            if ret['MAXOF_ORD_POS'] is None: # first function call
+                return -1
+            else:
+                return ret['MAXOF_ORD_POS']
+        else:
+            return -1
+
+
+    def update_column(self,name, data_type=None, column_size=None, ordinal_position=None):
         # check if the passed name already exists
         columnid = self.get_columnid(name)
         if columnid is not None:
@@ -294,11 +424,30 @@ class Table(object):
                 self.__columns[columnid].data_type = data_type
             if column_size is not None:
                 self.__columns[columnid].column_size = column_size
-            if order is not None:
-                self.__columns[columnid].order = order
+            if ordinal_position is not None:
+                self.__columns[columnid].ordinal_position = ordinal_position
 
 
-    def _DEPadd_column(self,name):
+    def update_column_sql(self,name, data_type=None, column_size=None, ordinal_position=None):
+        # check if the passed name already exists
+        columnid = self.get_columnid_sql(name)
+        if columnid is not None:
+            cursor = self.conn.cursor()
+            if data_type is not None:
+                sql = 'UPDATE __columns__ SET data_type=? WHERE id=?;'
+                params = [data_type, columnid]
+                cursor.execute(sql,params)
+            if column_size is not None:
+                sql = 'UPDATE __columns__ SET column_size=? WHERE id=?;'
+                params = [column_size, columnid]
+                cursor.execute(sql,params)
+            if ordinal_position is not None:
+                sql = 'UPDATE __columns__ SET ordinal_position=? WHERE id=?;'
+                params = [ordinal_position, columnid]
+                cursor.execute(sql,params)           
+
+
+    def __DEPadd_column(self,name):
         # check if the passed name already exists
         columnid = self._get_columnid(name)
         log.debug(columnid)
@@ -315,6 +464,18 @@ class Table(object):
             if cobj.get_name_uppercased() == column.upper():
                 return id
         return None
+
+
+    def get_columnid_sql(self, column):
+        sql = 'SELECT id FROM __columns__ where name = ?'
+        param = column
+        cursor = self.conn.cursor()
+        res = cursor.execute(sql,[column])
+        ret = res.fetchone()
+        if ret:
+            return ret['id']
+        else:
+            return None
         
 
     
@@ -364,15 +525,43 @@ class Table(object):
             if col not in columns_all:
                 columns_all.append(col)
         for i, col in enumerate(columns_all, 10):
-            self.update_column(col, order=i)
+            self.update_column(col, ordinal_position=i)
+
+
+    def order_columns_sql(self, columns):
+        # determine all columns
+        columns_all = [x for x in columns]
+        for col in self.get_columns_sql():
+            if col not in columns_all:
+                columns_all.append(col)
+        for i, col in enumerate(columns_all, 10):
+            self.update_column_sql(col, ordinal_position=i)        
 
 
     def get_columns(self):
         # DEP as not sorted wise return [x.name for x in self.__columns.values()]
         col_objs = [col for col in self.__columns.values()]
-        col_objs.sort(key=lambda col: col.order)
+        col_objs.sort(key=lambda col: col.ordinal_position)
         sorted_columns = [col.name for col in col_objs]
         return sorted_columns
+
+    def get_columns_sql(self) -> list:
+        cursor = self.conn.cursor()
+        sql = 'SELECT name FROM __columns__ order by ordinal_position;'
+        sorted_columns = []
+        for row in cursor.execute(sql):
+            sorted_columns.append(row['name'])
+        return sorted_columns 
+
+    
+    def get_columns_withid_sql(self) -> dict:
+        # get columnnames from db and return as dict of columnid : columnname
+        col_dict = {}
+        cur = self.conn.cursor()
+        sql = "SELECT id, name FROM __columns__ order by ordinal_position;"
+        for row in cur.execute(sql):
+            col_dict[row['name']] = row['id'] 
+        return col_dict   
 
 
     def _get_columnnames_lced(self, columns=None):
@@ -410,6 +599,7 @@ class Table(object):
 
 
     def check_column(self, column):
+        # refactoring required and to be compared with validate_column()
         """check if column exits in table.columns"""
         if column.lower() not in self._get_columnnames_lced().keys():
             extracted = thefuzzprocess.extract(column, self.get_columns(), limit=2)
@@ -427,7 +617,7 @@ class Table(object):
             self.order_columns([column])
 
 
-    def _DEPVOID_validate_columns(self,columns):
+    def __DEPVOID_validate_columns(self,columns):
         res = []
         for column in columns:
             columnid = self.get_columnid(column)
@@ -458,7 +648,7 @@ class Table(object):
         return indexes    
 
 
-    def get_value_OLD(self, search_column, condition_column, condition_value):
+    def __deprecated_get_value_OLD(self, search_column, condition_column, condition_value):
         ## will return a scalar value for the first match
         for idx, row in self.iterrows():
             if row[condition_column] == condition_value:
@@ -468,7 +658,7 @@ class Table(object):
                 return row[search_column]
 
 
-    def get_value_original(self, column, where):
+    def __deprecated_get_value_original(self, column, where):
         """ 
         return a scalar value.
         switch different process if user want column pass as string or lambda
@@ -541,29 +731,40 @@ class Table(object):
 
     def insert(self, record, columns=None, index=None):
         """ restrict arguments for record insertion for this function as the followings:
-        1. a pair of columns and its single-row values
-        deprecated2. a pair of columns and its multiple-row values (as a list of tuple)
+        1. a dictionary pass to record param
+        2. list values pass to record param and list columns pass to column param.
         """
         if isinstance(record, dict):
             row = self.make_row()
             for idx, (col, val) in enumerate(record.items()):
                 cell = self.make_cell(col,val)
                 row.add_cell(cell) # add to row
-            self.add_row(row, index)                                    
+            if self.conn is not None:
+                for idx, (col, val) in enumerate(record.items()):
+                    cell = self.make_cell_sql(col, val)
+                    row.add_cell(cell) # add to rows
+                row = json.dumps({v.columnid: v.value for v in row.cells.values()})
+                self.add_row_sql(row, index)
+            else:
+                self.add_row(row, index)                                    
         elif isinstance(columns,list) or isinstance(columns,tuple) or isinstance(record,list) or isinstance(record,tuple):
             row = self.make_row()
-            for idx, col in enumerate(columns):
-                cell = self.make_cell(col,record[idx])
-                row.add_cell(cell) # add to rows
-            if self.__be is not None:
-                self.__temprows.append(json.dumps({v.columnid: v.value for v in row.cells.values()}))
-                if len(self.__temprows) == self.__be.max_row_for_sql_insert:
-                    self.add_row_into_be()
+            if self.conn is None:
+                for idx, col in enumerate(columns):
+                    cell = self.make_cell(col,record[idx])
+                    row.add_cell(cell) # add to rows
+            if self.conn is not None:
+                for idx, col in enumerate(columns):
+                    cell = self.make_cell_sql(col,record[idx])
+                    row.add_cell(cell) # add to rows
+                row = json.dumps({v.columnid: v.value for v in row.cells.values()})
+                self.add_row_sql(row, index)
             else:
                 self.add_row(row, index)    
         else:
             raise ValueError("Arg for record set for dictionary or list/tuple of values with list/tuple of columns.")
         
+
     def _insert(self, record, columns=None, index=None):
         """ restrict arguments for record insertion for this function as the followings:
         1. a pair of columns and its single-row values
@@ -582,7 +783,7 @@ class Table(object):
                 row.add_cell(cell) # add to rows
             if self.__be is not None:
                 self.__temprows.append(json.dumps({v.columnid: v.value for v in row.cells.values()}))
-                if len(self.__temprows) == self.__be.max_row_for_sql_insert:
+                if len(self.__temprows) == self.__be.MAX_ROW_SQL_INSERT:
                     self.add_row_into_be()
             else:
                 self.add_row(row, index)    
@@ -590,7 +791,7 @@ class Table(object):
             raise ValueError("Arg for record set for dictionary or list/tuple of values with list/tuple of columns.")    
             
             
-    def _DEPinsert_old(self,columns,values):
+    def __DEPinsert_old(self,columns,values):
         """ restrict arguments for data insertion for this function as the followings:
         1. a pair of columns and its single-row values
         deprecated2. a pair of columns and its multiple-row values (as a list of tuple)
@@ -615,7 +816,7 @@ class Table(object):
             # add to rows
             if self.__be is not None:
                 self.__temprows.append(json.dumps({v.columnid: v.value for v in row.cells.values()}))
-                if len(self.__temprows) == self.__be.max_row_for_sql_insert:
+                if len(self.__temprows) == self.__be.MAX_ROW_SQL_INSERT:
                     self.add_row_into_be()
             else:
                 self.add_row(row)    
@@ -647,7 +848,7 @@ class Table(object):
         else:
             raise ValueError("Insert only allows a pair of columns and values in a list or tuple")
 
-    def get_indexes_OLD(self):
+    def __get_indexes_OLD(self):
         return [x for x in self.__rows.keys()]
 
 
@@ -703,19 +904,30 @@ class Table(object):
             if new_column == True:
                 self.add_column(column)
                 columnid = self.get_columnid(column) # reassign the columnid
-                if self.__be is not None:
-                    self.__be.add_column(self.name, columnid, column)
-                # deprecated moved up columnid = self.get_columnid(column) # reassign the columnid
         if columnid is None:
             raise ValueError("Cannot make cell due to None column name.")    
         return Cell(columnid,value)
 
 
-    def add_row_deprecated(self,row):
+    def make_cell_sql(self,column,value,new_column=True):
+        columnid = self.get_columnid_sql(column)
+        if columnid is None: # if columnid is None then assume user wants a new column
+            if new_column == True:
+                self.add_column_sql(column)
+                columnid = self.get_columnid_sql(column) # reassign the columnid
+                # if self.__be is not None:
+                #     self.__be.add_column(self.name, columnid, column)
+                # deprecated moved up columnid = self.get_columnid(column) # reassign the columnid
+        if columnid is None:
+            raise ValueError("Cannot make cell due to None column name.")    
+        return Cell(columnid,value)    
+
+
+    def __deprecated_add_row(self,row):
         rows_idx = len(self.__rows) # can cause re-assign a deleted row
         self.__rows[rows_idx] = row
 
-    def add_row_OLD(self, row):
+    def __deprecated_add_row_OLD(self, row):
         rows_idx = self.__last_assigned_idx + 1
         self.__last_assigned_idx += 1
         self.__rows[rows_idx] = row
@@ -725,10 +937,18 @@ class Table(object):
         if index is None:
             index = self.__last_assigned_idx + 1
             self.__last_assigned_idx += 1
-        self.__rows[index] = row   
+        self.__rows[index] = row
 
 
-    def _XXgen_row_asdict(self, row, columns, rowid=False):
+    def add_row_sql(self, row, index=None):
+        cur = self.conn.cursor()
+        sql = "INSERT INTO '{}' (cells) VALUES (?)".format(self.name)
+        # log.debug(sql)
+        # log.debug(row)
+        cur.execute(sql, [row])      
+
+
+    def __XXgen_row_asdict(self, row, columns, rowid=False):
         res = {}
         if rowid == True:
             res['_rowid_'] = row.id # add rowid for internal purpose eg. a merged table
@@ -760,8 +980,15 @@ class Table(object):
     def get_valid_columnname(self, column):
         columnid = self.get_columnid(column)   # column in this line passed by user
         column = self.get_column(columnid) # ensure the same column passed as result.
-        return column        
-    
+        return column
+
+
+    def get_row(self, idx, columns=None, rowid=False, row_type='dict'):
+        if row_type.lower()=='list':
+            return self.get_row_aslist(idx, columns)
+        else:
+            return self.get_row_asdict(idx, columns, rowid)
+           
 
     def get_row_asdict(self, idx, columns=None, rowid=False):
         if idx not in self.__rows:
@@ -772,6 +999,36 @@ class Table(object):
             if columns is not None:
                 columns = self.validate_columns(columns)
             return self._gen_row_asdict(self.__rows[idx],columns, rowid)
+
+
+    def _gen_cells_dict(self, cells: str) -> dict:
+        return {int(k):v for k,v in json.loads(cells).items()}
+
+
+    def _gen_row_dict_sql(self, cells: str, columns: list) -> dict:
+        db_cols_withid = self.get_columns_withid_sql()
+        user_cols = {k:v for k,v in db_cols_withid.items() if k in columns}
+        cells_dict = self._gen_cells_dict(cells)
+        row_dict = {}
+        for col in columns:
+            row_dict[col] = cells_dict[user_cols[col]]
+        return row_dict
+
+
+    def get_row_sql(self, idx, columns=None, row_type='dict'):
+        cursor = self.conn.cursor()
+        sql = 'SELECT cells from {} WHERE idx=?'.format(self.name)
+        params = [idx]
+        cursor = self.conn.cursor()
+        cursor.execute(sql, params)
+        res = cursor.fetchone()
+        if res:
+            if columns is None:
+                columns = self.get_columns_sql()
+            if row_type.lower() == 'list':
+                return [x for x in self._gen_row_dict_sql(res['cells'], columns).values()]
+            else:
+                return self._gen_row_dict_sql(res['cells'], columns)
             
 
     def _gen_row_asdict(self, row, columns, rowid=False):
@@ -785,7 +1042,7 @@ class Table(object):
             if columnid not in row.cells:
                 res[column] = None
             else:
-                res[column] = row.cells[columnid].value        
+                res[column] = row.cells[columnid].value       
         return res
 
 
@@ -799,7 +1056,27 @@ class Table(object):
     def _gen_row_aslist(self, row, columnids):
         return row.get_values(columnids)
 
+
+    def _gen_row_asdict_sql(self,columns):
+        # get columnames
+        db_cols_withid = self.get_columns_withid_sql()
+        user_cols = {k:v for k,v in db_cols_withid.items() if k in columns} #refine columns
        
+        cur = self.conn.cursor()
+        sql = "SELECT idx, cells FROM {}".format(self.name)
+        for row in cur.execute(sql):
+            # debug cells_dict = json.loads(row["cells"])
+            # log.debug(cells_dict)
+            cells_dict = self._gen_cells_dict(row['cells'])
+            row_asdict = {}
+            for col in columns:
+                if user_cols[col] in cells_dict:
+                    row_asdict[col] = cells_dict[user_cols[col]]
+                else:
+                    row_asdict[col] = None
+            yield row["idx"], row_asdict
+        
+
     def iterrows(self, 
                  columns: list=None, 
                  row_type: str='dict', 
@@ -807,12 +1084,26 @@ class Table(object):
                  rowid: bool=False):
         # validate user's args
         if columns is not None:
-            for column in columns:
-                self.check_column(column)
+            if self.conn is not None:
+                db_columns = self.get_columns_sql()
+                missing_cols = []
+                for col in columns:
+                    if col not in db_columns:
+                        missing_cols.append(col)
+                if len(missing_cols) > 0:
+                    raise ValueError ('Error! Column {} not found.'.format(','.join(missing_cols)))
+            else:
+                for column in columns:
+                    self.check_column(column)
+
         if columns is None:
+            if self.conn is not None:
+                columns = self.get_columns_sql()
+            else:
                 columns = self.get_columns() # assign all available column names
+
         if row_type == 'dict': 
-            if self.__be is None:
+            if self.conn is None:
                 if where is not None:
                     for idx, row in self.__rows.items():
                         if where(self._gen_row_asdict(row, columns, rowid)):
@@ -820,8 +1111,8 @@ class Table(object):
                 else:
                     for idx, row in self.__rows.items():
                         yield idx, self._gen_row_asdict(row,columns,rowid)
-            if self.__be is not None:
-                for idx, row in self.__be.iterrows_asdict(self.name, columns):
+            if self.conn is not None:
+                for idx, row in self._gen_row_asdict_sql(columns):
                     yield idx, row
         elif row_type == 'list':
             columnids = self.get_columnids(columns)
@@ -832,6 +1123,7 @@ class Table(object):
     def set_data_props(self):
         """ scan table to obtain columns properties - data type, column size (if str type then the max of len of string)"""
         columnids = self.get_columnids()
+        columns = self.get_columns()
         for idx, row in self.__rows.items():
             for columnid in columnids:
                 # log.debug(row)
@@ -868,33 +1160,27 @@ class Table(object):
 
 
     def set_data_props_other_column_size(self, columnid, value):
-        # print(type(value))
-        # print(type(value).__name__)
-        # obj_value = value #type(value).__name__
-        # print('val:',value)
-        # print(len(str(value)))
         if len(str(value)) > self.__columns[columnid].data_props[type(value).__name__]['column_size']:
-            self.__columns[columnid].data_props[type(value).__name__]['column_size'] = len(str(value))               
+            self.__columns[columnid].data_props[type(value).__name__]['column_size'] = len(str(value))         
+
+
+    def print_columns_info(self):
+        self.set_data_props()
+        dp_tobj = Table(f'{self.name} - Columns Info')
+        row_dict = {}
+        for col in self.get_columns():
+            cobj = self.get_column_object(col)
+            row_dict['id'] = cobj.id
+            row_dict['name'] = cobj.name
+            row_dict['ordinal_position'] = cobj.ordinal_position
+            row_dict['data_type'] = cobj.data_type
+            row_dict['column_size'] = cobj.column_size
+            row_dict['decimal_digits'] = cobj.decimal_digits
+            row_dict['data_props'] = cobj.data_props
+            dp_tobj.insert(row_dict)
+        dp_tobj.print()
+
     
-        
-    def print_old(self,top=None, columns=None):
-        rows_values = []
-        for enum,row in enumerate(self.__rows.values(),1):
-            row_values = []
-            for columnid in self.__columns.keys():
-                cell_value = None
-                if columnid in row.cells:
-                    cell_value = row.cells[columnid].value
-                row_values.append(cell_value)
-            rows_values.append(row_values)
-            if enum == top:
-                break
-        # get and print out columns
-        columns = [x.name for x in self.__columns.values()]
-        print(columns) 
-        # get and print out rowresult_as
-        for row in rows_values:
-            print(row)
     
     def _get_index_column_size(self):
         column_size = 0
@@ -906,7 +1192,7 @@ class Table(object):
         return max(len('idx'),column_size)
     
 
-    def _gen_line(self, length, col_div_pos):
+    def _gen_print_line(self, length, col_div_pos):
         line_chars = []
         for x in range(length):
             if x  in col_div_pos:
@@ -952,9 +1238,9 @@ class Table(object):
         print(('Table: ' + self.name).center(len(heading_col_str))) # title
         if show_data_type:
             print(header_data_types_str)
-        print(self._gen_line(len(heading_col_str), col_div_pos))
+        print(self._gen_print_line(len(heading_col_str), col_div_pos))
         print(heading_col_str) # print heading_col str
-        print(self._gen_line(len(heading_col_str), col_div_pos))
+        print(self._gen_print_line(len(heading_col_str), col_div_pos))
         
         # generate row string
         for idx, row in self.iterrows():
@@ -975,22 +1261,11 @@ class Table(object):
                     padded_cells.append((str(val) + ' ').rjust(max_width))
             padded_cells_str = '|'.join(padded_cells)
             print(padded_cells_str)
-        print(self._gen_line(len(heading_col_str), col_div_pos))
+        print(self._gen_print_line(len(heading_col_str), col_div_pos))
         print('({} rows)'.format(len(self)))    
 
-   
-    def print_aslist(self, top=None, columns=None):
-        print("idx",self.get_columns(columns))
-        for idx, row in self.iterrows(row_type='list',columns=columns):
-            print(idx, row)
-
-
-    def print_asdict(self, top=None, columns=None):
-        for idx, row in self.iterrows(columns=columns):
-            print(idx, row)
-
     
-    def columnnames_valid(self, columns):
+    def __deprecated_columnnames_valid(self, columns):
         existing_columnnames = self._get_columnnames_lced()
         for column in columns:
             if column.lower() not in existing_columnnames:
@@ -998,24 +1273,24 @@ class Table(object):
         return True
 
 
-    def replace_insensitively(self, old, repl, text):
+    def __deprecated_replace_insensitively(self, old, repl, text):
         return re.sub('(?i)'+re.escape(old), lambda m: repl, text)
 
-    def validate_stmt(self, stmt):
+    def __deprecated_validate_stmt(self, stmt):
         invalid_keywords = ['import ']
         for ik in invalid_keywords:
             if ik in stmt:
                 raise ValueError("Found invalid keyword {} in the statement!".format(repr(ik)))
 
 
-    def set_cellvalue_stmt(self, row, stmt):
+    def __deprecated_set_cellvalue_stmt(self, row, stmt):
         columns = re.findall('`(.*?)`',stmt) # extract column names from within a small tilde pair ``
         for column in columns:
             stmt = stmt.replace('`' + column + '`',repr(row[column]))
         return stmt
 
 
-    def exec_stmt(self, stmt):
+    def __deprecated_exec_stmt(self, stmt):
         # log.debug('-' * 10)
         # log.debug(stmt)
         res = {'retval':False}
@@ -1028,7 +1303,7 @@ class Table(object):
             return res
 
 
-    def get_index_exec(self, stmt):
+    def __deprecated_get_index_exec(self, stmt):
         """return the fist index that matches the condition."""
         columnname_case_insensitive = False
         if columnname_case_insensitive == True:
@@ -1048,7 +1323,7 @@ class Table(object):
                 return idx
         
 
-    def get_indexes_exec(self, stmt):
+    def __deprecated_get_indexes_exec(self, stmt):
         """return a list of indexes that match the condition."""
         columnname_case_insensitive = False
         if columnname_case_insensitive == True:
@@ -1069,32 +1344,41 @@ class Table(object):
         return indexes
 
 
-    def delete_rows_by_stmt(self, stmt):
+    def __deprecated_delete_rows_by_stmt(self, stmt):
         indexes = self.get_index_exec(stmt)
         self.delete_rows(indexes)
 
 
     def update_row(self,idx,column,value):
-        self.__rows[idx].add_cell(self.make_cell(column,value))
+        if idx in self.__rows:
+            self.__rows[idx].add_cell(self.make_cell(column,value))
+        else:
+            fn = inspect.stack()[0][3]
+            warnings.warn(f'Warning! {fn}() trying to update a non existed row (ie. idx {idx}).')
 
+
+    def update_row_sql(self, idx, column, value):
+        row = self.get_row_sql(idx) # must get all columns to make cells complete for correct update to sql
+                                    # will this be a trigger to change get_row's columns parameter???
+        if row:                                    
+            row[column] = value # get this row updated
+            cursor = self.conn.cursor() 
+            sql = f'UPDATE {self.name} SET cells = ? WHERE idx = ?;'
+            db_cols_withid = self.get_columns_withid_sql()
+            cells = json.dumps({db_cols_withid[k]: v for k,v in row.items()})
+            params = [cells, idx]
+            cursor.execute(sql, params)
+        else:
+            fn = inspect.stack()[0][3]
+            warnings.warn(f'Warning! {fn}() trying to update a non existed row (ie. idx {idx}).')
+       
 
     def update_row_all(self,column,value):
-        
         for idx in self.__rows:
             self.__rows[idx].add_cell(self.make_cell(column,value))    
 
 
     def exists(self, where):
-        for idx, row in self.iterrows():
-            try:
-                if where(row):
-                    return True
-            except:
-                print(row)
-                pass
-        return False
-
-    def exists_original(self, where):
         for idx, row in self.iterrows():
             try:
                 if where(row):
@@ -1158,27 +1442,25 @@ class Table(object):
         return indexes
 
 
-    def filter(self, expr, columns=None):
-        tobj = Table('mybing3')
-        if columns is None:
-            for idx, row in self.iterrows():
-                #try:
-                    if expr(row):
-                        columns = tuple(row.keys())
-                        values = tuple(row.values())
-                        tobj.insert(values, columns)
-                # except Exception as e:
-                #     print(e)
-                #     pass        
+    def filter(self, 
+                columns: list=None, 
+                where: callable=None):
+        tobj = Table('filtered')
+        if columns is None: # all columns
+            columns = self.get_columns()
         else:
-            columns_ = self.validate_columns(columns)
-            for idx, row in self.iterrows():
+            columns = self.validate_columns(columns)
+        for idx, row in self.iterrows(columns):
+            if where:
                 try:
-                    if expr(row):
-                        values = self.get_row_aslist(idx,columns_)
-                        tobj.insert(values, columns_)
-                except:
-                    pass        
+                    if where(row):
+                        tobj.insert(row)
+                except Exception as e:
+                    pass
+                    # log.debug(f'false at {idx}')
+                    # log.warning(e)    
+            else:
+                tobj.insert(row)
         return tobj
 
 
@@ -1309,7 +1591,7 @@ class Table(object):
     #     return used_types    
 
 
-    def _DEPblookup_old(self, 
+    def __DEPblookup_old(self, 
                 lkp_table: object, 
                 on: str, 
                 ret_columns: list[str] | list[tuple]):
@@ -1417,7 +1699,7 @@ class Table(object):
                     yield lidx, ridx
     
 
-    def _DEPDEV_groupby_count_OLD(self, columns, count_column):
+    def __DEPDEV_groupby_count_OLD(self, columns, count_column):
         group_tobj = Table('testq')
         res_dict = {} #key=a tuple of columns, value=count
         for idx, row in self.iterrows(columns, row_type='list'):
@@ -1435,48 +1717,85 @@ class Table(object):
 
     def groupby(self, 
                     columns, 
-                    save_as: str, 
+                    #save_as: str, 
                     group_count: bool = False, 
                     counts: list[str] | list[tuple] = None,
                     sums: list[str] | list[tuple] = None,
+                    mins: list[str] | list[tuple] = None,
+                    maxs: list[str] | list[tuple] = None,
+                    means: list[str] | list[tuple] = None,
                     group_concat = None) -> None:
-        
-        group_tobj = self.bing.create_table(save_as)
+        #group_tobj = self.bing.create_table(save_as)
+        group_tobj = Table('grouped')
         group_count_column = 'group_count' if group_count == True else group_count
         # loop the table
         for idx, row in self.iterrows():
-            index_records = [row[self.validate_column(x)] for x in columns]
-            index = tuple([_normalize_caseless(x) if isinstance(x, str) else x for x in index_records])
+            index_records = [row[self.validate_column(col)] for col in columns]
+            index = tuple([_normalize_caseless(col) if isinstance(col, str) else col for col in index_records])
             if not group_tobj.index_exists(index):
                 # add record for the first time
                 group_tobj.insert(index_records, columns=columns, index=index)
                 if group_count:
                     group_tobj.update_row(index, group_count_column, 1)
-                if counts:
-                    self._groupby_new_index_count(index, row, counts, group_tobj) 
-                if sums:
-                    self._groupby_new_index_sum(index, row, sums, group_tobj)
                 if group_concat:
                     if group_concat == True:
                         group_tobj.update_row(index, 'group_concat',[idx])  
                     else:
-                        group_tobj.update_row(index, 'group_concat',[row[self.validate_column(group_concat)]])    
+                        group_tobj.update_row(index, 'group_concat',[row[self.validate_column(group_concat)]])        
+                if counts:
+                    self._groupby_new_index_count(index, row, counts, group_tobj) 
+                if sums:
+                    self._groupby_new_index_sum(index, row, sums, group_tobj)
+                if mins:
+                    self._groupby_new_index_min(index, row, mins, group_tobj)
+                if maxs:
+                    self._groupby_new_index_max(index, row, maxs, group_tobj)
+                if means: # call existing sum and count function
+                    temp_sum_columns = self._groupby_new_index_sum(index, row, means, group_tobj, means=True)
+                    temp_count_columns = self._groupby_new_index_count(index, row, means, group_tobj, means=True)    
             else:
                 if group_count:
                     incremented = group_tobj[index][group_count_column] + 1
                     group_tobj.update_row(index, group_count_column, incremented)
-                if counts:
-                    self._groupby_existing_index_count(index, row, counts, group_tobj)
-                if sums:
-                    self._groupby_existing_index_sum(index, row, sums, group_tobj)
                 if group_concat:
                     if group_concat == True:
                         group_tobj.update_row(index, 'group_concat', group_tobj[index]['group_concat'] + [idx])
                     else:
-                        group_tobj.update_row(index, 'group_concat', group_tobj[index]['group_concat'] + [row[self.validate_column(group_concat)]])    
-      
+                        group_tobj.update_row(index, 'group_concat', group_tobj[index]['group_concat'] + [row[self.validate_column(group_concat)]])        
+                if counts:
+                    self._groupby_existing_index_count(index, row, counts, group_tobj)
+                if sums:
+                    self._groupby_existing_index_sum(index, row, sums, group_tobj)
+                if mins:
+                    self._groupby_existing_index_min(index, row, mins, group_tobj)
+                if mins:
+                    self._groupby_existing_index_max(index, row, maxs, group_tobj)
+                if means: # call sum and count functions
+                    self._groupby_existing_index_sum(index, row, means, group_tobj, means=True)
+                    self._groupby_existing_index_count(index, row, means, group_tobj, means=True)
+        # loop through the groupped table)
+        if means:
+            for idx, row in group_tobj.iterrows():
+                print(idx, row)
+                for i, col in enumerate(means):
+                    print('i',i, col)
+                    if isinstance(col, str):
+                        col_mean = 'mean_' + col
+                        group_tobj.update_row(idx, col_mean, row[temp_sum_columns[i]]/row[temp_count_columns[i]])
+                    if isinstance(col, tuple):
+                        col_mean = col[1]
+                        group_tobj.update_row(idx, col_mean, row[temp_sum_columns[i]]/row[temp_count_columns[i]])
+            # drop temp columns
+            for x in range (len(temp_sum_columns)):
+                group_tobj.drop_column(temp_sum_columns[x])
+                group_tobj.drop_column(temp_count_columns[x])
+        return group_tobj            
 
-    def _groupby_new_index_count(self, index, row, counts, group_tobj):
+
+
+  
+    def _groupby_new_index_count(self, index, row, counts, group_tobj, means=False):
+        count_columns = []
         for col in counts:
             if isinstance(col, str):
                 col_cnt = 'count_' + col
@@ -1484,29 +1803,34 @@ class Table(object):
                     group_tobj.update_row(index, col_cnt, 1)
                 else:
                     group_tobj.update_row(index, col_cnt, 0)
+                count_columns.append(col_cnt)    
             if isinstance(col, tuple):
-                col_cnt = col[1]
+                col_cnt = 'mean_count_' + col[1] if means else col[1]
                 if row[col[0]] is not None:
                     group_tobj.update_row(index, col_cnt, 1)
                 else:
                     group_tobj.update_row(index, col_cnt, 0)
+                count_columns.append(col_cnt)
+        return count_columns        
 
 
-    def _groupby_existing_index_count(self, index, row, counts, group_tobj):
+    def _groupby_existing_index_count(self, index, row, counts, group_tobj, means=False):
         for col in counts:
             if isinstance(col, str):
                 col_cnt = 'count_' + col
                 if row[col] is not None:
                     incremented = group_tobj[index][col_cnt] + 1
-                    group_tobj.update_row(index, col_cnt, incremented)
+                    group_tobj.update_row(index, col_cnt, incremented)  
             if isinstance(col, tuple):
-                col_cnt = col[1]
+                col_cnt = 'mean_count_' + col[1] if means else col[1]
                 if row[col[0]] is not None:
                     incremented = group_tobj[index][col_cnt] + 1
                     group_tobj.update_row(index, col_cnt, incremented)
+
                 
 
-    def _groupby_new_index_sum(self, index, row, sums, group_tobj):
+    def _groupby_new_index_sum(self, index, row, sums, group_tobj, means=False):
+        sum_columns = []
         for col in sums:
             if isinstance(col, str):
                 col_sum = 'sum_' + col
@@ -1514,15 +1838,18 @@ class Table(object):
                     group_tobj.update_row(index, col_sum, row[col])
                 else:
                     group_tobj.update_row(index, col_sum, 0)
+                sum_columns.append(col_sum)    
             if isinstance(col, tuple):
-                col_sum = col[1]
+                col_sum = 'mean_sum_' + col[1] if means else col[1]
                 if isinstance(row[col[0]], (int,float)):
                     group_tobj.update_row(index, col_sum, row[col[0]])
                 else:
                     group_tobj.update_row(index, col_sum, 0)
+                sum_columns.append(col_sum)
+        return sum_columns
 
 
-    def _groupby_existing_index_sum(self, index, row, sums, group_tobj):
+    def _groupby_existing_index_sum(self, index, row, sums, group_tobj, means=False):
         for col in sums:
             if isinstance(col, str):
                 col_sum = 'sum_' + col
@@ -1530,15 +1857,112 @@ class Table(object):
                     summed = group_tobj[index][col_sum] + row[col]
                     group_tobj.update_row(index, col_sum, summed)
             if isinstance(col, tuple):
-                col_sum = col[1]
+                col_sum = 'mean_sum_' + col[1] if means else col[1]
                 if isinstance(row[col[0]], (int,float)):
                     summed = group_tobj[index][col_sum] + row[col[0]]
                     group_tobj.update_row(index, col_sum, summed)
 
 
+    def _groupby_new_index_min(self, index, row, mins, group_tobj):
+        for col in mins:
+            if isinstance(col, str):
+                col_min = 'min_' + col
+                if isinstance(row[col], (int,float)):
+                    group_tobj.update_row(index, col_min, row[col])
+                else:
+                    group_tobj.update_row(index, col_min, 0)
+            if isinstance(col, tuple):
+                col_min = col[1]
+                if isinstance(row[col[0]], (int,float)):
+                    group_tobj.update_row(index, col_min, row[col[0]])
+                else:
+                    group_tobj.update_row(index, col_min, 0)
+
+
+    def _groupby_existing_index_min(self, index, row, mins, group_tobj):
+        for col in mins:
+            if isinstance(col, str):
+                col_min = 'min_' + col
+                if isinstance(row[col], (int,float)):
+                    minned = min(group_tobj[index][col_min], row[col])
+                    group_tobj.update_row(index, col_min, minned)
+            if isinstance(col, tuple):
+                col_sum = col[1]
+                if isinstance(row[col[0]], (int,float)):
+                    minned = min(group_tobj[index][col_min], row[col[0]])
+                    group_tobj.update_row(index, col_min, minned)
+
+
+    def _groupby_new_index_max(self, index, row, maxs, group_tobj):
+        for col in maxs:
+            if isinstance(col, str):
+                col_max = 'max_' + col
+                if isinstance(row[col], (int,float)):
+                    group_tobj.update_row(index, col_max, row[col])
+                else:
+                    group_tobj.update_row(index, col_max, 0)
+            if isinstance(col, tuple):
+                col_max = col[1]
+                if isinstance(row[col[0]], (int,float)):
+                    group_tobj.update_row(index, col_max, row[col[0]])
+                else:
+                    group_tobj.update_row(index, col_max, 0)
+
+
+    def _groupby_existing_index_max(self, index, row, maxs, group_tobj):
+        for col in maxs:
+            if isinstance(col, str):
+                col_max = 'max_' + col
+                if isinstance(row[col], (int,float)):
+                    maxed = max(group_tobj[index][col_max], row[col])
+                    group_tobj.update_row(index, col_max, maxed)
+            if isinstance(col, tuple):
+                col_max = col[1]
+                if isinstance(row[col[0]], (int,float)):
+                    maxed = max(group_tobj[index][col_max], row[col[0]])
+                    group_tobj.update_row(index, col_max, maxed)
+
+
+    # def _groupby_new_index_mean(self, index, row, means, group_tobj):
+    #     for col in means:
+    #         if isinstance(col, str):
+    #             col_mean = 'mean_' + col
+    #             if row[col] is not None:
+    #                 group_tobj.update_row(index, col_mean, 1)
+    #             else:
+    #                 group_tobj.update_row(index, col_mean, 0)
+    #         if isinstance(col, tuple):
+    #             col_mean = col[1]
+    #             if row[col[0]] is not None:
+    #                 group_tobj.update_row(index, col_mean, 1)
+    #             else:
+    #                 group_tobj.update_row(index, col_mean, 0)
+
+
+    # def _groupby_existing_index_mean(self, index, row, means, group_tobj):
+    #     for col in means:
+    #         if isinstance(col, str):
+    #             col_mean = 'mean_' + col
+    #             if row[col] is not None:
+    #                 incremented = group_tobj[index][col_mean] + 1
+    #                 group_tobj.update_row(index, col_mean, incremented)
+    #         if isinstance(col, tuple):
+    #             col_mean = col[1]
+    #             if row[col[0]] is not None:
+    #                 incremented = group_tobj[index][col_mean] + 1
+    #                 group_tobj.update_row(index, col_mean, incremented)                                                               
+
+
     def read_excel(self, path, sheetname, header_row=1):
         wb = load_workbook(path, read_only=True, data_only=True)
-        ws = wb[sheetname]
+        # validate sheetname
+        sheetnames_lced = {x.lower(): x  for x in wb.sheetnames}
+        if sheetname.lower() not in sheetnames_lced:
+            extracted = thefuzzprocess.extract(sheetname, sheetnames_lced.values(), limit=2)
+            print(extracted)
+            fuzzies = ['"{}"'.format(x[0]) for x in extracted if x[1]>85]
+            raise ValueError ('could not find column "{}". Did you mean {}?'.format(sheetname,' or '.join(fuzzies)))
+        ws = wb[sheetnames_lced[sheetname.lower()]] # assign with the correct name (caseless) through validated user input.
         columns = []
         Nonecolumn_cnt = 0
         for rownum, row_cells in enumerate(ws.iter_rows(min_row=header_row),start=1):
@@ -1553,7 +1977,6 @@ class Table(object):
                         columns.append(str(cell.value))
                 if Nonecolumn_cnt > 0:
                     log.warning('Warning! Noname column detected!')          
-            
             if rownum > 1:
                 for cell in row_cells:
                     values.append(cell.value)
@@ -1587,6 +2010,38 @@ class Table(object):
             self.__rows[i] = self.__rows[idx] # reassign
             if i != idx:
                 del self.__rows[idx]
+
+
+    def set_index(self, column):
+        grouped = self.groupby([column], group_count=True, group_concat=True)
+        temp_test_dup = grouped.filter(lambda row: row['group_count']>1)
+        if len(temp_test_dup) > 0:
+            # temp_test_dup.name = 'duplicates'
+            # temp_test_dup.print()
+            dups = Table('duplicates')
+            for idx, row in temp_test_dup.iterrows():
+                for _idx in row['group_concat']:
+                    dups.insert(self.get_row_asdict(_idx))
+            dups.print()
+            raise ValueError(f'Duplicates found in column "{column}".')
+            #raise ValueError('column must be a single column string!')  
+            for idx, row in temp_test_dup.iterrows():
+                print(idx, row)
+        
+        # reset idx using existing column
+        temp_tobj = copy.deepcopy(self)
+        temp_idxs = list(temp_tobj.__rows)
+        # reset table methods
+        self.__rows.clear()     # reset all rows
+        self.__columns.clear()  # reset all columns
+        self.__last_assigned_columnid= 9 #
+        self.__last_assigned_rowid = -1 # for use when row created
+        self.__last_assigned_idx = -1 # for use when add
+        # populate records
+        for i in temp_idxs:
+            self.insert(temp_tobj.get_row_asdict(i), index=temp_tobj.get_row_asdict(i)[column])
+            temp_tobj.delete_row(i)
+                    
 
 
     def to_csv(self, path, columns=None, index=False, \
@@ -1698,12 +2153,18 @@ class Table(object):
     def to_json(self):
         """This is just a placeholder.
         Converting dict to Json is trivia by using Json dumps/dump.
-        No need a function to write here"""
+        No need a function to write here?"""
+        rows_ = []
+        for idx, row in self.iterrows():
+            rows_.append(row)
+        obj_dict  = {}
+        obj_dict[self.name] = rows_
+        return json.dumps(obj_dict)
         
 
 class Table_Path(Table):
-    def __init__(self, name):
-        super().__init__(name)
+    def __init__(self, name, bing=None):
+        super().__init__(name, bing=bing)
         self.path = name
         self.children = []        
 
@@ -1762,16 +2223,37 @@ def _match_caseless_unicode(value1, value2):
 
 def _normalize_caseless(string):
     return unicodedata.normalize("NFKD", string.casefold())
+    
 
 type_map = {
     'sqlserver': {
-                'str':'nvarchar'
-                ,'int':'int'
-                ,'datetime':'datetime'
-                ,'float':'float'
-                ,'bool':'bit'
-                ,'bytes':'varbinary'
-                }
-    }
+        'type_mappings': {
+            'str':'nvarchar'
+            ,'int':'int'
+            ,'datetime':'datetime'
+            ,'float':'float'
+            ,'bool':'bit'
+            ,'bytes':'varbinary'
+        },
+        'delimited_identifiers':{'start':'"', 'end':'"'},
+        'type_info': {
+        'varchar': {'literal_prefix':"'", 'literal_suffix':"'"}
+        } 
+    },
+    'postgresql': {
+        'type_mappings': {
+            'str':'varchar'
+            ,'int':'INTEGER'
+            ,'datetime':'timestamp'
+            ,'float':'float8'
+            ,'bool':'boolean'
+            ,'bytes':'bytes'
+        },
+        'delimited_identifiers':{'start':'"', 'end':'"'},
+        'type_info': {
+            'varchar': {'literal_prefix':"'", 'literal_suffix':"'"}
+        }   
+    }            
+}
 
 

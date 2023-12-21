@@ -1,0 +1,58 @@
+{
+    "sqlserver": {
+        "type_mappings": {
+            "str": "nvarchar",
+            "int": "int",
+            "datetime": "datetime",
+            "float": "float",
+            "bool": "bit",
+            "bytes": "varbinary"
+        },
+        "delimited_identifiers": {
+            "start": "\"",
+            "end": "\""
+        },
+        "type_info": [
+            {
+                "type_name": "nvarchar",
+                "column_size": 4000,
+                "literal_prefix": "N'",
+                "literal_suffix": "'"
+            },
+            {
+                "type_name": "int",
+                "column_size": 10,
+                "literal_prefix": null,
+                "literal_suffix": null
+            }
+        ]
+    },
+    "postgresql": {
+        "type_mappings": [
+            {"py":"str", "pg": "varchar"},
+            {"py":"int", "pg": "integer"},
+            {"py":"datetime", "pg": "timestamp"},
+            {"py":"float", "pg":"float8"},
+            {"py":"bool", "pg":"boolean"},
+            {"py":"bytes", "pg":"bytes"}
+        ],
+        "delimited_identifiers": {
+            "start": "\"",
+            "end": "\""
+        },
+        "type_info": [
+            {
+                "type_name": "nvarchar",
+                "column_size": 4000,
+                "literal_prefix": "'",
+                "literal_suffix": "'"
+            },
+            {
+                "type_name": "int",
+                "column_size": 10,
+                "literal_prefix": null,
+                "literal_suffix": null
+            }
+        ]
+    }
+}

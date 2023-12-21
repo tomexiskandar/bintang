@@ -1,5 +1,4 @@
 from openpyxl import load_workbook
-import pyodbc
 import os
 import json
 import copy
@@ -9,6 +8,8 @@ from bintang import iterdict
 from pathlib import Path
 from bintang.log import log
 from thefuzz import process as thefuzzprocess
+from rapidfuzz import process as rapidfuzzprocess
+from rapidfuzz import fuzz, utils
 # import logging
 
 # log = logging.getLogger(__name__)
@@ -36,13 +37,17 @@ class Bintang():
             self.__be = Besqlite(self.name)
  
 
-    def __getitem__(self, tablename): # subscriptable version of self.get_table()
+    def __getitem__(self, tablename: str) -> Table: # subscriptable version of self.get_table()
         tableid = self.get_tableid(tablename)
         if tableid is None:
             tablenames = self.get_tables()
-            extracted = thefuzzprocess.extract(tablename, tablenames, limit=2)
-            fuzzies = [x[0] for x in extracted if x[1]>95]
-            raise ValueError ('could not find table {}. Did you mean {}?'.format(tablename,' or '.join(fuzzies)))
+            #extracted = thefuzzprocess.extract(tablename, tablenames, limit=2)
+            extracted = rapidfuzzprocess.extract(tablename, tablenames, limit=2, processor=utils.default_process)
+            fuzzies = ['"{}"'.format(x[0]) for x in extracted if x[1]>85]
+            if len(fuzzies) > 0:
+                raise ValueError ('could not find table "{}". Did you mean {}?'.format(tablename,' or '.join(fuzzies)))
+            else:
+                raise ValueError ('could not find table "{}".'.format(tablename))
         else:
             return self.__tables[tableid]       
 
@@ -60,9 +65,9 @@ class Bintang():
     def __del__(self):
         if self.__be is not None:
             self.__be.conn.close() #win need this otherwise a PermissionError: [WinError 32] ...
-            os.remove(self.__be.dbpath)
-        #self.__conn.close()
-        # 
+            #os.remove(self.__be.dbpath)
+        
+
     def copy_db(self, dest=None):
         import shutil
         if dest == None:
@@ -71,8 +76,12 @@ class Bintang():
 
 
     def create_table(self, name: str, 
-                     columns: list = None) -> Table:
-        tobj = Table(name, bing=self) # create a tobj object
+                     columns: list=None,
+                     conn: str=None) -> Table:
+        """ create a table under bintang object
+        name: Name of the table
+        columns: List of columns (optional)"""
+        tobj = Table(name, bing=self, conn=conn) # create a tobj object
         self.add_table(tobj)
         if self.__be is not None:   # if is_persistent is True then update the tobj attributes and pass the connection
             tobj._Table__be = self.__be           
@@ -94,7 +103,7 @@ class Bintang():
 
 
     def create_path_table(self, name, columns=None):
-        tobj = Table_Path(name) # create a table object
+        tobj = Table_Path(name, bing=self) # create a table object
         self.add_table(tobj)
         if self.__be is not None:   # if is_persistent is True then update the tobj attributes and pass the connection
             tobj._Table__be = self.__be           
@@ -136,7 +145,7 @@ class Bintang():
     #     return self.__tables[tableid].get_columnids
     
 
-    def add_table(self,table: str):
+    def add_table(self,table: str): # this should be Table not str. change later after tests
         tableid = self.get_tableid(table.name)
         if tableid is None:
             tableid = self.__last_assigned_tableid + 1
@@ -334,35 +343,52 @@ class Bintang():
 
     def read_excel(self, path, sheetnames=None):
         wb = load_workbook(path, read_only=True, data_only=True)
-        for ws in wb:
-            # create Bintang table
-            table_ = ws.title
-            self.create_table(table_)
-            columns = []
-            Nonecolumn_cnt = 0
-            for rownum, row_cells in enumerate(ws.iter_rows(),start=1):
-                values = [] # hold column value for each row
-                if rownum == 1:
-                    for cell in row_cells:
-                        if cell.value is None:
-                            columname = 'noname' + str(Nonecolumn_cnt)
-                            Nonecolumn_cnt += 1
-                            columns.append(columname)
-                        else:
-                            columns.append(cell.value)
-                    if Nonecolumn_cnt > 0:
-                        log.warning('Warning! Noname column detected!')          
+        # validate sheetnames
+        sheetnames_lced = {x.lower(): x  for x in wb.sheetnames}
+        if sheetnames is not None: # user specify sheets
+            for sheetname in sheetnames:
+                if sheetname.lower() not in sheetnames_lced:
+                    extracted = thefuzzprocess.extract(sheetname, sheetnames_lced.values(), limit=2)
+                    print(extracted)
+                    fuzzies = ['"{}"'.format(x[0]) for x in extracted if x[1]>85]
+                    raise ValueError ('could not find column "{}". Did you mean {}?'.format(sheetname,' or '.join(fuzzies)))
+                #ws = wb[sheetnames_lced[sheetname.lower()]] # assign with the correct name (caseless) through validated user input.
+                self.create_table(sheetname)
+                self[sheetname].read_excel(path, sheetname)
+        else: # exctract all sheets and create all tables
+            for ws in wb:
+                sheetname = ws.title
+                self.create_table(sheetname)
+                self[sheetname].read_excel(path, sheetname)
+        # for ws in wb:
+        #     # create Bintang table
+        #     table_ = ws.title
+        #     self.create_table(table_)
+        #     columns = []
+        #     Nonecolumn_cnt = 0
+        #     for rownum, row_cells in enumerate(ws.iter_rows(),start=1):
+        #         values = [] # hold column value for each row
+        #         if rownum == 1:
+        #             for cell in row_cells:
+        #                 if cell.value is None:
+        #                     columname = 'noname' + str(Nonecolumn_cnt)
+        #                     Nonecolumn_cnt += 1
+        #                     columns.append(columname)
+        #                 else:
+        #                     columns.append(cell.value)
+        #             if Nonecolumn_cnt > 0:
+        #                 log.warning('Warning! Noname column detected!')          
                 
-                if rownum > 1:
-                    for cell in row_cells:
-                        values.append(cell.value)
-                    # if rownum == 370:
-                    #     log.debug(f'{values} at rownum 370.')
-                    #     log.debug(any(values))
-                    if any(values):
-                        self.get_table(table_).insert(values, columns)
-            if self.__be is not None:
-                self.get_table(table_).add_row_into_be()
+        #         if rownum > 1:
+        #             for cell in row_cells:
+        #                 values.append(cell.value)
+        #             # if rownum == 370:
+        #             #     log.debug(f'{values} at rownum 370.')
+        #             #     log.debug(any(values))
+        #             if any(values):
+        #                 self.get_table(table_).insert(values, columns)
+        #     if self.__be is not None:
+        #         self.get_table(table_).add_row_into_be()
 
     def read_dict(self, dict_obj, tablepaths=None):
         debug = False

@@ -3,6 +3,7 @@ import copy
 class Cell(object):
     """Define a cell object
     """
+    __slot__ = ('columnid', 'value')
     def __init__(self,columnid,value = None):
         self.columnid = columnid
         self.value = value

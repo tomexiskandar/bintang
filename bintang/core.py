@@ -200,18 +200,24 @@ class Bintang():
         self.get_table(tablename).delete_rows(indexes)
 
 
-    def print(self,tablename, top=None, columns=None):
-        if columns is None:
-            columns = [x.name for x in self.__tables[tablename].columns.values()]
-        print(','.join(str(val) for val in columns))
-        columnids = self.__tables[tablename].get_columnids(columns)
-        
-        # print each row values
-        for idx,row in enumerate(self.__tables[tablename].rows.values()):
-            row_values = row.get_values(columnids)
-            print(','.join(str(val) for val in row_values))
-            if idx == top:
-                break
+    def print(self):
+        tobj = Table('Columns Info')
+        row_dict = {}
+        for tab in self.get_tables():
+            self[tab].set_data_props() # it sets 
+            row_dict['table'] = tab
+            for col in self[tab].get_columns():
+                cobj = self[tab].get_column_object(col)
+                #row_dict['id'] = cobj.id
+                row_dict['column'] = cobj.name
+                row_dict['ordinal_position'] = cobj.ordinal_position
+                row_dict['data_type'] = cobj.data_type
+                row_dict['column_size'] = cobj.column_size
+                row_dict['decimal_digits'] = cobj.decimal_digits
+                row_dict['data_props'] = cobj.data_props
+                tobj.insert(row_dict)
+        tobj.print()
+
 
     def raise_valueerror_tablename(self,tablename):
         tableid = self.get_tableid(tablename)
@@ -270,7 +276,7 @@ class Bintang():
         conn.close()    
 
 
-    def dev_read_sqlite(self, tablename, columns = None):
+    def _dev_read_sqlite(self, tablename, columns = None):
         self.create_table(tablename)
         import sqlite3
         conn = sqlite3.connect('bintang.db')
@@ -351,7 +357,7 @@ class Bintang():
                     extracted = thefuzzprocess.extract(sheetname, sheetnames_lced.values(), limit=2)
                     print(extracted)
                     fuzzies = ['"{}"'.format(x[0]) for x in extracted if x[1]>85]
-                    raise ValueError ('could not find column "{}". Did you mean {}?'.format(sheetname,' or '.join(fuzzies)))
+                    raise ValueError ('could not find sheet "{}". Did you mean {}?'.format(sheetname,' or '.join(fuzzies)))
                 #ws = wb[sheetnames_lced[sheetname.lower()]] # assign with the correct name (caseless) through validated user input.
                 self.create_table(sheetname)
                 self[sheetname].read_excel(path, sheetname)

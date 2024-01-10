@@ -2,7 +2,8 @@ from contextlib import contextmanager
 
 class Row:
     """Define a row as a collection of cells
-    """ 
+    """
+    __slots__ = ('id', 'cells') 
     def __init__(self,id):
         self.id = id
         self.cells = {}

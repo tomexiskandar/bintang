@@ -2,6 +2,7 @@ import unicodedata
 class Column:
     """class to define column object 
     """
+    __slots__ = ('id','name','ordinal_position','data_type','column_size','decimal_digits','data_props')
     def __init__(self,name):
         self.id = None
         self.name = name

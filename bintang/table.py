@@ -67,7 +67,7 @@ class Table(object):
     def __setitem__(self, rowcell, value): # subscriptable version of self.update_row()
         # where arg rowcell is a tuple of an idx of rows & column  passed by client code
         # client code signature: table_obj[idx,column] = value
-        self.update_row(rowcell[0], rowcell[1], value)
+        self.update_row(rowcell[0], rowcell[1], value)    
         
 
     def __repr__(self):
@@ -87,6 +87,10 @@ class Table(object):
             res = cursor.execute(f'SELECT COUNT(*) FROM {self.name};')
             return res.fetchone()[0]
         return len(self.__rows)
+
+    def get_size(self):
+        return sys.getsizeof(self.__rows)
+          
 
     def create_sql_table(self):
         cur = self.conn.cursor()
@@ -1357,7 +1361,8 @@ class Table(object):
             warnings.warn(f'Warning! {fn}() trying to update a non existed row (ie. idx {idx}).')
 
 
-    def update_row_sql(self, idx, column, value):
+    def _deprecated_update_row_sql(self, idx, column, value):
+        """ using method that updates 'all' content of the cells"""
         row = self.get_row_sql(idx) # must get all columns to make cells complete for correct update to sql
                                     # will this be a trigger to change get_row's columns parameter???
         if row:                                    
@@ -1371,8 +1376,26 @@ class Table(object):
         else:
             fn = inspect.stack()[0][3]
             warnings.warn(f'Warning! {fn}() trying to update a non existed row (ie. idx {idx}).')
-       
 
+
+    def update_row_sql(self, idx, column, value):
+        """ using json_set so only update for a specific key"""
+        cursor = self.conn.cursor() 
+        columnid = self.get_columnid_sql(column)
+        sql_update = f"UPDATE {self.name} SET cells = (SELECT json_set({self.name}.cells, '$.{columnid}', ?)) where idx=?;"
+        params = [value, idx]
+        cursor.execute(sql_update, params)
+
+
+    def update_row_sql_bycolid(self, idx, columnid, value):
+        """ using json_set so only update for a specific key and accept columnid
+        Note: no performance increase even not calling get_columnid_sql()"""
+        cursor = self.conn.cursor() 
+        sql_update = f"UPDATE {self.name} SET cells = (SELECT json_set({self.name}.cells, '$.{columnid}', ?)) where idx=?;"
+        params = [value, idx]
+        cursor.execute(sql_update, params)    
+    
+       
     def update_row_all(self,column,value):
         for idx in self.__rows:
             self.__rows[idx].add_cell(self.make_cell(column,value))    
@@ -1985,8 +2008,8 @@ class Table(object):
                 #     log.debug(any(values))
                 if any(values):
                     self.insert(values, columns)
-        if self.__be is not None:
-            self.add_row_into_be()
+        # DEPRECATED if self.__be is not None:
+        #     self.add_row_into_be()
 
 
     def read_sql(self, conn, sql_str=None, params=None ):

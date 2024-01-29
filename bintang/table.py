@@ -12,6 +12,8 @@ import sys
 import copy
 import unicodedata
 from thefuzz import process as thefuzzprocess
+from rapidfuzz import fuzz , process, utils
+from operator import itemgetter
 from bintang.log import log
 from pathlib import Path
 from typing import Callable
@@ -1693,6 +1695,9 @@ class Table(object):
                 valid_column  = lkp_table_obj.validate_column(item[0])
                 item_ = tuple([valid_column,item[1]])
                 valid_ret_columns.append(item_)
+        # add these valid_ret_column to the left table
+        for col in valid_ret_columns:
+            self.add_column(col)
         # for each matching, update it
         for lidx, ridx in self._scan(lkeys, lkp_table_obj, rkeys):
             # update this table lrow for each ret_columns
@@ -1700,7 +1705,7 @@ class Table(object):
                 if isinstance(item, str): # if item is a column
                     value = lkp_table_obj[ridx][item]
                     if item in lcolumn_prematch:
-                        print('item',item,'in',self.name)
+                        #print('item',item,'in',self.name)
                         self.update_row(lidx, lkp_table_obj.name + '_' + item, value)
                     else:
                         self.update_row(lidx, item, value)
@@ -1720,6 +1725,114 @@ class Table(object):
                         matches += 1 # increment
                 if matches == lenof_keys:
                     yield lidx, ridx
+
+
+    def _scanfuzzy(self, lkeys, lkp_table_obj, rkeys, min_ratios):
+        """ will yield two items. a left idx and result (a list of sorted matched right index and ratio tuple)
+        for eg. yield 1, [(4, [80, 90]),(3, [70, 69])]
+        where: 1 = the left index, 
+               [(4, [80, 90]),(3, [70, 69])] = the sorted tuple list
+        """
+        lenof_keys = len(lkeys)
+        # print('lkeys:', lkeys)
+        # print('rkeys:', rkeys)
+        res_tobj = Table('result')
+        for lidx, lrow in self.iterrows(lkeys, rowid=True):
+            res_dict = {}
+            for ridx, rrow in lkp_table_obj.iterrows():
+                matches = 0
+                ratios = []
+                for i in range(lenof_keys):
+                    ratio = fuzz.ratio(lrow[lkeys[i]], rrow[rkeys[i]], processor=utils.default_process)
+                    if ratio >= min_ratios[i]:
+                        # print(lrow[lkeys[i]], rrow[rkeys[i]], fuzz.ratio(lrow[lkeys[i]], rrow[rkeys[i]], processor=utils.default_process))
+                        # print('>>>>>>>>>> hello there is a hit <<<<<<<<<<<')   
+                        matches += 1 # increment
+                        ratios.append(ratio)
+                if matches == lenof_keys:
+                    res_dict[ridx] = ratios
+                    #print('check resdict:', list(res_dict.items()))
+            
+            if len(res_dict) > 1:
+                # sort ascending res_dict if result > 1
+                #res_tuples_sorted = sorted(res_dict.items(), key=lambda x: x[1], reverse=True)
+                res_tuples_sorted = sorted(res_dict.items(), key=itemgetter(1), reverse=True)
+                print('res_tuples_sorted:', res_tuples_sorted)
+                print('target (more one result):', next(iter(res_tuples_sorted)))
+                #yield lidx, res_tuples_sorted[0][0]
+                yield lidx, res_tuples_sorted
+            if len(res_dict) == 1:
+                print('target (one result):', next(iter(res_dict)))
+                #yield lidx, next(iter(res_dict))                               
+                yield lidx, list(res_dict.items())
+
+
+    def flookup(self, 
+                lkp_table: object, 
+                on: list[tuple], 
+                ret_columns: list[str] | list[tuple],
+                min_ratio: int | list[int],
+                ret_matches: bool = True
+                ):
+        lkp_table_obj = None
+        if isinstance(lkp_table,Table):
+            lkp_table_obj = lkp_table
+            lkp_table = lkp_table.name
+        else:
+            lkp_table_obj = self.bing[lkp_table]
+        
+        # validate input eg. column etc
+        lkeys = [x[0] for x in on] # generate lkeys from on (1st sequence)
+        rkeys = [x[1] for x in on] # generate rkeys from on (2nd sequence)
+        lkeys = self.validate_columns(lkeys)
+        rkeys = lkp_table_obj.validate_columns(rkeys)
+        lcolumn_prematch = self.get_columns() # will use this list when matching occurs below
+        # validate ret_columns once:
+        # otherwise will make lots of call later
+        valid_ret_columns = []
+        for item in ret_columns:
+            if isinstance(item,str):
+                item = lkp_table_obj.validate_column(item)
+                valid_ret_columns.append(item)
+            if isinstance(item, tuple):
+                valid_column  = lkp_table_obj.validate_column(item[0])
+                item_ = tuple([valid_column,item[1]])
+                valid_ret_columns.append(item_)
+        # add these valid_ret_column to the left table
+        for col in valid_ret_columns:
+            self.add_column(col)
+        # generate min_ration
+        min_ratios = []
+        if isinstance(min_ratio, int):
+            for i in range (len(lkeys)):
+                min_ratios.append(min_ratio)
+        if isinstance(min_ratio, list):
+            # validate the min_ratio list
+            if len(min_ratio) == len(lkeys):
+                for i in min_ratio:
+                    min_ratios.append(i)
+            else:
+                raise ValueError ('the length of min_ratio is not the same as the length of arg on.')             
+        # for each matching, update it
+        matches_tobj = Table('matches')
+        for lidx, res in self._scanfuzzy(lkeys, lkp_table_obj, rkeys, min_ratios):
+            if ret_matches:
+                for rank, match_row in enumerate(res, start = 1):
+                    matches_tobj.insert([lidx, match_row[0], match_row[1], rank], ['lidx', 'ridx', 'ratio', 'rank'])
+            # update this table lrow for each ret_columns
+            for item in valid_ret_columns:
+                if isinstance(item, str): # if item is a column
+                    value = lkp_table_obj[res[0][0]][item]
+                    if item in lcolumn_prematch:
+                        #print('item',item,'in',self.name)
+                        self.update_row(lidx, lkp_table_obj.name + '_' + item, value)
+                    else:
+                        self.update_row(lidx, item, value)
+                if isinstance(item, tuple): # if a tuple (0=column to return from lkp_table, 1=as_column)
+                    value = lkp_table_obj[res[0][0]][item[0]]
+                    self.update_row(lidx, item[1], value)
+        if ret_matches:
+            return matches_tobj                
     
 
     def __DEPDEV_groupby_count_OLD(self, columns, count_column):

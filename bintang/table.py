@@ -1697,7 +1697,10 @@ class Table(object):
                 valid_ret_columns.append(item_)
         # add these valid_ret_column to the left table
         for col in valid_ret_columns:
-            self.add_column(col)
+            if isinstance(col, str):
+                self.add_column(col)
+            if isinstance(col, tuple):
+                self.add_column(col[1]) # use the alias
         # for each matching, update it
         for lidx, ridx in self._scan(lkeys, lkp_table_obj, rkeys):
             # update this table lrow for each ret_columns
@@ -1745,25 +1748,15 @@ class Table(object):
                 for i in range(lenof_keys):
                     ratio = fuzz.ratio(lrow[lkeys[i]], rrow[rkeys[i]], processor=utils.default_process)
                     if ratio >= min_ratios[i]:
-                        # print(lrow[lkeys[i]], rrow[rkeys[i]], fuzz.ratio(lrow[lkeys[i]], rrow[rkeys[i]], processor=utils.default_process))
-                        # print('>>>>>>>>>> hello there is a hit <<<<<<<<<<<')   
                         matches += 1 # increment
                         ratios.append(ratio)
                 if matches == lenof_keys:
                     res_dict[ridx] = ratios
-                    #print('check resdict:', list(res_dict.items()))
             
             if len(res_dict) > 1:
-                # sort ascending res_dict if result > 1
-                #res_tuples_sorted = sorted(res_dict.items(), key=lambda x: x[1], reverse=True)
                 res_tuples_sorted = sorted(res_dict.items(), key=itemgetter(1), reverse=True)
-                print('res_tuples_sorted:', res_tuples_sorted)
-                print('target (more one result):', next(iter(res_tuples_sorted)))
-                #yield lidx, res_tuples_sorted[0][0]
                 yield lidx, res_tuples_sorted
             if len(res_dict) == 1:
-                print('target (one result):', next(iter(res_dict)))
-                #yield lidx, next(iter(res_dict))                               
                 yield lidx, list(res_dict.items())
 
 
@@ -1800,7 +1793,10 @@ class Table(object):
                 valid_ret_columns.append(item_)
         # add these valid_ret_column to the left table
         for col in valid_ret_columns:
-            self.add_column(col)
+            if isinstance(col, str):
+                self.add_column(col)
+            if isinstance(col, tuple):
+                self.add_column(col[1]) # use the alias
         # generate min_ration
         min_ratios = []
         if isinstance(min_ratio, int):

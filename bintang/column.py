@@ -47,8 +47,4 @@ class Column:
         data_types = []
         for dt in self.data_props.keys():
             data_types.append(dt)
-        return data_types         
-
-
-
-    
+        return data_types

@@ -41,13 +41,3 @@ class Cell_Path_List(Cell):
             return colname + '_' + colname
         else:
             return pathl_norowid[-1]
-    
-
-    
-        
-            
-        
-
-
-
-  

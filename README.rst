@@ -393,7 +393,7 @@ Read sql table and populate the data to Bintang table.
 
 
 Bintang.table.to_csv(path, index=False, delimiter=',', quotechar='"', quoting=0)
----------------------------------------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
 
 Write bintang table to a csv file.
 
@@ -452,7 +452,7 @@ Here an example of using our to_dict() function then use build-in module json to
 
 
 Bintang.Table.to_sql(conn, schema, table, columns, method='prep', max_rows = 1)
------------------------------------------------------------------------------------
+-------------------------------------------------------------------------------
 
 Insert records into sql table.
 Notes: Currently tested for SQL Server 2019. However this function should work with other dbms supported by pyodbc.
@@ -465,6 +465,7 @@ Notes: Currently tested for SQL Server 2019. However this function should work w
 :max_rows: maximum rows per insert. Insert more then 1 record when using prep require all data in a column to use the same type, otherwise will raise error.
 
 .. code-block:: python
+   
    import bintang
    import pyodbc
 

@@ -11,7 +11,6 @@ import types
 import sys
 import copy
 import unicodedata
-from thefuzz import process as thefuzzprocess
 from rapidfuzz import fuzz , process, utils
 from operator import itemgetter
 from bintang.log import log
@@ -589,7 +588,10 @@ class Table(object):
         if column.lower() in self._get_columnnames_lced().keys():
             return self._get_columnnames_lced().get(column.lower())
         else:
-            raise ColumnNotFoundError(self.name, column)
+            #raise ColumnNotFoundError(self.name, column)
+            extracted = process.extract(column, self.get_columns(), limit=2, processor=utils.default_process)
+            fuzzies = [repr(x[0]) for x in extracted if x[1] > 75]
+            raise ValueError ('could not find column {}. Did you mean {}?'.format(repr(column),' or '.join(fuzzies)))
 
 
     def validate_columns(self, columns):
@@ -615,7 +617,7 @@ class Table(object):
         for col in columns:
             extracted = process.extract(col, self.get_columns(), scorer=fuzz.ratio, processor=utils.default_process)
             res[col] = ['{}'.format(x[0]) for x in extracted if x[1] > min_ratio]
-        return res
+        return res  
 
 
     def _suggest_columns_msg(self, suggested_columns):
@@ -623,7 +625,7 @@ class Table(object):
             message = f'table {self.name} has no column {unmatched_cols}.\n' 
             line_msg = []
             for col, suggestion  in suggested_columns.items():
-                msg = f" for column {repr(col)}, did you mean: {suggestion}?\n"
+                msg = f' for column {repr(col)}, did you mean: {suggestion}?\n'
                 line_msg.append(msg)
             # construct message
             for msg in line_msg:
@@ -635,9 +637,9 @@ class Table(object):
         # refactoring required and to be compared with validate_column()
         """check if column exits in table.columns"""
         if column.lower() not in self._get_columnnames_lced().keys():
-            extracted = thefuzzprocess.extract(column, self.get_columns(), limit=2)
-            fuzzies = [x[0] for x in extracted if x[1]>85]
-            raise ValueError ('could not find column {}. Did you mean {}?'.format(column,' or '.join(fuzzies)))
+            extracted = process.extract(column, self.get_columns(), limit=2, processor=utils.default_process)
+            fuzzies = [repr(x[0]) for x in extracted if x[1] > 75]
+            raise ValueError ('could not find column {}. Did you mean {}?'.format(repr(column),' or '.join(fuzzies)))
         
 
     def copy_index(self, column='idx',at_start=False):
@@ -2131,10 +2133,9 @@ class Table(object):
         # validate sheetname
         sheetnames_lced = {x.lower(): x  for x in wb.sheetnames}
         if sheetname.lower() not in sheetnames_lced:
-            extracted = thefuzzprocess.extract(sheetname, sheetnames_lced.values(), limit=2)
-            print(extracted)
-            fuzzies = ['"{}"'.format(x[0]) for x in extracted if x[1]>85]
-            raise ValueError ('could not find column "{}". Did you mean {}?'.format(sheetname,' or '.join(fuzzies)))
+            extracted = process.extract(sheetname, sheetnames_lced.values(), limit=2, processor=utils.default_process)
+            fuzzies = [repr(x[0]) for x in extracted if x[1] > 75]
+            raise ValueError ('could not find sheetname {}. Did you mean {}?'.format(repr(sheetname),' or '.join(fuzzies)))
         ws = wb[sheetnames_lced[sheetname.lower()]] # assign with the correct name (caseless) through validated user input.
         columns = []
         Nonecolumn_cnt = 0

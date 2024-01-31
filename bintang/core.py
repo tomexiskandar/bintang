@@ -7,9 +7,8 @@ from bintang.table import _match_primitive, _match_caseless, _match_caseless_uni
 from bintang import iterdict
 from pathlib import Path
 from bintang.log import log
-from thefuzz import process as thefuzzprocess
-from rapidfuzz import process as rapidfuzzprocess
-from rapidfuzz import fuzz, utils
+from rapidfuzz import fuzz , process, utils
+
 # import logging
 
 # log = logging.getLogger(__name__)
@@ -31,23 +30,22 @@ class Bintang():
         self.parent = 'dad'
         self.__tables = {} # this must be a dict of id:table object
         self.__last_assigned_tableid= -1 #
-        self.__be = None
-        if backend is not None:
-            from bintang.besqlite import Besqlite
-            self.__be = Besqlite(self.name)
+        self.__be = None # will be deprecated
+        if backend is not None: # will be deprecated
+            from bintang.besqlite import Besqlite # will be deprecated
+            self.__be = Besqlite(self.name) # will be deprecated
  
 
     def __getitem__(self, tablename: str) -> Table: # subscriptable version of self.get_table()
         tableid = self.get_tableid(tablename)
         if tableid is None:
             tablenames = self.get_tables()
-            #extracted = thefuzzprocess.extract(tablename, tablenames, limit=2)
-            extracted = rapidfuzzprocess.extract(tablename, tablenames, limit=2, processor=utils.default_process)
-            fuzzies = ['"{}"'.format(x[0]) for x in extracted if x[1]>85]
+            extracted = process.extract(tablename, tablenames, limit=2, processor=utils.default_process)
+            fuzzies = [repr(x[0]) for x in extracted if x[1] > 75]
             if len(fuzzies) > 0:
-                raise ValueError ('could not find table "{}". Did you mean {}?'.format(tablename,' or '.join(fuzzies)))
+                raise ValueError ('could not find table {}. Did you mean {}?'.format(repr(tablename),' or '.join(fuzzies)))
             else:
-                raise ValueError ('could not find table "{}".'.format(tablename))
+                raise ValueError ('could not find table {}.'.format(repr(tablename)))
         else:
             return self.__tables[tableid]       
 
@@ -95,9 +93,9 @@ class Bintang():
         tableid = self.get_tableid(tablename)
         if tableid is None:
             tablenames = self.get_tables()
-            extracted = thefuzzprocess.extract(tablename, tablenames, limit=2)
-            fuzzies = [x[0] for x in extracted if x[1]>95]
-            raise ValueError ('could not find table {}. Did you mean {}?'.format(tablename,' or '.join(fuzzies)))
+            extracted = process.extract(tablename, tablenames, limit=2, processor=utils.default_process)
+            fuzzies = [repr(x[0]) for x in extracted if x[1] > 75]
+            raise ValueError ('could not find table {}. Did you mean {}?'.format(repr(tablename),' or '.join(fuzzies)))
         else:
             del self.__tables[tableid]
 
@@ -354,11 +352,9 @@ class Bintang():
         if sheetnames is not None: # user specify sheets
             for sheetname in sheetnames:
                 if sheetname.lower() not in sheetnames_lced:
-                    extracted = thefuzzprocess.extract(sheetname, sheetnames_lced.values(), limit=2)
-                    print(extracted)
-                    fuzzies = ['"{}"'.format(x[0]) for x in extracted if x[1]>85]
-                    raise ValueError ('could not find sheet "{}". Did you mean {}?'.format(sheetname,' or '.join(fuzzies)))
-                #ws = wb[sheetnames_lced[sheetname.lower()]] # assign with the correct name (caseless) through validated user input.
+                    extracted = process.extract(sheetname, sheetnames_lced.values(), limit=2, processor=utils.default_process)
+                    fuzzies = [repr(x[0]) for x in extracted if x[1] > 75]
+                    raise ValueError ('could not find sheetname {}. Did you mean {}?'.format(repr(sheetname),' or '.join(fuzzies)))
                 self.create_table(sheetname)
                 self[sheetname].read_excel(path, sheetname)
         else: # exctract all sheets and create all tables
@@ -366,35 +362,7 @@ class Bintang():
                 sheetname = ws.title
                 self.create_table(sheetname)
                 self[sheetname].read_excel(path, sheetname)
-        # for ws in wb:
-        #     # create Bintang table
-        #     table_ = ws.title
-        #     self.create_table(table_)
-        #     columns = []
-        #     Nonecolumn_cnt = 0
-        #     for rownum, row_cells in enumerate(ws.iter_rows(),start=1):
-        #         values = [] # hold column value for each row
-        #         if rownum == 1:
-        #             for cell in row_cells:
-        #                 if cell.value is None:
-        #                     columname = 'noname' + str(Nonecolumn_cnt)
-        #                     Nonecolumn_cnt += 1
-        #                     columns.append(columname)
-        #                 else:
-        #                     columns.append(cell.value)
-        #             if Nonecolumn_cnt > 0:
-        #                 log.warning('Warning! Noname column detected!')          
-                
-        #         if rownum > 1:
-        #             for cell in row_cells:
-        #                 values.append(cell.value)
-        #             # if rownum == 370:
-        #             #     log.debug(f'{values} at rownum 370.')
-        #             #     log.debug(any(values))
-        #             if any(values):
-        #                 self.get_table(table_).insert(values, columns)
-        #     if self.__be is not None:
-        #         self.get_table(table_).add_row_into_be()
+
 
     def read_dict(self, dict_obj, tablepaths=None):
         debug = False

@@ -15,9 +15,8 @@ How to get started
 Requirements
 ------------
 1. Python 3.7 or higher
-2. openpyxl
-3. pyodbc
-4. thefuzz
+2. rapidfuzz
+3. openpyxl
 
 
 Installation
@@ -372,6 +371,9 @@ Read sql table and populate the data to Bintang table.
 
 .. code-block:: python
 
+   import bintang
+   import pyodbc
+   
    # connect to sql server
    conn_str = "DRIVER={ODBC Driver 17 for SQL Server};SERVER=localhost;PORT=1443;DATABASE=test;Trusted_Connection=yes;"
    conn = pyodbc.connect(conn_str)
@@ -463,6 +465,8 @@ Notes: Currently tested for SQL Server 2019. However this function should work w
 :max_rows: maximum rows per insert. Insert more then 1 record when using prep require all data in a column to use the same type, otherwise will raise error.
 
 .. code-block:: python
+   import bintang
+   import pyodbc
 
    bt = bintang.Bintang('my bintang')
    bt.create_table('Person')

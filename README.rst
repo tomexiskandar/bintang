@@ -138,7 +138,7 @@ We are going to provide some functions that may be needed most when working with
 
 
 Bintang.read_excel(path, sheetnames=None)
-------------------------
+-----------------------------------------
 
 Read an Excel file and create Bintang tables. The first row will be assumed as column header.
 Go to Bintang.Table.read_excel() to read a single sheet and populate the data into created table.

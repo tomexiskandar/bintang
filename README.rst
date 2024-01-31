@@ -123,7 +123,7 @@ Use update function to change the data. The function signature is table.update(c
 
 Retrieve the row stored at the 3rd index by passing 3 inside the list next to table object.
 
-.. code-block:: console
+.. code-block:: python
 
    bt['Person'][3] 
    #{'id': 4, 'name': 'Maria', 'age': 10, 'address': '7 Heaven Ave', 'hobby': 'Digging'} 
@@ -145,7 +145,7 @@ Go to Bintang.Table.read_excel() to read a single sheet and populate the data in
 
 :path: an excel file path to read from.
 
-.. code:: python
+.. code-block:: python
 
    bt.read_excel('/path/to/file.xlsx')
 
@@ -158,7 +158,7 @@ Read JSON string and create a table or more according to hierarchy paths contain
 :json_str: a json string
 :tablepaths: a list of paths which contain a list of objects (equivalent to records).
 
-.. code:: python
+.. code-block:: python
    
    # other module import
    # ...
@@ -221,7 +221,7 @@ Return one or more columns from lookup table.
 :ret_columns: lookup columns to be returned
 
 
-.. code:: python
+.. code-block:: python
     
    # using tables from Example of Usage section above.
    bt['Person'].blookup('FishingClub')], \
@@ -252,7 +252,7 @@ return a new table from an inner join operation.
 :out_leftcolumns: columns output from left table.
 :out_rightcolumns: columns outpout from right table.
 
-.. code:: python
+.. code-block:: python
 
    bt.create_table('Person') # This will be a left table
    # insert some record here. See insert below for an example.
@@ -284,7 +284,7 @@ Insert a record into a table.
 :record: a list/tuple of data. Or a dict where key=column, value=record
 :columns: a list/tuple of columns (in the same order as in the record)
 
-.. code:: python
+.. code-block:: python
 
    bt.create_table('Person') 
    p = bt.get_table('Person') # get table object for Person
@@ -322,7 +322,7 @@ Loop through Bintang table's rows and yield index and row. Row can be called out
 :columns: a list of columns to output. If None, will output all columns.
 :row_type: either 'dict' (default) or 'list'.
 
-.. code:: python
+.. code-block:: python
 
    for idx, row in bt['tablename'].iterrows():
        # do something with idx or row
@@ -338,7 +338,7 @@ Print rows to terminal in table format. This would be handy if the table can fit
 :columns: a list of columns to output. If None, will output all columns (default).
 :show_data_type: if True, will output data type.
 
-.. code:: python
+.. code-block:: python
 
    # assume Person table object exists and has data
    Person.print()
@@ -353,7 +353,7 @@ Read an Excel file into Bintang table.
 :path: an excel file path to read from.
 :sheetname: the sheetname to read from.
 
-.. code:: python
+.. code-block:: python
 
    bt.create_table('Person')
    bt['Person'].read_excel('/path/to/file.xlsx', 'Sheet1')
@@ -369,7 +369,7 @@ Read sql table and populate the data to Bintang table.
 :sql_str: sql query, if none it will select * from a same sql table name.
 :params: sql parameters
 
-.. code:: python
+.. code-block:: python
 
    # connect to sql server
    conn_str = "DRIVER={ODBC Driver 17 for SQL Server};SERVER=localhost;PORT=1443;DATABASE=test;Trusted_Connection=yes;"
@@ -400,7 +400,7 @@ Write bintang table to a csv file.
 :quotechar: a character to quote the data
 :quoting: the csv enum for quoting, csv.QUOTE_MINIMAL or  0, csv.QUOTE_ALL or 1, csv.QUOTE_NONNUMERIC or 2, csv.QUOTE_NONE or 3
 
-.. code:: python
+.. code-block:: python
 
    bt['tablename'].to_csv('/path/to/file.csv')
 
@@ -414,7 +414,7 @@ Write Bintang table to an Excel file.
 :path: an excel file path to write to.
 :index: write row index if it sets True.
 
-.. code:: python
+.. code-block:: python
 
    bt['tablename'].to_excel('/path/to/file.xlsx')
 
@@ -425,7 +425,7 @@ Bintang.Table.to_json()
 This is just a placeholder. Python make it easy when serializing a dict object to JSON. Conversion would be done by built-in json.JSONEncoder().
 Here an example of using our to_dict() function then use build-in module json to convert/export dict to JSON.
 
-.. code:: python
+.. code-block:: python
 
    # other modules here
    # ...
@@ -461,7 +461,7 @@ Notes: Currently tested for SQL Server 2019. However this function should work w
 :method: 'prep' to use prepared statement (default) or 'string' to use sql string. To avoid sql injection, never use string method when the datasource is external or not known.
 :max_rows: maximum rows per insert. Insert more then 1 record when using prep require all data in a column to use the same type, otherwise will raise error.
 
-.. code:: python
+.. code-block:: python
 
    bt = bintang.Bintang('my bintang')
    bt.create_table('Person')

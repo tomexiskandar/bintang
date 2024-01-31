@@ -205,15 +205,15 @@ Read JSON string and create a table or more according to hierarchy paths contain
    
    bt['/Person/Address'].print()
 
-                        Table: /Person/Address
-   -----------+--------------+--------------+-----------+---------------
-     Address  |    Person    |    number    |   street  |  street_type
-   -----------+--------------+--------------+-----------+---------------
-    Address   |            0 |            1 | Station   | Street
-    Address   |            1 |            8 | Parade    | Road
-   -----------+--------------+--------------+-----------+---------------
-   (2 rows)
-   
+   #                      Table: /Person/Address
+   # -----------+--------------+--------------+-----------+---------------
+   #   Address  |    Person    |    number    |   street  |  street_type
+   # -----------+--------------+--------------+-----------+---------------
+   #  Address   |            0 |            1 | Station   | Street
+   #  Address   |            1 |            8 | Parade    | Road
+   # -----------+--------------+--------------+-----------+---------------
+   # (2 rows)
+
 Please note that since json can contain complex hierarchy paths and still valid (eg. system configuration), then this function may not be in your favour. It might be better to manually extract/locate a certain path manually (hard coded).
    
 

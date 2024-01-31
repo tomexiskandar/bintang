@@ -73,10 +73,10 @@ Loop your data using iterrows function. This will loop through all the rows one 
    for idx, row in bt['Person'].iterrows():
        print(idx, row)  
   
-   #0 {'id': 1, 'name': 'John', 'surname': 'Smith', 'address': '1 Station St', 'hobby': None}
-   #1 {'id': 2, 'name': 'Jane', 'surname': 'Brown', 'address': '8 Parade Rd', 'hobby': 'Digging'}
-   #2 {'id': 3, 'name': 'Okie', 'surname': 'Dokie', 'address': '7 Ocean Rd', 'hobby': None}
-   #3 {'id': 4, 'name': 'Maria', 'surname': None, 'address': '7 Heaven Ave', 'hobby': 'Digging'}
+   # 0 {'id': 1, 'name': 'John', 'surname': 'Smith', 'address': '1 Station St', 'hobby': None}
+   # 1 {'id': 2, 'name': 'Jane', 'surname': 'Brown', 'address': '8 Parade Rd', 'hobby': 'Digging'}
+   # 2 {'id': 3, 'name': 'Okie', 'surname': 'Dokie', 'address': '7 Ocean Rd', 'hobby': None}
+   # 3 {'id': 4, 'name': 'Maria', 'surname': None, 'address': '7 Heaven Ave', 'hobby': 'Digging'}
 
 If the table is small, you can use print() function to output it to terminal.
 
@@ -123,7 +123,7 @@ Use update function to change the data. The function signature is table.update(c
 
 Retrieve the row stored at the 3rd index by passing 3 inside the list next to table object.
 
-.. code:: console
+.. code-block:: console
 
    bt['Person'][3] 
    #{'id': 4, 'name': 'Maria', 'age': 10, 'address': '7 Heaven Ave', 'hobby': 'Digging'} 

@@ -137,13 +137,14 @@ Common Functions
 We are going to provide some functions that may be needed most when working with Bintang objects.
 
 
-Bintang.read_excel(path)
+Bintang.read_excel(path, sheetnames=None)
 ------------------------
 
-Read an Excel file and create Bintang tables from available sheets. The first row will be assumed as column header.
+Read an Excel file and create Bintang tables. The first row will be assumed as column header.
 Go to Bintang.Table.read_excel() to read a single sheet and populate the data into created table.
 
 :path: an excel file path to read from.
+:sheetname: a list of sheets that only needed to be read. If not specified all available sheets will be read (default).
 
 .. code-block:: python
 

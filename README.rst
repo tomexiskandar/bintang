@@ -180,7 +180,7 @@ Read JSON string and create a table or more according to hierarchy paths contain
 
    print(bt) # show bt tables
    # {
-   #    "name": "some tables",
+   #    "name": "From JSON",
    #    "tables": [
    #       "/",
    #       "/Person",
@@ -201,12 +201,19 @@ Read JSON string and create a table or more according to hierarchy paths contain
    # 0 {'Person': 0, 'id': 1, 'name': 'John', 'surname': 'Smith'}
    # 1 {'Person': 1, 'id': 2, 'name': 'Jane', 'surname': 'Brown'} 
 
-   # loop through /Person/Address table. Because this table under /Person, then each record will have their own reference to /Person table.
-   for idx, row in bt['/Person'].iterrows():
-       print(idx, row) 
-   # 0 {'Address': 'Address', 'Person': 0, 'number': 1, 'street': 'Station', 'street_type': 'Street'}
-   # 1 {'Address': 'Address', 'Person': 1, 'number': 8, 'street': 'Parade', 'street_type': 'Road'}
+   # print /Person/Address table. Because this table under /Person, then each record will have their own reference to /Person table.
+   
+   bt['/Person/Address'].print()
 
+                        Table: /Person/Address
+   -----------+--------------+--------------+-----------+---------------
+     Address  |    Person    |    number    |   street  |  street_type
+   -----------+--------------+--------------+-----------+---------------
+    Address   |            0 |            1 | Station   | Street
+    Address   |            1 |            8 | Parade    | Road
+   -----------+--------------+--------------+-----------+---------------
+   (2 rows)
+   
 Please note that since json can contain complex hierarchy paths and still valid (eg. system configuration), then this function may not be in your favour. It might be better to manually extract/locate a certain path manually (hard coded).
    
 

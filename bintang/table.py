@@ -24,8 +24,6 @@ INDEX_COLUMN_NAME = 'idx'
 PARENT_PREFIX = ''
 MAX_ROW_SQL_INSERT = 300
 
-import warnings
-
 def custom_formatwarning(msg, *args, **kwargs):
     # ignore everything except the message
     return str(msg)
@@ -90,6 +88,7 @@ class Table(object):
             return res.fetchone()[0]
         return len(self.__rows)
 
+
     def get_size(self):
         return sys.getsizeof(self.__rows)
           
@@ -109,6 +108,7 @@ class Table(object):
             return dict(zip(columns, columns))
         elif isinstance(columns, dict):
             return columns
+
         
     def _get_sql_conn_name_xp(self, conn):
         # experimenting to get connector name
@@ -574,7 +574,6 @@ class Table(object):
         return {x.name.lower(): x.name  for x in self.__columns.values()}
 
 
-
     def get_data_props(self, column):
         columnid = self.get_columnid(column)
         return self.__columns[columnid].data_props
@@ -595,13 +594,41 @@ class Table(object):
 
     def validate_columns(self, columns):
         """return columns from those stored in table.columns"""
-        res = []
+        validated_cols = []
+        unmatched_cols = []
         for column in columns:
             if column.lower() in self._get_columnnames_lced().keys():
-                res.append(self._get_columnnames_lced().get(column.lower()))
+                validated_cols.append(self._get_columnnames_lced().get(column.lower()))
             else:
-                raise ColumnNotFoundError(self.name, column)
+                unmatched_cols.append(column)
+        if len(unmatched_cols) > 0:
+            #raise ColumnNotFoundError(self.name, column)
+            res = self._suggest_fuzzy_columns(unmatched_cols)
+            res_msg = self._suggest_columns_msg(res)
+            raise ValueError(res_msg)
+        else:
+            return validated_cols
+
+
+    def _suggest_fuzzy_columns(self, columns, min_ratio=75):
+        res = {}
+        for col in columns:
+            extracted = process.extract(col, self.get_columns(), scorer=fuzz.ratio, processor=utils.default_process)
+            res[col] = ['{}'.format(x[0]) for x in extracted if x[1] > min_ratio]
         return res
+
+
+    def _suggest_columns_msg(self, suggested_columns):
+            unmatched_cols = [x for x in suggested_columns]
+            message = f'table {self.name} has no column {unmatched_cols}.\n' 
+            line_msg = []
+            for col, suggestion  in suggested_columns.items():
+                msg = f" for column {repr(col)}, did you mean: {suggestion}?\n"
+                line_msg.append(msg)
+            # construct message
+            for msg in line_msg:
+                message += msg   
+            return message            
 
 
     def check_column(self, column):
@@ -964,8 +991,16 @@ class Table(object):
                 res[column] = None
             else:
                 res[column] = row.cells[columnid].value
-        return res   
-    
+        return res
+
+
+    def delete(self, where):
+        # get all index
+        indexes = [x for x in self.__rows]
+        for idx in indexes:
+            if where(self.get_row(idx)):
+                self.delete_row(idx)
+
 
     def delete_row(self,index):
         self.__rows.pop(index,None)
@@ -1208,14 +1243,20 @@ class Table(object):
         return ''.join(line_chars)
         
 
-    def print(self, show_data_type=False):
+    def print(self, columns=None, show_data_type=False):
+        # validate columns arg
+        if columns: #user want specific columns
+            columns_ = self.validate_columns(columns)
+        else:
+            columns_ = self.get_columns()
+            
         PAD_SIZE = 4
         self.set_data_props() # generate data based type and column_size
         # generate heading_col string
         header_data_types = []
         heading_col = []
         col_div_pos = [] #[idx_max_width]
-        for col in self.get_columns():
+        for col in columns_: #self.get_columns():
             cobj = self.get_column_object(col)
             _data_types_str = ','.join(cobj.get_data_types())
             dp = cobj.get_greatest_column_size_data_prop()
@@ -1249,7 +1290,7 @@ class Table(object):
         print(self._gen_print_line(len(heading_col_str), col_div_pos))
         
         # generate row string
-        for idx, row in self.iterrows():
+        for idx, row in self.iterrows(columns_):
             padded_cells = []
             for col, val in row.items():
                 cobj = self.get_column_object(col)
@@ -1746,7 +1787,7 @@ class Table(object):
                 matches = 0
                 ratios = []
                 for i in range(lenof_keys):
-                    ratio = fuzz.ratio(lrow[lkeys[i]], rrow[rkeys[i]], processor=utils.default_process)
+                    ratio = int(fuzz.ratio(lrow[lkeys[i]], rrow[rkeys[i]], processor=utils.default_process))
                     if ratio >= min_ratios[i]:
                         matches += 1 # increment
                         ratios.append(ratio)
@@ -1765,7 +1806,7 @@ class Table(object):
                 on: list[tuple], 
                 ret_columns: list[str] | list[tuple],
                 min_ratio: int | list[int],
-                ret_matches: bool = True
+                ret_matches: bool = False
                 ):
         lkp_table_obj = None
         if isinstance(lkp_table,Table):

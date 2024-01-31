@@ -78,6 +78,25 @@ Loop your data using iterrows function. This will loop through all the rows one 
    #2 {'id': 3, 'name': 'Okie', 'surname': 'Dokie', 'address': '7 Ocean Rd', 'hobby': None}
    #3 {'id': 4, 'name': 'Maria', 'surname': None, 'address': '7 Heaven Ave', 'hobby': 'Digging'}
 
+If the table is small, you can use print() function to output it to terminal.
+
+.. code-block:: python
+
+   Person.print()
+   #                           Table: Person
+   # --------------+---------+-----------+----------------+-----------
+   #       id      |   name  |  surname  |    address     |   hobby
+   # --------------+---------+-----------+----------------+-----------
+   #             1 | John    | Smith     | 1 Station St   | None
+   #             2 | Jane    | Brown     | 8 Parade Rd    | Digging
+   #             3 | Okie    | Dokie     | 7 Ocean Rd     | None
+   #             4 | Maria   | None      | 7 Heaven Ave   | Digging
+   #             5 | Bing    | None      | None           | Digging
+   # --------------+---------+-----------+----------------+-----------
+   # (5 rows)
+   
+
+
 You should notice that all columns now have been normalised for each row, even though all records have not used all column names during insertion.\
 When the 1st record (idx 0) is inserted, four columns created. id, name, age and address.
 When insert 4th record is inserted (idx 3), a hobby column added.
@@ -300,7 +319,7 @@ Bintang.Table.iterrows(columns=None, row_type='dict')
 
 Loop through Bintang table's rows and yield index and row. Row can be called out as dict (default) or list.
 
-:columns: a list of columns for each row will output. If None, output all columns.
+:columns: a list of columns to output. If None, will output all columns.
 :row_type: either 'dict' (default) or 'list'.
 
 .. code:: python
@@ -311,8 +330,23 @@ Loop through Bintang table's rows and yield index and row. Row can be called out
 
 
 
+Bintang.Table.print(columns=None, show_data_type=False)
+-------------------------------------------------------
+
+Print rows to terminal in table format. This would be handy if the table can fit into terminal.
+
+:columns: a list of columns to output. If None, will output all columns (default).
+:show_data_type: if True, will output data type.
+
+.. code:: python
+
+   # assume Person table object exists and has data
+   Person.print()
+
+
+
 Bintang.Table.read_excel(path, sheetname)
------------------------------------------------
+-----------------------------------------
 
 Read an Excel file into Bintang table.
 

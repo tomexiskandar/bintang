@@ -1892,7 +1892,7 @@ class Table(object):
 
     def groupby(self, 
                     columns, 
-                    #save_as: str, 
+                    drop_none: bool = True, 
                     group_count: bool = False, 
                     counts: list[str] | list[tuple] = None,
                     sums: list[str] | list[tuple] = None,
@@ -1904,12 +1904,16 @@ class Table(object):
         group_tobj = Table('grouped')
         group_count_column = 'group_count' if group_count == True else group_count
         # loop the table
+        valid_cols = [self.validate_column(col) for col in columns] # validate these columns
         for idx, row in self.iterrows():
-            index_records = [row[self.validate_column(col)] for col in columns]
+            index_records = [row[col] for col in valid_cols]
+            if drop_none:
+                if index_records.count(None) == len(index_records):
+                    continue
             index = tuple([_normalize_caseless(col) if isinstance(col, str) else col for col in index_records])
             if not group_tobj.index_exists(index):
                 # add record for the first time
-                group_tobj.insert(index_records, columns=columns, index=index)
+                group_tobj.insert(index_records, columns=valid_cols, index=index)
                 if group_count:
                     group_tobj.update_row(index, group_count_column, 1)
                 if group_concat:

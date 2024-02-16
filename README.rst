@@ -201,7 +201,8 @@ Read JSON string and create a table or more according to hierarchy paths contain
    # 0 {'Person': 0, 'id': 1, 'name': 'John', 'surname': 'Smith'}
    # 1 {'Person': 1, 'id': 2, 'name': 'Jane', 'surname': 'Brown'} 
 
-   # print /Person/Address table. Because this table under /Person, then each record will have their own reference to /Person table.
+   # print /Person/Address table. Because this table under /Person, then each record will have their own 
+   # reference to /Person table.
    
    bt['/Person/Address'].print()
 

@@ -2102,34 +2102,22 @@ class Table(object):
                     group_tobj.update_row(index, col_max, maxed)
 
 
-    # def _groupby_new_index_mean(self, index, row, means, group_tobj):
-    #     for col in means:
-    #         if isinstance(col, str):
-    #             col_mean = 'mean_' + col
-    #             if row[col] is not None:
-    #                 group_tobj.update_row(index, col_mean, 1)
-    #             else:
-    #                 group_tobj.update_row(index, col_mean, 0)
-    #         if isinstance(col, tuple):
-    #             col_mean = col[1]
-    #             if row[col[0]] is not None:
-    #                 group_tobj.update_row(index, col_mean, 1)
-    #             else:
-    #                 group_tobj.update_row(index, col_mean, 0)
-
-
-    # def _groupby_existing_index_mean(self, index, row, means, group_tobj):
-    #     for col in means:
-    #         if isinstance(col, str):
-    #             col_mean = 'mean_' + col
-    #             if row[col] is not None:
-    #                 incremented = group_tobj[index][col_mean] + 1
-    #                 group_tobj.update_row(index, col_mean, incremented)
-    #         if isinstance(col, tuple):
-    #             col_mean = col[1]
-    #             if row[col[0]] is not None:
-    #                 incremented = group_tobj[index][col_mean] + 1
-    #                 group_tobj.update_row(index, col_mean, incremented)                                                               
+    def read_csv(self, path, delimiter=',', quotechar='"', header_row=1):
+        import csv
+        with open(path,newline='') as f:
+            reader = csv.reader(f, delimiter=delimiter, quotechar=quotechar)
+            # determine columns
+            columns = []
+            for rownum, row in enumerate(reader, start=1):
+                print(rownum, row)
+                if rownum == header_row:
+                    columns = [col for col in row] # add all columns
+                    f.seek(0) # return to BOF
+                    break
+            # insert records
+            for rownum, row in enumerate(reader, start=1):
+                if rownum > header_row: # assume records after header
+                    self.insert(row, columns)
 
 
     def read_excel(self, path, sheetname, header_row=1):

@@ -353,13 +353,45 @@ Print rows to terminal in table format. This would be handy if the table can fit
 
 
 
-Bintang.Table.read_excel(path, sheetname)
------------------------------------------
+Bintang.Table.read_csv(path, delimiter=',', quotechar='"', header_row=1)
+------------------------------------------------------------------------
+
+Read csv file and populate its records to table.
+
+:path: a csv file path to read from.
+:delimiter: field seperator, by default it'll accept a comma character.
+:header_row: the row number that contains column name or label.
+
+.. code-block:: python
+
+   ## data example in  csv file
+   # "id","name","surname","address","hobby"
+   # "1","John","Smith","1 Station St",""
+   # "2","Jane","Brown","8 Parade Rd","Digging"
+   
+   bt.create_table('Person')
+   bt['Person'].read('/path/to/file.csv') 
+   bt['Person'].print()
+
+   #                          Table: Person
+   # ------+---------+-----------+----------------+-----------
+   #   id  |   name  |  surname  |    address     |   hobby
+   # ------+---------+-----------+----------------+-----------
+   #  1    | John    | Smith     | 1 Station St   |
+   #  2    | Jane    | Brown     | 8 Parade Rd    | Digging
+   # ------+---------+-----------+----------------+-----------
+   # (2 rows)
+
+
+
+Bintang.Table.read_excel(path, sheetname, header_row=1)
+-------------------------------------------------------
 
 Read an Excel file into Bintang table.
 
 :path: an excel file path to read from.
 :sheetname: the sheetname to read from.
+:header_row: the row number that contains column name or label.
 
 .. code-block:: python
 

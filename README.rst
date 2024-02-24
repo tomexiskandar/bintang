@@ -77,7 +77,7 @@ Loop your data using iterrows function. This will loop through all the rows one 
    # 2 {'id': 3, 'name': 'Okie', 'surname': 'Dokie', 'address': '7 Ocean Rd', 'hobby': None}
    # 3 {'id': 4, 'name': 'Maria', 'surname': None, 'address': '7 Heaven Ave', 'hobby': 'Digging'}
 
-If the table is small, you can use print() function to output it to terminal.
+If the table is small, you can use print() function to output the records to terminal.
 
 .. code-block:: python
 
@@ -249,10 +249,62 @@ We can see only John and Jane got the membership because their names exists in b
        
 
 
+Bintang.Table.groupby(columns, drop_none=True, group_count=False, counts=None, sums=None, mins=None, maxs=None, means=None, group_concat=None)
+----------------------------------------------------------------------------------------------------------------------------------------------
+
+Return grouped rows based upon the value of columns.
+
+:columns: a list of columns that is used to group the data.
+:drop_none: if True, to drop/exclude the group if each column value is None.
+:group_count: if True, create records count from group columns.
+:group_concat: a column to create group_concat like mysql.
+:counts: a list of columns create count column(s)
+:sums: a list of columns create sum column(s)
+:mins: a list of columns create min column(s)
+:maxs: a list of columns create max column(s) 
+
+.. code-block:: python
+
+   bt.create_table('Product') # this will be our basis table for grouping
+   p = bt['Product'] # assign p as the table
+   p.insert({'id':1, 'brand': 'Shimano', 'class':'rod', 'name':'Extraction','price':299})
+   p.insert({'id':2, 'brand': 'Shimano', 'class':'rod', 'name':'Zodias Travel','price':399})
+   p.insert({'id':3, 'brand': 'Ugly Stik', 'class':'rod', 'name':'Balance II','price':63.99})
+   p.insert({'id':4, 'brand': 'Shimano', 'class':'rod', 'name':'Zodias Travel','price':399})
+   p.insert({'id':5, 'brand': 'Shimano', 'class':'reel', 'sub class': 'spinning', 'name':'Sedona F1','price':99.00})
+   p.insert({'id':6, 'brand': 'Shimano', 'class':'reel', 'sub class':'spinning', 'name':'FX Series 4000','price':54.99})
+
+   grouped = p.groupby(['brand', 'class'], group_count=True)
+
+   grouped.print()
+   #              Table: grouped
+   # -------------+---------+---------------
+   #     brand    |  class  |  group_count
+   # -------------+---------+---------------
+   #  Shimano     | rod     |             3
+   #  Ugly Stik   | rod     |             1
+   #  Shimano     | reel    |             2
+   # -------------+---------+---------------
+   # (3 rows)
+
+   grouped = p.groupby(['brand'], group_concat='id', sums=['price']) # another example
+
+   grouped.print()
+   #                     Table: grouped
+   # -------------+-------------------+-------------------
+   #     brand    |    group_concat   |     sum_price
+   # -------------+-------------------+-------------------
+   #  Shimano     |   [1, 2, 4, 5, 6] |           1250.99
+   #  Ugly Stik   |               [3] |             63.99
+   # -------------+-------------------+-------------------
+   # (2 rows)   
+
+
+
 Bintang.Table.innerjoin(right_table, on, into, out_leftcolumns, out_rightcolumns)
 ---------------------------------------------------------------------------------------
 
-return a new table from an inner join operation.
+Return a new table from an inner join operation.
 
 :right_table: name of right table or the second table.
 :on: a list of pair columns used for the join.
@@ -442,6 +494,8 @@ Write bintang table to a csv file.
 :delimiter: field seperator
 :quotechar: a character to quote the data
 :quoting: the csv enum for quoting, csv.QUOTE_MINIMAL or  0, csv.QUOTE_ALL or 1, csv.QUOTE_NONNUMERIC or 2, csv.QUOTE_NONE or 3
+
+Notes: setting quoting parameter properly will provide correct value to be presented in csv even if the value containing a delimiter character.
 
 .. code-block:: python
 

@@ -296,7 +296,7 @@ class Table(object):
         return ",".join(params)
     
     
-    def to_sql_upsert_dev(self, conn: str,
+    def _to_sql_upsert_dev(self, conn: str,
                     schema: str,
                     table: str,
                     columns: list[str],
@@ -392,9 +392,9 @@ class Table(object):
             log.debug(f'Warning! trying to add existing column "{name}".')
 
 
-    def add_column_sql(self, name, data_type=None, column_size=None):
+    def add_column_sql_(self, name, data_type=None, column_size=None):
         # check if the passed name already exists
-        columnid = self.get_columnid_sql(name)
+        columnid = self._get_columnid_sql(name)
         ord_pos = self._get_last_assigned_ord_pos() + 1
         if columnid is None:
             sql = "INSERT INTO __columns__ (name, ordinal_position, data_type, column_size) VALUES (?,?,?,?)"
@@ -433,7 +433,7 @@ class Table(object):
                 self.__columns[columnid].ordinal_position = ordinal_position
 
 
-    def update_column_sql(self,name, data_type=None, column_size=None, ordinal_position=None):
+    def _update_column_sql(self,name, data_type=None, column_size=None, ordinal_position=None):
         # check if the passed name already exists
         columnid = self.get_columnid_sql(name)
         if columnid is not None:
@@ -471,7 +471,7 @@ class Table(object):
         return None
 
 
-    def get_columnid_sql(self, column):
+    def _get_columnid_sql(self, column):
         sql = 'SELECT id FROM __columns__ where name = ?'
         param = column
         cursor = self.conn.cursor()
@@ -533,14 +533,14 @@ class Table(object):
             self.update_column(col, ordinal_position=i)
 
 
-    def order_columns_sql(self, columns):
+    def _order_columns_sql(self, columns):
         # determine all columns
         columns_all = [x for x in columns]
-        for col in self.get_columns_sql():
+        for col in self._get_columns_sql():
             if col not in columns_all:
                 columns_all.append(col)
         for i, col in enumerate(columns_all, 10):
-            self.update_column_sql(col, ordinal_position=i)        
+            self._update_column_sql(col, ordinal_position=i)        
 
 
     def get_columns(self):
@@ -550,7 +550,7 @@ class Table(object):
         sorted_columns = [col.name for col in col_objs]
         return sorted_columns
 
-    def get_columns_sql(self) -> list:
+    def _get_columns_sql(self) -> list:
         cursor = self.conn.cursor()
         sql = 'SELECT name FROM __columns__ order by ordinal_position;'
         sorted_columns = []
@@ -559,7 +559,7 @@ class Table(object):
         return sorted_columns 
 
     
-    def get_columns_withid_sql(self) -> dict:
+    def _get_columns_withid_sql(self) -> dict:
         # get columnnames from db and return as dict of columnid : columnname
         col_dict = {}
         cur = self.conn.cursor()
@@ -776,10 +776,10 @@ class Table(object):
                 row.add_cell(cell) # add to row
             if self.conn is not None:
                 for idx, (col, val) in enumerate(record.items()):
-                    cell = self.make_cell_sql(col, val)
+                    cell = self._make_cell_sql(col, val)
                     row.add_cell(cell) # add to rows
                 row = json.dumps({v.columnid: v.value for v in row.cells.values()})
-                self.add_row_sql(row, index)
+                self._add_row_sql(row, index)
             else:
                 self.add_row(row, index)                                    
         elif isinstance(columns,list) or isinstance(columns,tuple) or isinstance(record,list) or isinstance(record,tuple):
@@ -793,7 +793,7 @@ class Table(object):
                     cell = self.make_cell_sql(col,record[idx])
                     row.add_cell(cell) # add to rows
                 row = json.dumps({v.columnid: v.value for v in row.cells.values()})
-                self.add_row_sql(row, index)
+                self._add_row_sql(row, index)
             else:
                 self.add_row(row, index)    
         else:
@@ -944,12 +944,12 @@ class Table(object):
         return Cell(columnid,value)
 
 
-    def make_cell_sql(self,column,value,new_column=True):
-        columnid = self.get_columnid_sql(column)
+    def _make_cell_sql(self,column,value,new_column=True):
+        columnid = self._get_columnid_sql(column)
         if columnid is None: # if columnid is None then assume user wants a new column
             if new_column == True:
-                self.add_column_sql(column)
-                columnid = self.get_columnid_sql(column) # reassign the columnid
+                self._add_column_sql(column)
+                columnid = self._get_columnid_sql(column) # reassign the columnid
                 # if self.__be is not None:
                 #     self.__be.add_column(self.name, columnid, column)
                 # deprecated moved up columnid = self.get_columnid(column) # reassign the columnid
@@ -975,7 +975,7 @@ class Table(object):
         self.__rows[index] = row
 
 
-    def add_row_sql(self, row, index=None):
+    def _add_row_sql(self, row, index=None):
         cur = self.conn.cursor()
         sql = "INSERT INTO '{}' (cells) VALUES (?)".format(self.name)
         # log.debug(sql)
@@ -1035,7 +1035,8 @@ class Table(object):
 
     def get_row_asdict(self, idx, columns=None, rowid=False):
         if idx not in self.__rows:
-            raise KeyError ('Cannot find index {}.'.format(idx))
+            # DEPRECATED raise KeyError ('Cannot find index {}.'.format(idx))
+            return None
         if idx in self.__rows:
             if columns is None:
                 columns = self.get_columns()
@@ -1049,7 +1050,7 @@ class Table(object):
 
 
     def _gen_row_dict_sql(self, cells: str, columns: list) -> dict:
-        db_cols_withid = self.get_columns_withid_sql()
+        db_cols_withid = self._get_columns_withid_sql()
         user_cols = {k:v for k,v in db_cols_withid.items() if k in columns}
         cells_dict = self._gen_cells_dict(cells)
         row_dict = {}
@@ -1058,7 +1059,7 @@ class Table(object):
         return row_dict
 
 
-    def get_row_sql(self, idx, columns=None, row_type='dict'):
+    def _get_row_sql(self, idx, columns=None, row_type='dict'):
         cursor = self.conn.cursor()
         sql = 'SELECT cells from {} WHERE idx=?'.format(self.name)
         params = [idx]
@@ -1067,7 +1068,7 @@ class Table(object):
         res = cursor.fetchone()
         if res:
             if columns is None:
-                columns = self.get_columns_sql()
+                columns = self._get_columns_sql()
             if row_type.lower() == 'list':
                 return [x for x in self._gen_row_dict_sql(res['cells'], columns).values()]
             else:
@@ -1102,7 +1103,7 @@ class Table(object):
 
     def _gen_row_asdict_sql(self,columns):
         # get columnames
-        db_cols_withid = self.get_columns_withid_sql()
+        db_cols_withid = self._get_columns_withid_sql()
         user_cols = {k:v for k,v in db_cols_withid.items() if k in columns} #refine columns
        
         cur = self.conn.cursor()
@@ -1128,7 +1129,7 @@ class Table(object):
         # validate user's args
         if columns is not None:
             if self.conn is not None:
-                db_columns = self.get_columns_sql()
+                db_columns = self._get_columns_sql()
                 missing_cols = []
                 for col in columns:
                     if col not in db_columns:
@@ -1141,7 +1142,7 @@ class Table(object):
 
         if columns is None:
             if self.conn is not None:
-                columns = self.get_columns_sql()
+                columns = self._get_columns_sql()
             else:
                 columns = self.get_columns() # assign all available column names
 
@@ -1408,13 +1409,13 @@ class Table(object):
 
     def _deprecated_update_row_sql(self, idx, column, value):
         """ using method that updates 'all' content of the cells"""
-        row = self.get_row_sql(idx) # must get all columns to make cells complete for correct update to sql
+        row = self._get_row_sql(idx) # must get all columns to make cells complete for correct update to sql
                                     # will this be a trigger to change get_row's columns parameter???
         if row:                                    
             row[column] = value # get this row updated
             cursor = self.conn.cursor() 
             sql = f'UPDATE {self.name} SET cells = ? WHERE idx = ?;'
-            db_cols_withid = self.get_columns_withid_sql()
+            db_cols_withid = self._get_columns_withid_sql()
             cells = json.dumps({db_cols_withid[k]: v for k,v in row.items()})
             params = [cells, idx]
             cursor.execute(sql, params)
@@ -1423,16 +1424,16 @@ class Table(object):
             warnings.warn(f'Warning! {fn}() trying to update a non existed row (ie. idx {idx}).')
 
 
-    def update_row_sql(self, idx, column, value):
+    def _update_row_sql(self, idx, column, value):
         """ using json_set so only update for a specific key"""
         cursor = self.conn.cursor() 
-        columnid = self.get_columnid_sql(column)
+        columnid = self._get_columnid_sql(column)
         sql_update = f"UPDATE {self.name} SET cells = (SELECT json_set({self.name}.cells, '$.{columnid}', ?)) where idx=?;"
         params = [value, idx]
         cursor.execute(sql_update, params)
 
 
-    def update_row_sql_bycolid(self, idx, columnid, value):
+    def _update_row_sql_bycolid(self, idx, columnid, value):
         """ using json_set so only update for a specific key and accept columnid
         Note: no performance increase even not calling get_columnid_sql()"""
         cursor = self.conn.cursor() 

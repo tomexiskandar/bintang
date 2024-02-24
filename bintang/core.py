@@ -198,7 +198,7 @@ class Bintang():
         self.get_table(tablename).delete_rows(indexes)
 
 
-    def print(self):
+    def _print(self):
         tobj = Table('Columns Info')
         row_dict = {}
         for tab in self.get_tables():
@@ -215,6 +215,16 @@ class Bintang():
                 row_dict['data_props'] = cobj.data_props
                 tobj.insert(row_dict)
         tobj.print()
+
+
+    def print(self):
+        tobj = Table('Tables')
+        for tab in self.get_tables():
+            row_dict = {}
+            row_dict['Bintang'] = self.name
+            row_dict['Table'] = tab
+            tobj.insert(row_dict)
+        tobj.print()    
 
 
     def raise_valueerror_tablename(self,tablename):

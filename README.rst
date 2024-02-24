@@ -390,21 +390,6 @@ Loop through Bintang table's rows and yield index and row. Row can be called out
 
 
 
-Bintang.Table.print(columns=None, show_data_type=False)
--------------------------------------------------------
-
-Print rows to terminal in table format. This would be handy if the table can fit into terminal.
-
-:columns: a list of columns to output. If None, will output all columns (default).
-:show_data_type: if True, will output data type.
-
-.. code-block:: python
-
-   # assume Person table object exists and has data
-   Person.print()
-
-
-
 Bintang.Table.read_csv(path, delimiter=',', quotechar='"', header_row=1)
 ------------------------------------------------------------------------
 
@@ -602,7 +587,7 @@ Bintang.create_table(name, columns=None)
 Create a table inside Bintang object
 
 :name: string to name the table
-:columns: a list of columns. This can be provided as pre-made column. Remember Bintang can create columns during record insertion.
+:columns: a list of columns. Bintang can create columns during record insertion (dynamic schema effect).
 
 
 Bintang.drop_table(name)
@@ -621,7 +606,7 @@ Drop table from tables container.
 Bintang.name
 ------------
 
-Bintang's name can be changed through normal assignment.
+To rename Bintang object name can be done through normal assignment.
 
 .. code-block:: python
    
@@ -630,10 +615,12 @@ Bintang's name can be changed through normal assignment.
    bt.name = 'your db' # change name from 'my db' to 'your db'
 
 
+
+
 Bintang.Table.add_column(name)
 ---------------------------------
 
-Add a column to table.
+Add a column to table. Bintang can create columns during record insertion (dynamic schema effect).
 
 :column: a string of column name
 
@@ -652,13 +639,62 @@ Bintang.Table.get_columns()
 Return a list of columns
 
 
+Bintang.Table.name
+------------------
+
+To rename table name can be done through normal assignment.
+
+.. code-block:: python
+   
+   bt['my table'].name = 'your table' # change name from 'my table' to 'your table'
 
 
 
+Bintang.Table.print(columns=None, show_data_type=False)
+-------------------------------------------------------
+
+Print rows to terminal in table format. This would be handy if the table can fit into terminal.
+
+:columns: a list of columns to output. If None, will output all columns (default).
+:show_data_type: if True, will output data type.
+
+.. code-block:: python
+
+   # assume Person table object exists and has data
+   Person.print()
 
 
 
+Bintang.Table.update(column, value, where=None)
+-----------------------------------------------
+
+To update row(s) in the table
+
+:column: column to be updated. If column does not exist then it will be created (dynamic schema effect).
+:value: the value to be set for the row(s). Can also use lambda.
+:where: condition in lambda so which row(s) that needs update.
+
+.. code-block:: python
+
+   # assume Person table object exists and has records.
+   Person.update('job', 'fisherman') # this will create job column and set value of the rows to 'fisherman'
+
+   # update only row that has name 'John'
+   Person.update('job', 'fisherman', where=lambda row: row['name']=='John')
+
+   # create 'full name' column and populate value with name and surname combined.
+   bt['Person'].update('full name', lambda row: row['name'] + ' ' + row['surname'])
+
+   # one liner conditional expression is common with lambda.
+   # for instance, if you know there is None in surname then you want to resolve the full name as name.
+   bt['Person'].update('full name', lambda row: row['name'] if row['surname'] is None else row['name'] + ' ' + row['surname'])
 
 
+Bintang.Table.update_column(name)
+---------------------------------
+
+To update column's name.
+
+:name: the string of the column name.
 
 

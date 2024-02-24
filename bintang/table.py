@@ -505,12 +505,12 @@ class Table(object):
 
         
 
-    def drop_column(self,column):
+    def drop_column(self,name):
         # get columnid
-        columnid = self.get_columnid(column)
+        columnid = self.get_columnid(name)
         #provide warning if the passed column does not exist
         if columnid is None:
-            log.warning("warning... trying to drop a non-existence column '{}'".format(column))
+            log.warning("warning... trying to drop a non-existence column '{}'".format(name))
             return False
         # delete the cell from cell
         for row in self.__rows.values():

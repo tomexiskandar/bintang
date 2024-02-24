@@ -89,11 +89,11 @@ class Bintang():
                 tobj.add_column(column)
         return tobj        
 
-    def drop_table(self, tablename):
-        tableid = self.get_tableid(tablename)
+    def drop_table(self, name):
+        tableid = self.get_tableid(name)
         if tableid is None:
-            tablenames = self.get_tables()
-            extracted = process.extract(tablename, tablenames, limit=2, processor=utils.default_process)
+            tables = self.get_tables()
+            extracted = process.extract(tablename, tables, limit=2, processor=utils.default_process)
             fuzzies = [repr(x[0]) for x in extracted if x[1] > 75]
             raise ValueError ('could not find table {}. Did you mean {}?'.format(repr(tablename),' or '.join(fuzzies)))
         else:
@@ -143,7 +143,7 @@ class Bintang():
     #     return self.__tables[tableid].get_columnids
     
 
-    def add_table(self,table: str): # this should be Table not str. change later after tests
+    def add_table(self,table: Table): 
         tableid = self.get_tableid(table.name)
         if tableid is None:
             tableid = self.__last_assigned_tableid + 1

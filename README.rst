@@ -255,8 +255,8 @@ Bintang.Table.groupby(columns, drop_none=True, group_count=False, counts=None, s
 Return grouped rows based upon the value of columns.
 
 :columns: a list of columns that is used to group the data.
-:drop_none: if True, to drop/exclude the group if each column value is None.
-:group_count: if True, create records count from group columns.
+:drop_none: if True, to drop/exclude the group if all columns hold None.
+:group_count: if True, create row count from group columns.
 :group_concat: a column to create group_concat like mysql.
 :counts: a list of columns create count column(s)
 :sums: a list of columns create sum column(s)
@@ -581,3 +581,84 @@ Notes: Currently tested for SQL Server 2019. However this function should work w
    print(f'{ret} record(s) affected.')
    conn.commit()
    conn.close()
+
+
+--------------------------
+Other Functions/attributes
+--------------------------
+
+
+Bintang.add_table(table_object)
+-------------------------------
+
+Add a table to Bintang object. Think Bintang is a container of tables.
+
+:table_object: table object is a table created from create_table function.
+
+
+Bintang.create_table(name, columns=None)
+----------------------------------------
+
+Create a table inside Bintang object
+
+:name: string to name the table
+:columns: a list of columns. This can be provided as pre-made column. Remember Bintang can create columns during record insertion.
+
+
+Bintang.drop_table(name)
+------------------------
+
+Drop table from tables container.
+
+:name: table name
+
+.. code-block:: python
+   
+   bt.drop_table(name)
+
+
+
+Bintang.name
+------------
+
+Bintang's name can be changed through normal assignment.
+
+.. code-block:: python
+   
+   import bintang
+   bt = bintang.Bintang('my db')
+   bt.name = 'your db' # change name from 'my db' to 'your db'
+
+
+Bintang.Table.add_column(name)
+---------------------------------
+
+Add a column to table.
+
+:column: a string of column name
+
+
+Bintang.Table.drop_column(name)
+---------------------------------
+
+Drop a column from a table.
+
+:column: a string of column name
+
+
+Bintang.Table.get_columns()
+---------------------------
+
+Return a list of columns
+
+
+
+
+
+
+
+
+
+
+
+

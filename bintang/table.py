@@ -590,7 +590,9 @@ class Table(object):
         else:
             #raise ColumnNotFoundError(self.name, column)
             extracted = process.extract(column, self.get_columns(), limit=2, processor=utils.default_process)
-            fuzzies = [repr(x[0]) for x in extracted if x[1] > 75]
+            log.debug(extracted)
+            log.debug('heloooooooooooooo')
+            fuzzies = [repr(x[0]) for x in extracted if x[1] > 59]
             raise ValueError ('could not find column {}. Did you mean {}?'.format(repr(column),' or '.join(fuzzies)))
 
 
@@ -609,7 +611,7 @@ class Table(object):
             res_msg = self._suggest_columns_msg(res)
             raise ValueError(res_msg)
         else:
-            return validated_cols
+            return validated_cols    
 
 
     def _suggest_fuzzy_columns(self, columns, min_ratio=75):
@@ -742,8 +744,8 @@ class Table(object):
                 raise 'param column must be either column name or lambda and param where must be a lambda.'
 
 
-    def index_exists(self, idx):
-        if idx in self.__rows:
+    def index_exists(self, index):
+        if index in self.__rows:
             return True
         else:
             return False
@@ -1000,8 +1002,11 @@ class Table(object):
         # get all index
         indexes = [x for x in self.__rows]
         for idx in indexes:
-            if where(self.get_row(idx)):
-                self.delete_row(idx)
+            try:
+                if where(self.get_row(idx)):
+                    self.delete_row(idx)
+            except:
+                pass
 
 
     def delete_row(self,index):
@@ -1026,11 +1031,11 @@ class Table(object):
         return column
 
 
-    def get_row(self, idx, columns=None, rowid=False, row_type='dict'):
+    def get_row(self, index, columns=None, rowid=False, row_type='dict'):
         if row_type.lower()=='list':
-            return self.get_row_aslist(idx, columns)
+            return self.get_row_aslist(index, columns)
         else:
-            return self.get_row_asdict(idx, columns, rowid)
+            return self.get_row_asdict(index, columns, rowid)
            
 
     def get_row_asdict(self, idx, columns=None, rowid=False):
@@ -1467,7 +1472,7 @@ class Table(object):
                         val = value(row) # function called
                         self.update_row(idx, column, val)
                     except Exception as e:
-                        log.warning(e)
+                        #log.warning(e)
                         pass    
                 else:    
                     try:
@@ -1475,7 +1480,7 @@ class Table(object):
                             val = value(row) # function called
                             self.update_row(idx, column, val) 
                     except Exception as e:
-                        log.warning(e)
+                        #log.warning(e)
                         pass 
         else:
             # value passed as non function eg. an int or str
@@ -1504,7 +1509,7 @@ class Table(object):
     def get_indexes_lambda(self,expr):
         indexes = []
         for idx, row in self.iterrows():
-            log.debug('idx {} row{}:'.format(idx, row))
+            #log.debug('idx {} row{}:'.format(idx, row))
             ret = expr(row)
             if ret:
                 indexes.append(idx)       
@@ -1578,7 +1583,7 @@ class Table(object):
                 matches = 0 # store matches for each rrow
                 # compare value for any matching keys, if TRUE then increment matches
                 for i in range(numof_keys): 
-                    if _match_caseless_unicode(lrow[lkeys[i]], rrow[rkeys[i]]):
+                    if match(lrow[lkeys[i]], rrow[rkeys[i]]):
                         matches += 1 # incremented!
                 if matches == numof_keys: # if fully matched, create the row & add into the output table
                     #debug merged.insert(["lrowid","rrowid"], [lrow["_rowid"], rrow["_rowid"]])
@@ -1694,7 +1699,7 @@ class Table(object):
                 matches = 0
                 for i in range(numof_keys):
                     # if lrow[lkeys[i]] == rrow[rkeys[i]]:
-                    if _match_caseless_unicode(lrow[lkeys[i]], rrow[rkeys[i]]):
+                    if match(lrow[lkeys[i]], rrow[rkeys[i]]):
                         matches += 1 # increment
                 if matches == numof_keys:
                     # update this table lrow for each ret_columns
@@ -1768,7 +1773,7 @@ class Table(object):
                 matches = 0
                 for i in range(lenof_keys):
                     # if lrow[lkeys[i]] == rrow[rkeys[i]]:
-                    if _match_caseless_unicode(lrow[lkeys[i]], rrow[rkeys[i]]):
+                    if match(lrow[lkeys[i]], rrow[rkeys[i]]):
                         matches += 1 # increment
                 if matches == lenof_keys:
                     yield lidx, ridx
@@ -2359,12 +2364,12 @@ class Table_Path(Table):
                 path_as_list.append(node)
         return path_as_list        
 
-def _match_primitive(value1, value2):
+def match_case(value1, value2):
     "Ascii case sensitive matching"
     if value1 == value2:
         return True
     
-def _match_caseless(value1, value2):
+def match_caseless(value1, value2):
     "Ascii ase insensitive matching"
     if isinstance(value1, str) and isinstance(value2, str):
         if value1.lower() == value2.lower():
@@ -2376,12 +2381,13 @@ def _match_caseless(value1, value2):
         if value1 == value2:
             return True    
         
-def _match_caseless_unicode(value1, value2):
-    "Unicode case insensitive matching"
+def match(value1, value2):
+    """Unicode case insensitive matching.
+    the ultimate goal is to get result regardless data type"""
     if isinstance(value1, str) and isinstance(value2, str):
         if _normalize_caseless(value1) == _normalize_caseless(value2):
             return True
-    elif isinstance(value1, str) or isinstance(value2, str):
+    elif isinstance(value1, str) or isinstance(value2, str): # 1 vs '1' is True
         if str(value1) == str(value2):
             return True
     else:

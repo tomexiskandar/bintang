@@ -3,7 +3,7 @@ import os
 import json
 import copy
 from bintang.table import Table, Table_Path
-from bintang.table import _match_primitive, _match_caseless, _match_caseless_unicode
+from bintang.table import match_case, match_caseless, match
 from bintang import iterdict
 from pathlib import Path
 from bintang.log import log
@@ -569,7 +569,7 @@ class Bintang():
                 matches = 0 # store matches for each rrow
                 # compare value for any matching keys, if TRUE then increment matches
                 for i in range(numof_keys): 
-                    if _match_caseless_unicode(lrow[lkeys[i]], rrow[rkeys[i]]):
+                    if unicode_match(lrow[lkeys[i]], rrow[rkeys[i]]):
                         matches += 1 # incremented!
                 if matches == numof_keys: # if fully matched, create the row & add into the output table
                     #debug merged.insert(["lrowid","rrowid"], [lrow["_rowid"], rrow["_rowid"]])
@@ -615,7 +615,7 @@ class Bintang():
                 matches = 0 # store matches for each rrow
                 # evaluate any matching keys, if so increment matches
                 for i in range(numof_keys):
-                    if _match_caseless_unicode(lrow[lkeys[i]] == rrow[rkeys[i]]):
+                    if unicode_match(lrow[lkeys[i]] == rrow[rkeys[i]]):
                         matches += 1 # increment
                 if matches == numof_keys: # if fully matched, create the row & add into the output table
                     #debug merged.insert(["lrowid","rrowid"], [lrow["_rowid"], rrow["_rowid"]])

@@ -401,7 +401,7 @@ Read csv file and populate its records to table.
 
 .. code-block:: python
 
-   ## data example in  csv file
+   ## example data in  csv file
    # "id","name","surname","address","hobby"
    # "1","John","Smith","1 Station St",""
    # "2","Jane","Brown","8 Parade Rd","Digging"
@@ -590,6 +590,7 @@ Create a table inside Bintang object
 :columns: a list of columns. Bintang can create columns during record insertion (dynamic schema effect).
 
 
+
 Bintang.drop_table(name)
 ------------------------
 
@@ -618,11 +619,39 @@ To rename Bintang object name can be done through normal assignment.
 
 
 Bintang.Table.add_column(name)
----------------------------------
+------------------------------
 
 Add a column to table. Bintang can create columns during record insertion (dynamic schema effect).
 
 :column: a string of column name
+
+
+
+Bintang.Table.delete(where)
+---------------------------
+
+To delete row(s) that meets where conditions.
+
+:where: a lambda expression
+
+.. code-block:: python
+   
+   # assume p is a Person table
+   p.delete(lambda row: row['name'].lower()=='john')
+
+Notes: lambda is case-sensitive.
+
+
+
+Bintang.Table.delete_row(index)
+-------------------------------
+
+To delete the row at index.
+
+:index: row index
+
+
+
 
 
 Bintang.Table.drop_column(name)
@@ -636,13 +665,34 @@ Drop a column from a table.
 Bintang.Table.get_columns()
 ---------------------------
 
-Return a list of columns
+Return a list of columns.
+
+
+
+Bintang.Table.get_row(index, columns=None, row_type='dict')
+-----------------------------------------------------------
+
+Return a row at given index.
+
+:index: row index.
+:columns: a list of specific columns wanted in the row.
+:row_type: row can be in a 'list' or 'dict' (default)
+
+
+
+Bintang.Table.index_exists(index)
+---------------------------------
+
+Return True if index exists otherwise None.
+
+:index: row index.
+
 
 
 Bintang.Table.name
 ------------------
 
-To rename table name can be done through normal assignment.
+To rename table name, can be done through normal assignment.
 
 .. code-block:: python
    
@@ -662,6 +712,16 @@ Print rows to terminal in table format. This would be handy if the table can fit
 
    # assume Person table object exists and has data
    Person.print()
+
+
+
+Bintang.Table.rename_column(old_column, new_column)
+---------------------------------------------------
+
+Rename column name.
+
+:old_column: the existing column that will be renamed.
+:new_column: new column name.
 
 
 
@@ -690,11 +750,27 @@ To update row(s) in the table
    bt['Person'].update('full name', lambda row: row['name'] if row['surname'] is None else row['name'] + ' ' + row['surname'])
 
 
-Bintang.Table.update_column(name)
----------------------------------
 
-To update column's name.
+Bintang.Table.update_column(name, data_type=None, column_size=None, ordinal_position=None)
+------------------------------------------------------------------------------------------
 
-:name: the string of the column name.
+To update column's attributes, eg. data_type, column_size and ordinal_position.
 
+:name: the column name
+:data_type: python data type eg. str, int, float
+:column_size: string length if data_type is a str
+:ordinal_position: integer for column order.
+
+Note: At the moment data_type and column_size are used for generating sql table and not used for presenting the data.
+
+
+
+Bintang.Table.update_row(index, column, value)
+----------------------------------------------
+
+To update the row at idx. So only one row will be affected.
+
+:index: row index
+:column: which column will be updated
+:value: new value
 

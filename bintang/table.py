@@ -1,8 +1,9 @@
-#from bintang.core import Bintang
+import bintang
 from openpyxl import load_workbook
 from bintang.column import Column
 from bintang.cell import Cell
 from bintang.row import Row
+from bintang.log import log
 import json
 import sqlite3
 import uuid
@@ -10,10 +11,9 @@ import re
 import types
 import sys
 import copy
-import unicodedata
+from difflib import SequenceMatcher
 from rapidfuzz import fuzz , process, utils
 from operator import itemgetter
-from bintang.log import log
 from pathlib import Path
 from typing import Callable
 import warnings
@@ -122,9 +122,9 @@ class Table(object):
 
 
     def to_sql(self, conn: str, 
-               schema: str, 
                table: str, 
-               columns: list[str], 
+               columns: list[str],
+               schema: str=None,  
                method: str='prep', 
                max_rows: str = 1) -> int:
         """conn: only pyodbc.Connection or psycopg.Connection allowed
@@ -136,21 +136,26 @@ class Table(object):
         """
         conn_name = self._get_sql_conn_name_xp(conn)
         if method == 'prep':
-            return self._to_sql_prep(conn, schema, table, columns, max_rows=max_rows,conn_name=conn_name)
+            return self._to_sql_prep(conn, table, columns, schema=schema, max_rows=max_rows,conn_name=conn_name)
         elif method =='string':
-            return self._to_sql_string(conn, schema, table, columns, max_rows=max_rows, conn_name=conn_name)
+            return self._to_sql_string(conn, table, columns, schema=schema, max_rows=max_rows, conn_name=conn_name)
 
  
-    def _to_sql_string(self, conn, schema, table, columns, max_rows = 300, conn_name='psycopg'):
+    def _to_sql_string(self, conn, table, columns, schema=None, max_rows = 300, conn_name='psycopg'):
         colmap = self.set_to_sql_colmap(columns)
         src_cols = [x for x in colmap.values()]
         dest_columns = [x for x in colmap.keys()]
         
-        sql_template = 'INSERT INTO {}.{} ({}) VALUES'
-        str_stmt = sql_template.format(schema,table,",".join(['"{}"'.format(x) for x in colmap]))
+        if schema:
+            sql_template = 'INSERT INTO "{}"."{}" ({}) VALUES'
+            str_stmt = sql_template.format(schema,table,",".join(['"{}"'.format(x) for x in colmap]))
+        else:
+            sql_template = 'INSERT INTO "{}" ({}) VALUES'
+            str_stmt = sql_template.format(table,",".join(['"{}"'.format(x) for x in colmap]))
+        
         sql_cols_withtype = self.set_sql_datatype(dest_columns, conn, schema, table)
         sql_cols_withliteral = None if sql_cols_withtype is None else self.set_sql_literal(sql_cols_withtype, conn)
-        
+        log.debug(sql_template)
         # start insert to sql
         cursor = conn.cursor()
         temp_rows = []  
@@ -250,7 +255,7 @@ class Table(object):
         
 
 
-    def _to_sql_prep(self, conn, schema, table, columns, max_rows = 1, conn_name='psycopg'):
+    def _to_sql_prep(self, conn, table, columns, schema=None, max_rows = 1, conn_name='pyodbc'):
         if max_rows <= len(self): # validate max_row
             mrpb = max_rows # assign max row per batch
         else:
@@ -263,9 +268,14 @@ class Table(object):
         dest_columns = [x for x in colmap.keys()]
         
         # create as prepared statement
-        sql_template = 'INSERT INTO {}.{} ({}) VALUES {}'
         param_markers = self.gen_row_param_markers(numof_col, mrpb, conn_name=conn_name)
-        prep_stmt = sql_template.format(schema,table,",".join(['"{}"'.format(x) for x in dest_columns]),param_markers)
+        if schema:
+            sql_template = 'INSERT INTO "{}"."{}" ({}) VALUES {}'
+            prep_stmt = sql_template.format(schema, table, ",".join(['"{}"'.format(x) for x in dest_columns]),param_markers)
+        else:
+            sql_template = 'INSERT INTO "{}" ({}) VALUES {}'
+            prep_stmt = sql_template.format(table, ",".join(['"{}"'.format(x) for x in dest_columns]),param_markers)    
+        
         cursor = conn.cursor()
         temp_rows = []
         total_rowcount = 0
@@ -371,7 +381,7 @@ class Table(object):
                 create_item_str.append(i)
             create_item_str.append('\n')
             create_columns_str.append(' '.join(create_item_str))
-        create_sqltable_templ = "CREATE TABLE {} (\n{})".format(self.name, '\t,'.join(create_columns_str))
+        create_sqltable_templ = 'CREATE TABLE "{}" (\n{})'.format(self.name, '\t,'.join(create_columns_str))
         return create_sqltable_templ 
     
 
@@ -588,12 +598,8 @@ class Table(object):
         if column.lower() in self._get_columnnames_lced().keys():
             return self._get_columnnames_lced().get(column.lower())
         else:
-            #raise ColumnNotFoundError(self.name, column)
-            extracted = process.extract(column, self.get_columns(), limit=2, processor=utils.default_process)
-            log.debug(extracted)
-            log.debug('heloooooooooooooo')
-            fuzzies = [repr(x[0]) for x in extracted if x[1] > 59]
-            raise ValueError ('could not find column {}. Did you mean {}?'.format(repr(column),' or '.join(fuzzies)))
+            similar_cols = bintang.core.get_similar_values(column, self.get_columns())
+            raise ValueError ('could not find column {}. Did you mean {}?'.format(repr(column),' or '.join(similar_cols)))
 
 
     def validate_columns(self, columns):
@@ -607,23 +613,26 @@ class Table(object):
                 unmatched_cols.append(column)
         if len(unmatched_cols) > 0:
             #raise ColumnNotFoundError(self.name, column)
-            res = self._suggest_fuzzy_columns(unmatched_cols)
+            res = self._suggest_similar_columns(unmatched_cols)
             res_msg = self._suggest_columns_msg(res)
             raise ValueError(res_msg)
         else:
             return validated_cols    
 
 
-    def _suggest_fuzzy_columns(self, columns, min_ratio=75):
+    def _suggest_similar_columns(self, columns, min_ratio=75):
         res = {}
         for col in columns:
-            extracted = process.extract(col, self.get_columns(), scorer=fuzz.ratio, processor=utils.default_process)
-            res[col] = ['{}'.format(x[0]) for x in extracted if x[1] > min_ratio]
+            # extracted = process.extract(col, self.get_columns(), scorer=fuzz.ratio, processor=utils.default_process)
+            # res[col] = ['{}'.format(x[0]) for x in extracted if x[1] > min_ratio]
+            similar_cols = bintang.get_similar_values(col, self.get_columns())
+            res[col] = ['{}'.format(x) for x in similar_cols]
         return res  
 
 
     def _suggest_columns_msg(self, suggested_columns):
-            unmatched_cols = [x for x in suggested_columns]
+        unmatched_cols = [x for x in suggested_columns.keys()]
+        if len(suggested_columns) > 1:
             message = f'table {self.name} has no column {unmatched_cols}.\n' 
             line_msg = []
             for col, suggestion  in suggested_columns.items():
@@ -631,17 +640,47 @@ class Table(object):
                 line_msg.append(msg)
             # construct message
             for msg in line_msg:
-                message += msg   
-            return message            
+                message += msg
+            return message
+        else:
+            the_suggested_column = next(iter(suggested_columns.values()))[0]
+            message = f'table {self.name} has no column {repr(unmatched_cols[0])}, did you mean: {repr(the_suggested_column)}?'
+            return message
 
 
-    def check_column(self, column):
-        # refactoring required and to be compared with validate_column()
-        """check if column exits in table.columns"""
-        if column.lower() not in self._get_columnnames_lced().keys():
-            extracted = process.extract(column, self.get_columns(), limit=2, processor=utils.default_process)
-            fuzzies = [repr(x[0]) for x in extracted if x[1] > 75]
-            raise ValueError ('could not find column {}. Did you mean {}?'.format(repr(column),' or '.join(fuzzies)))
+    # CHANGED T bintang.core get_similar_values(). its more usable
+    # def _get_similar_columns(self, column, min_ratio=0.6):
+    #     # use standard difflib SequenceMatcher
+    #     res = []
+    #     for col in self.get_columns():
+    #         ratio = SequenceMatcher(None, col, column).ratio()
+    #         if ratio >= min_ratio:
+    #             res.append((col,ratio))
+    #     res_sorted = sorted(res, key=lambda tup: tup[1], reverse=True)
+    #     return [x[0] for x in res_sorted] # just extract the name, not ratio        
+
+
+    # MOVED to bintang.core def _get_similar_values(self, value, similar_values, min_ratio=0.6):
+    #     # use standard difflib SequenceMatcher
+    #     res = []
+    #     for col in similar_values:
+    #         ratio = SequenceMatcher(None, col, value).ratio()
+    #         if ratio >= min_ratio:
+    #             res.append((col,ratio))
+    #     res_sorted = sorted(res, key=lambda tup: tup[1], reverse=True)
+    #     return [x[0] for x in res_sorted] # just extract the name, not ratio        
+
+    
+
+
+    # def check_column(self, column):
+    #     # refactoring required and to be compared with validate_column()
+    #     """check if column exits in table.columns"""
+    #     if column.lower() not in self._get_columnnames_lced().keys():
+    #         # extracted = process.extract(column, self.get_columns(), limit=2, processor=utils.default_process)
+    #         # fuzzies = [repr(x[0]) for x in extracted if x[1] > 75]
+    #         similar_cols = get_similar_values(column, self.get_columns)
+    #         raise ValueError ('could not find column {}. Did you mean {}?'.format(repr(column),' or '.join(similar_cols)))
         
 
     def copy_index(self, column='idx',at_start=False):
@@ -1142,8 +1181,10 @@ class Table(object):
                 if len(missing_cols) > 0:
                     raise ValueError ('Error! Column {} not found.'.format(','.join(missing_cols)))
             else:
-                for column in columns:
-                    self.check_column(column)
+                # for column in columns:
+                #     self.check_column(column)
+                columns = self.validate_columns(columns)
+                
 
         if columns is None:
             if self.conn is not None:
@@ -1241,17 +1282,49 @@ class Table(object):
         return max(len('idx'),column_size)
     
 
-    def _gen_print_line(self, length, col_div_pos):
+    def _gen_print_line(self, length, col_div_pos, square=False):
         line_chars = []
-        for x in range(length):
-            if x  in col_div_pos:
-                line_chars.append('+')
-            else:
-                line_chars.append('-')
+        if square:
+            for x in range(length):
+                if x in [0,length-1]:
+                    line_chars.append('+')
+                elif x  in col_div_pos:
+                    line_chars.append('+')
+                else:
+                    line_chars.append('-')
+        else:
+            for x in range(length):
+                if x  in col_div_pos:
+                    line_chars.append('+')
+                else:
+                    line_chars.append('-')
         return ''.join(line_chars)
+
+    def _gen_heading_col_str(self, heading_col, square=False):
+        # heading_col_str = '|'.join(heading_col)
+        if square:
+            temp_heading_col = list('|'.join(heading_col))
+            temp_heading_col[0] = '|'
+            temp_heading_col[-1] = '|'
+            return ''.join(temp_heading_col)
+        else:
+            return '|'.join(heading_col)
+
+    def _gen_print_padded_cells_str(self, padded_cells, square=False):
+        if square:
+            temp_cells = list('|'.join(padded_cells))
+            temp_cells[0] = '|'
+            temp_cells[-1] = '|'
+            # print(temp_cells)
+            # quit()
+            return ''.join(temp_cells)
+        else:
+            return '|'.join(padded_cells)
+
+
         
 
-    def print(self, columns=None, show_data_type=False):
+    def print(self, columns=None, show_data_type=False, square=False):
         # validate columns arg
         if columns: #user want specific columns
             columns_ = self.validate_columns(columns)
@@ -1287,15 +1360,14 @@ class Table(object):
 
         if show_data_type:
             header_data_types_str = '|'.join(header_data_types)
-        heading_col_str = '|'.join(heading_col) 
-        
+        heading_col_str = self._gen_heading_col_str(heading_col, square=square)
   
-        print(('Table: ' + self.name).center(len(heading_col_str))) # title
+        print(('Table: ' + self.name).center(len(heading_col_str))) # print title
         if show_data_type:
-            print(header_data_types_str)
-        print(self._gen_print_line(len(heading_col_str), col_div_pos))
+            print(header_data_types_str) # print header data type
+        print(self._gen_print_line(len(heading_col_str), col_div_pos,  square=square))
         print(heading_col_str) # print heading_col str
-        print(self._gen_print_line(len(heading_col_str), col_div_pos))
+        print(self._gen_print_line(len(heading_col_str), col_div_pos,  square=square))
         
         # generate row string
         for idx, row in self.iterrows(columns_):
@@ -1311,12 +1383,12 @@ class Table(object):
                 # if type(val).__name__ not in ['str','int','float','bool','datetime','NoneType']:
                 #     padded_cells.append((' ' + str(type(val).__name__) + ' obj').rjust(max_width))
                 if cobj.has_string_data_type():
-                   padded_cells.append((' ' + str(val)).ljust(max_width))
+                   padded_cells.append(('  ' + str(val)).ljust(max_width)) #add double spaces for readable
                 else:
-                    padded_cells.append((str(val) + ' ').rjust(max_width))
-            padded_cells_str = '|'.join(padded_cells)
-            print(padded_cells_str)
-        print(self._gen_print_line(len(heading_col_str), col_div_pos))
+                    padded_cells.append((str(val) + '  ').rjust(max_width)) # add double spaces for readable
+            #padded_cells_str = '|'.join(padded_cells)
+            print(self._gen_print_padded_cells_str(padded_cells,  square=square))
+        print(self._gen_print_line(len(heading_col_str), col_div_pos,  square=square))
         print('({} rows)'.format(len(self)))    
 
     
@@ -1773,7 +1845,7 @@ class Table(object):
                 matches = 0
                 for i in range(lenof_keys):
                     # if lrow[lkeys[i]] == rrow[rkeys[i]]:
-                    if match(lrow[lkeys[i]], rrow[rkeys[i]]):
+                    if bintang.match(lrow[lkeys[i]], rrow[rkeys[i]]):
                         matches += 1 # increment
                 if matches == lenof_keys:
                     yield lidx, ridx
@@ -1916,7 +1988,7 @@ class Table(object):
             if drop_none:
                 if index_records.count(None) == len(index_records):
                     continue
-            index = tuple([_normalize_caseless(col) if isinstance(col, str) else col for col in index_records])
+            index = tuple([bintang.core._normalize_caseless(col) if isinstance(col, str) else col for col in index_records])
             if not group_tobj.index_exists(index):
                 # add record for the first time
                 group_tobj.insert(index_records, columns=valid_cols, index=index)
@@ -2131,9 +2203,8 @@ class Table(object):
         # validate sheetname
         sheetnames_lced = {x.lower(): x  for x in wb.sheetnames}
         if sheetname.lower() not in sheetnames_lced:
-            extracted = process.extract(sheetname, sheetnames_lced.values(), limit=2, processor=utils.default_process)
-            fuzzies = [repr(x[0]) for x in extracted if x[1] > 75]
-            raise ValueError ('could not find sheetname {}. Did you mean {}?'.format(repr(sheetname),' or '.join(fuzzies)))
+            similar_sheetnames = bintang.get_similar_values(sheetname, sheetnames_lced)
+            raise ValueError ('could not find sheetname {}. Did you mean {}?'.format(repr(sheetname),' or '.join(similar_sheetnames)))
         ws = wb[sheetnames_lced[sheetname.lower()]] # assign with the correct name (caseless) through validated user input.
         columns = []
         Nonecolumn_cnt = 0
@@ -2363,39 +2434,6 @@ class Table_Path(Table):
             else:
                 path_as_list.append(node)
         return path_as_list        
-
-def match_case(value1, value2):
-    "Ascii case sensitive matching"
-    if value1 == value2:
-        return True
-    
-def match_caseless(value1, value2):
-    "Ascii ase insensitive matching"
-    if isinstance(value1, str) and isinstance(value2, str):
-        if value1.lower() == value2.lower():
-            return True
-    elif isinstance(value1, str) or isinstance(value2, str):
-        if str(value1) == str(value2):
-            return True    
-    else:
-        if value1 == value2:
-            return True    
-        
-def match(value1, value2):
-    """Unicode case insensitive matching.
-    the ultimate goal is to get result regardless data type"""
-    if isinstance(value1, str) and isinstance(value2, str):
-        if _normalize_caseless(value1) == _normalize_caseless(value2):
-            return True
-    elif isinstance(value1, str) or isinstance(value2, str): # 1 vs '1' is True
-        if str(value1) == str(value2):
-            return True
-    else:
-        if value1 == value2:
-            return True
-
-def _normalize_caseless(string):
-    return unicodedata.normalize("NFKD", string.casefold())
     
 
 type_map = {

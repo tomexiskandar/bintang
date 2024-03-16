@@ -2,8 +2,10 @@ from openpyxl import load_workbook
 import os
 import json
 import copy
+import unicodedata
+from difflib import SequenceMatcher
 from bintang.table import Table, Table_Path
-from bintang.table import match_case, match_caseless, match
+#from bintang.table import match_case, match_caseless, match
 from bintang import iterdict
 from pathlib import Path
 from bintang.log import log
@@ -23,6 +25,54 @@ from rapidfuzz import fuzz , process, utils
 #         self.message = "Cannot find table '{}'.".format(tablename)
 #         super().__init__(self.message)
 
+def match_case(value1, value2):
+    "Ascii case sensitive matching"
+    if value1 == value2:
+        return True
+    
+
+def match_caseless(value1, value2):
+    "Ascii ase insensitive matching"
+    if isinstance(value1, str) and isinstance(value2, str):
+        if value1.lower() == value2.lower():
+            return True
+    elif isinstance(value1, str) or isinstance(value2, str):
+        if str(value1) == str(value2):
+            return True    
+    else:
+        if value1 == value2:
+            return True    
+
+
+
+def _normalize_caseless(string):
+    return unicodedata.normalize("NFKD", string.casefold())
+
+
+def match(value1, value2):
+    """Unicode case insensitive matching.
+    the ultimate goal is to get result regardless data type"""
+    if isinstance(value1, str) and isinstance(value2, str):
+        if _normalize_caseless(value1) == _normalize_caseless(value2):
+            return True
+    elif isinstance(value1, str) or isinstance(value2, str): # 1 vs '1' is True
+        if str(value1) == str(value2):
+            return True
+    else:
+        if value1 == value2:
+            return True
+
+
+def get_similar_values(value, similar_values, min_ratio=0.6):
+        # use standard difflib SequenceMatcher
+        res = []
+        for col in similar_values:
+            ratio = SequenceMatcher(None, col, value).ratio()
+            if ratio >= min_ratio:
+                res.append((col,ratio))
+        res_sorted = sorted(res, key=lambda tup: tup[1], reverse=True)
+        return [x[0] for x in res_sorted] # just extract the name, not ratio 
+
 
 class Bintang():
     def __init__(self, name=None, backend=None):
@@ -40,10 +90,9 @@ class Bintang():
         tableid = self.get_tableid(tablename)
         if tableid is None:
             tablenames = self.get_tables()
-            extracted = process.extract(tablename, tablenames, limit=2, processor=utils.default_process)
-            fuzzies = [repr(x[0]) for x in extracted if x[1] > 75]
-            if len(fuzzies) > 0:
-                raise ValueError ('could not find table {}. Did you mean {}?'.format(repr(tablename),' or '.join(fuzzies)))
+            similar_tables = get_similar_values(tablename, tablenames)
+            if len(similar_tables) > 0:
+                raise ValueError ('could not find table {}. Did you mean {}?'.format(repr(tablename),' or '.join(similar_tables)))
             else:
                 raise ValueError ('could not find table {}.'.format(repr(tablename)))
         else:
@@ -93,9 +142,8 @@ class Bintang():
         tableid = self.get_tableid(name)
         if tableid is None:
             tables = self.get_tables()
-            extracted = process.extract(tablename, tables, limit=2, processor=utils.default_process)
-            fuzzies = [repr(x[0]) for x in extracted if x[1] > 75]
-            raise ValueError ('could not find table {}. Did you mean {}?'.format(repr(tablename),' or '.join(fuzzies)))
+            similar_tables = get_similar_values(name, tables)
+            raise ValueError ('could not find table {}. Did you mean {}?'.format(repr(name),' or '.join(similar_tables)))
         else:
             del self.__tables[tableid]
 
@@ -362,9 +410,8 @@ class Bintang():
         if sheetnames is not None: # user specify sheets
             for sheetname in sheetnames:
                 if sheetname.lower() not in sheetnames_lced:
-                    extracted = process.extract(sheetname, sheetnames_lced.values(), limit=2, processor=utils.default_process)
-                    fuzzies = [repr(x[0]) for x in extracted if x[1] > 75]
-                    raise ValueError ('could not find sheetname {}. Did you mean {}?'.format(repr(sheetname),' or '.join(fuzzies)))
+                    similar_sheetnames = get_similar_values(sheetname, wb.sheetnames)
+                    raise ValueError ('could not find sheetname {}. Did you mean {}?'.format(repr(sheetname),' or '.join(similar_sheetnames)))
                 self.create_table(sheetname)
                 self[sheetname].read_excel(path, sheetname)
         else: # exctract all sheets and create all tables
@@ -437,12 +484,12 @@ class Bintang():
         for k, v in self[ltable].get_row_asdict(lidx,rowid=rowid).items():
             if out_lcolumns is None:
                 # incude all columns
-                cell = self[out_table].make_cell(k,v)
+                cell = out_table.make_cell(k,v)
                 outrow.add_cell(cell)
             if out_lcolumns is not None:
                 # include only the passed columns
                 if k in out_lcolumns:
-                    cell = self[out_table].make_cell(k,v)
+                    cell = out_table.make_cell(k,v)
                     outrow.add_cell(cell)
         return outrow            
 
@@ -450,12 +497,12 @@ class Bintang():
     def _add_rcell(self, ridx, rtable, outrow, out_table, out_rcolumns, rcol_resolved, rowid):
         for k, v in rtable.get_row_asdict(ridx,rowid=rowid).items():
             if out_rcolumns is None:
-                cell = self[out_table].make_cell(rcol_resolved[k],v)
+                cell = out_table.make_cell(rcol_resolved[k],v)
                 outrow.add_cell(cell)
             if out_rcolumns is not None:
                 # include only the passed columns
                 if k in out_rcolumns:
-                    cell = self[out_table].make_cell(rcol_resolved[k],v)
+                    cell = out_table.make_cell(rcol_resolved[k],v)
                     outrow.add_cell(cell)
         return outrow
 
@@ -528,7 +575,7 @@ class Bintang():
                 ,ltable: str #, lkeys
                 ,rtable: str | Table #, rkeys
                 ,on: list[tuple] # list of lkey & r key tuple
-                ,into: str
+                ,into: str=None
                 ,out_lcolumns: list=None
                 ,out_rcolumns: list=None
                 ,rowid=False) -> Table:
@@ -554,9 +601,10 @@ class Bintang():
         # resolve columns conflicts
         rcol_resolved = self._resolve_join_columns(ltable, rtable_obj, rowid)
         # create an output table
-        out_table = into
-        self.create_table(out_table)
-        out_tobj = self.get_table(out_table)
+        out_table = into if into is not None else 'innerjoin'
+        out_tobj = Table(out_table)
+        # self.create_table(out_table)
+        # out_tobj = self.get_table(out_table)
 
         # for debuging create merged table to store the matching rowids
         #merged = self.create_table("merged",["lrowid","rrowid"])
@@ -569,22 +617,24 @@ class Bintang():
                 matches = 0 # store matches for each rrow
                 # compare value for any matching keys, if TRUE then increment matches
                 for i in range(numof_keys): 
-                    if unicode_match(lrow[lkeys[i]], rrow[rkeys[i]]):
+                    if match(lrow[lkeys[i]], rrow[rkeys[i]]):
                         matches += 1 # incremented!
                 if matches == numof_keys: # if fully matched, create the row & add into the output table
                     #debug merged.insert(["lrowid","rrowid"], [lrow["_rowid"], rrow["_rowid"]])
                     #and add the row to output table
                     outrow = out_tobj.make_row()
                     # add cells from left table
-                    outrow = self._add_lcell(lidx, ltable, outrow, out_table, out_lcolumns, rowid)
+                    outrow = self._add_lcell(lidx, ltable, outrow, out_tobj, out_lcolumns, rowid)
                     # add cells from right table
-                    outrow = self._add_rcell(ridx, rtable_obj, outrow, out_table, out_rcolumns, rcol_resolved, rowid)   
+                    outrow = self._add_rcell(ridx, rtable_obj, outrow, out_tobj, out_rcolumns, rcol_resolved, rowid)   
                     out_tobj.add_row(outrow)
         #debug merged.print() 
         return out_tobj
                 
 
-    def leftjoin(self,ltable, rtable, lkeys, rkeys
+    def leftjoin(self,ltable: str
+                ,rtable: str
+                ,lkeys, rkeys
                 ,out_lcolumns=None
                 ,out_rcolumns=None
                 ,rowid=False):
@@ -615,7 +665,7 @@ class Bintang():
                 matches = 0 # store matches for each rrow
                 # evaluate any matching keys, if so increment matches
                 for i in range(numof_keys):
-                    if unicode_match(lrow[lkeys[i]] == rrow[rkeys[i]]):
+                    if match(lrow[lkeys[i]] == rrow[rkeys[i]]):
                         matches += 1 # increment
                 if matches == numof_keys: # if fully matched, create the row & add into the output table
                     #debug merged.insert(["lrowid","rrowid"], [lrow["_rowid"], rrow["_rowid"]])
@@ -624,4 +674,5 @@ class Bintang():
             out_tobj.add_row(outrow)             
         #debug merged.print() 
         return out_tobj
+
     

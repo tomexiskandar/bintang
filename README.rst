@@ -301,16 +301,16 @@ Return grouped rows based upon the value of columns.
 
 
 
-Bintang.Table.innerjoin(right_table, on, into, out_leftcolumns, out_rightcolumns)
----------------------------------------------------------------------------------------
+Bintang.Table.innerjoin(right_table, on, into=None, out_leftcolumns=None, out_rightcolumns=None)
+------------------------------------------------------------------------------------------------
 
 Return a new table from an inner join operation.
 
 :right_table: name of right table or the second table.
 :on: a list of pair columns used for the join.
 :into: a new table name to hold the result.
-:out_leftcolumns: columns output from left table.
-:out_rightcolumns: columns outpout from right table.
+:out_leftcolumns: columns output from left table. If not specified then it will return all columns.
+:out_rightcolumns: columns outpout from right table. If not specified then it will return all columns.
 
 .. code-block:: python
 
@@ -326,7 +326,7 @@ Return a new table from an inner join operation.
    res = bt.innerjoin('Person'                                       # left table
                      ,'FishingClub'                                  # right table
                      ,[('name','FirstName'), ('surname','LastName')] # on
-                     ,'Fisherman'                                    # into
+                     ,into='Fisherman'                               
                      ,out_lcolumns=['name','address']
                      ,out_rcolumns=['Membership']
                      )
@@ -530,18 +530,18 @@ Here an example of using our to_dict() function then use build-in module json to
 
 
 
-Bintang.Table.to_sql(conn, schema, table, columns, method='prep', max_rows = 1)
--------------------------------------------------------------------------------
+Bintang.Table.to_sql(conn, table, columns, schema=None, method='prep', max_rows = 1)
+------------------------------------------------------------------------------------
 
 Insert records into sql table.
-Notes: Currently tested for SQL Server 2019. However this function should work with other dbms supported by pyodbc.
+Notes: Currently tested for SQL Server 15 and Postgresql 16. However this function should work with other dbms supported by pyodbc.
 
 :conn: pyodbc database connection
-:schema: the schema name the sql table belong to.
 :table: the table name in the sql database
 :columns: a dictionary of column mappings where the key is sql column (destination) and the value is bintang columns (source). If columns is a list, column mapping will be created automatically assuming source columns and destination columns are the same.
+:schema: the schema name the sql table belongs to.
 :method: 'prep' to use prepared statement (default) or 'string' to use sql string. To avoid sql injection, never use string method when the datasource is external or not known.
-:max_rows: maximum rows per insert. Insert more then 1 record when using prep require all data in a column to use the same type, otherwise will raise error.
+:max_rows: maximum rows per batch insert. Allowed value would be from 1 to 1000. Insert more then 1 record when using prep require all data in a column to use the same type, otherwise will raise error.
 
 .. code-block:: python
    
@@ -562,7 +562,7 @@ Notes: Currently tested for SQL Server 2019. However this function should work w
    # connect to database
    conn = pyodbc.connect("DRIVER={ODBC Driver 17 for SQL Server};SERVER=localhost;PORT=1443;DATABASE=test;Trusted_Connection=yes;")  
    # send data to sql
-   ret = person.to_sql(conn, 'dbo', 'Person', columns)
+   ret = person.to_sql(conn, 'Person', columns)
    print(f'{ret} record(s) affected.')
    conn.commit()
    conn.close()

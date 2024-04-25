@@ -193,7 +193,7 @@ Read JSON string and create a table or more according to hierarchy paths contain
    # loop through root table ('/')
    for idx, row in bt['/'].iterrows():
        print(idx, row)
-   0 {'Page:': 100, 'Time': '2033-09-05T00:00:00Z'}
+   # 0 {'Page:': 100, 'Time': '2033-09-05T00:00:00Z'}
 
    # loop through  /Person table.
    for idx, row in bt['/Person'].iterrows():

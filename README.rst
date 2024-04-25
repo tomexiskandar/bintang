@@ -4,8 +4,8 @@ Bintang
 A tiny and temporary db for quick data cleansing and transformation.
 It is a high-level Python coding and would help anyone up to speed with ETL work.
 
-.. contents:: Overview
-   :depth: 3
+.. contents:: Table of Contents (Click the three dots menu above)
+   :depth: 2
 
 ------------------
 How to get started
@@ -17,7 +17,7 @@ Requirements
 1. Python 3.7 or higher
 2. rapidfuzz
 3. openpyxl
-
+A tiny and temporary db for quick data cleansing and transformation. It is a high-level python coding and would help anyone up to speed with ETL work.A tiny and temporary db for quick data cleansing and transformation. It is a high-level python coding and would help anyone up to speed with ETL work.A tiny and temporary db for quick data cleansing and transformation. It is a high-level python coding and would help anyone up to speed with ETL work.A tiny and temporary db for quick data cleansing and transformation. It is a high-level python coding and would help anyone up to speed with ETL work.A tiny and temporary db for quick data cleansing and transformation. It is a high-level python coding and would help anyone up to speed with ETL work.A tiny and temporary db for quick data cleansing and transformation. It is a high-level python coding and would help anyone up to speed with ETL work.A tiny and temporary db for quick data cleansing and transformation. It is a high-level python coding and would help anyone up to speed with ETL work.
 
 Installation
 ------------
@@ -258,10 +258,10 @@ Return grouped rows based upon the value of columns.
 :drop_none: if True, to drop/exclude the group if all columns hold None.
 :group_count: if True, create row count from group columns.
 :group_concat: a column to create group_concat like mysql.
-:counts: a list of columns create count column(s)
-:sums: a list of columns create sum column(s)
-:mins: a list of columns create min column(s)
-:maxs: a list of columns create max column(s) 
+:counts: a list of columns to create count column(s)
+:sums: a list of columns to create sum column(s)
+:mins: a list of columns to create min column(s)
+:maxs: a list of columns to create max column(s) 
 
 .. code-block:: python
 

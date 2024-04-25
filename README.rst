@@ -17,7 +17,7 @@ Requirements
 1. Python 3.7 or higher
 2. rapidfuzz
 3. openpyxl
-A tiny and temporary db for quick data cleansing and transformation. It is a high-level python coding and would help anyone up to speed with ETL work.A tiny and temporary db for quick data cleansing and transformation. It is a high-level python coding and would help anyone up to speed with ETL work.A tiny and temporary db for quick data cleansing and transformation. It is a high-level python coding and would help anyone up to speed with ETL work.A tiny and temporary db for quick data cleansing and transformation. It is a high-level python coding and would help anyone up to speed with ETL work.A tiny and temporary db for quick data cleansing and transformation. It is a high-level python coding and would help anyone up to speed with ETL work.A tiny and temporary db for quick data cleansing and transformation. It is a high-level python coding and would help anyone up to speed with ETL work.A tiny and temporary db for quick data cleansing and transformation. It is a high-level python coding and would help anyone up to speed with ETL work.
+
 
 Installation
 ------------

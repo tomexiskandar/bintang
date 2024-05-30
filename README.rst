@@ -538,7 +538,7 @@ Notes: Currently tested for SQL Server 15 and Postgresql 16. However this functi
 
 :conn: pyodbc database connection
 :table: the table name in the sql database
-:columns: If a dictionary then a columns mapping where the key is sql column (destination) and the value is bintang columns (source). If a list, column mapping will be created automatically assuming source columns and destination columns are the same. If not provided it assumes that user want to export all the columns from the table.
+:columns: If a dictionary then a columns mapping where the key is sql column (destination) and the value is bintang columns (source). If a list, column mapping will be created automatically assuming source columns and destination columns are the same. If not provided it assumes that user wants to insert all the columns from the table.
 :schema: the schema name the sql table belongs to.
 :method: 'prep' to use prepared statement (default) or 'string' to use sql string. To avoid sql injection, never use string method when the datasource is external or not known.
 :max_rows: maximum rows per batch insert. Allowed value would be from 1 to 1000. Insert more then 1 record when using prep require all data in a column to use the same type, otherwise will raise error.

@@ -123,7 +123,7 @@ class Table(object):
 
     def to_sql(self, conn: str, 
                table: str, 
-               columns: list[str],
+               columns: list[str]=None,
                schema: str=None,  
                method: str='prep', 
                max_rows: str = 1) -> int:
@@ -135,6 +135,17 @@ class Table(object):
            return-> row_count
         """
         conn_name = self._get_sql_conn_name_xp(conn)
+        if columns is None: # check if user want to include all columns in the table
+            columns = self.get_columns()
+        else:
+            if isinstance(columns,list):
+                columns= self.validate_columns(columns)
+            if isinstance(columns,dict):
+                columns = [x for x in columns.values()]
+                columns= self.validate_columns(columns)
+            else: 
+                raise ValueError('Error! Only list or dict allowed for columns.')    
+            
         if method == 'prep':
             return self._to_sql_prep(conn, table, columns, schema=schema, max_rows=max_rows,conn_name=conn_name)
         elif method =='string':
@@ -274,8 +285,7 @@ class Table(object):
             prep_stmt = sql_template.format(schema, table, ",".join(['"{}"'.format(x) for x in dest_columns]),param_markers)
         else:
             sql_template = 'INSERT INTO "{}" ({}) VALUES {}'
-            prep_stmt = sql_template.format(table, ",".join(['"{}"'.format(x) for x in dest_columns]),param_markers)    
-        
+            prep_stmt = sql_template.format(table, ",".join(['"{}"'.format(x) for x in dest_columns]),param_markers)
         cursor = conn.cursor()
         temp_rows = []
         total_rowcount = 0
@@ -611,6 +621,9 @@ class Table(object):
                 validated_cols.append(self._get_columnnames_lced().get(column.lower()))
             else:
                 unmatched_cols.append(column)
+        # print(validated_cols)
+        # print(unmatched_cols)
+        # quit()        
         if len(unmatched_cols) > 0:
             #raise ColumnNotFoundError(self.name, column)
             res = self._suggest_similar_columns(unmatched_cols)
@@ -630,9 +643,9 @@ class Table(object):
         return res  
 
 
-    def _suggest_columns_msg(self, suggested_columns):
+    def _suggest_columns_msg(self, suggested_columns):   
         unmatched_cols = [x for x in suggested_columns.keys()]
-        if len(suggested_columns) > 1:
+        if len(suggested_columns) > 0:
             message = f'table {self.name} has no column {unmatched_cols}.\n' 
             line_msg = []
             for col, suggestion  in suggested_columns.items():
@@ -642,10 +655,11 @@ class Table(object):
             for msg in line_msg:
                 message += msg
             return message
-        else:
-            the_suggested_column = next(iter(suggested_columns.values()))[0]
-            message = f'table {self.name} has no column {repr(unmatched_cols[0])}, did you mean: {repr(the_suggested_column)}?'
-            return message
+        # deprecated else lines below!
+        # else:
+        #     the_suggested_column = next(iter(suggested_columns.values()))[0]
+        #     message = f'table {self.name} has no column {repr(unmatched_cols[0])}, did you mean: {repr(the_suggested_column)}?'
+        #     return message
 
 
     # CHANGED T bintang.core get_similar_values(). its more usable
@@ -1978,8 +1992,9 @@ class Table(object):
                     maxs: list[str] | list[tuple] = None,
                     means: list[str] | list[tuple] = None,
                     group_concat = None) -> None:
-        #group_tobj = self.bing.create_table(save_as)
-        group_tobj = Table('grouped')
+        """ Generate a groupby records.
+            return Table object."""
+        group_tobj = Table('grouped') # table to hold the result
         group_count_column = 'group_count' if group_count == True else group_count
         # loop the table
         valid_cols = [self.validate_column(col) for col in columns] # validate these columns

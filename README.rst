@@ -215,7 +215,7 @@ Read JSON string and create a table or more according to hierarchy paths contain
    # -----------+--------------+--------------+-----------+---------------
    # (2 rows)
 
-Please note that since json can contain complex hierarchy paths and still valid (eg. system configuration), then this function may not be in your favour. It might be better to manually extract/locate a certain path manually (hard coded).
+Please note that since json can contain complex hierarchy paths and still valid (eg. system configuration), then a further transformation is required. A well written JSON can be transformed to Bintang tabular model straight away.
    
 
 
@@ -530,15 +530,15 @@ Here an example of using our to_dict() function then use build-in module json to
 
 
 
-Bintang.Table.to_sql(conn, table, columns, schema=None, method='prep', max_rows = 1)
-------------------------------------------------------------------------------------
+Bintang.Table.to_sql(conn, table, columns=None, schema=None, method='prep', max_rows = 1)
+-----------------------------------------------------------------------------------------
 
 Insert records into sql table.
 Notes: Currently tested for SQL Server 15 and Postgresql 16. However this function should work with other dbms supported by pyodbc.
 
 :conn: pyodbc database connection
 :table: the table name in the sql database
-:columns: a dictionary of column mappings where the key is sql column (destination) and the value is bintang columns (source). If columns is a list, column mapping will be created automatically assuming source columns and destination columns are the same.
+:columns: a dictionary of column mappings where the key is sql column (destination) and the value is bintang columns (source). If columns is a list, column mapping will be created automatically assuming source columns and destination columns are the same. If not provided it assumes that user want to export all the columns from the table.
 :schema: the schema name the sql table belongs to.
 :method: 'prep' to use prepared statement (default) or 'string' to use sql string. To avoid sql injection, never use string method when the datasource is external or not known.
 :max_rows: maximum rows per batch insert. Allowed value would be from 1 to 1000. Insert more then 1 record when using prep require all data in a column to use the same type, otherwise will raise error.

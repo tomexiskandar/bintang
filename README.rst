@@ -2,9 +2,9 @@
 Bintang
 =======
 A tiny and temporary db for quick data cleansing and transformation.
-It is a high-level Python coding and would help any Pythonista up to speed with ETL work.
+It is a high-level Python coding and would help any Pythonistas up to speed with ETL work.
 
-.. contents:: Table of Contents (Click the three dots menu above)
+.. contents:: Table of Contents (Click the three dots menu above if in Github)
    :depth: 2
 
 ------------------
@@ -37,12 +37,12 @@ Examples of Usage
 
    bt.create_table('Person')  
    print(bt  )
-   #{  
-   #   "name": null,  
-   #   "tables": [  
-   #   "Person"  
-   #   ]  
-   #}  
+   # {  
+   #    "name": null,  
+   #    "tables": [  
+   #    "Person"  
+   #    ]  
+   # }  
 
 
 Use insert function to populate a table. The parameters are record and columns.
@@ -125,7 +125,7 @@ Retrieve the row stored at the 3rd index by passing 3 inside the list next to ta
 .. code-block:: python
 
    bt['Person'][3] 
-   #{'id': 4, 'name': 'Maria', 'age': 10, 'address': '7 Heaven Ave', 'hobby': 'Digging'} 
+   # {'id': 4, 'name': 'Maria', 'age': 10, 'address': '7 Heaven Ave', 'hobby': 'Digging'} 
 
 
 
@@ -538,7 +538,7 @@ Notes: Currently tested for SQL Server 15 and Postgresql 16. However this functi
 
 :conn: pyodbc database connection
 :table: the table name in the sql database
-:columns: a dictionary of column mappings where the key is sql column (destination) and the value is bintang columns (source). If columns is a list, column mapping will be created automatically assuming source columns and destination columns are the same. If not provided it assumes that user want to export all the columns from the table.
+:columns: If a dictionary then a columns mapping where the key is sql column (destination) and the value is bintang columns (source). If a list, column mapping will be created automatically assuming source columns and destination columns are the same. If not provided it assumes that user want to export all the columns from the table.
 :schema: the schema name the sql table belongs to.
 :method: 'prep' to use prepared statement (default) or 'string' to use sql string. To avoid sql injection, never use string method when the datasource is external or not known.
 :max_rows: maximum rows per batch insert. Allowed value would be from 1 to 1000. Insert more then 1 record when using prep require all data in a column to use the same type, otherwise will raise error.

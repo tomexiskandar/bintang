@@ -130,7 +130,9 @@ class Table(object):
         """conn: only pyodbc.Connection or psycopg.Connection allowed
            schema: database schema name
            table: table name in the database
-           columns: columns on the table
+           columns: If a dictionary then a columns mapping where the key is sql column (destination) and the value is bintang columns (source). 
+                    If a list, column mapping will be created automatically assuming source columns and destination columns are the same. 
+                    If not provided it assumes that user wants to insert all the columns from the table.
            method: prep=Prepared (default) or string
            return-> row_count
         """
@@ -141,8 +143,10 @@ class Table(object):
             if isinstance(columns,list):
                 columns= self.validate_columns(columns)
             if isinstance(columns,dict):
-                columns = [x for x in columns.values()]
-                columns= self.validate_columns(columns)
+                columns_key = [x for x in columns.keys()]
+                columns_val = [x for x in columns.values()] ## trouble maker
+                columns_val= self.validate_columns(columns_val) ## trouble maker
+                columns = dict(zip(columns_key, columns_val))
             else: 
                 raise ValueError('Error! Only list or dict allowed for columns.')    
             

@@ -1,0 +1,45 @@
+import os
+import sys
+import json
+
+use_package = False
+if use_package is False:
+    from pathlib import Path
+    # define project root
+    PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+    # add code directory
+    sys.path.insert(0,os.path.join(PROJECT_ROOT,"bintang"))
+    #print(sys.path)    
+    
+#from bintang.core import Bintang
+import bintang
+
+if __name__ == '__main__':
+    test_dirname = Path(__file__).resolve().parent
+    bt = bintang.Bintang()
+    
+    bt.read_excel(test_dirname / "contacts.xlsx",["Person"])
+    print(bt)
+    #ft.copy_db()
+    # ft.create_table_fromexcel(tes t_dirname / "contacts.xlsx","Group")
+    bt.read_excel(test_dirname / "contacts.xlsx",["FishingClub"])
+    
+
+
+    for idx, row in bt['Person'].iterrows():
+        print('Person',idx, row)  
+
+    for idx, row in bt['FishingClub'].iterrows():
+        print('FishingClub', idx, row)
+      
+   
+       
+    # lookup membership from table FishingClub
+    # ftt['Contacts'].tlookup(ftt['FishingClub'],["Name","Surname"],["First Name","Surname"]\
+    #     ,["Membership","age"],["MemberStatus","AgeAsofToday"])
+
+    # print('\n','-'*10,'after lookup')
+    # for idx, row in ft.iterrows("Contacts"):
+    #     print(idx, row)
+
+    

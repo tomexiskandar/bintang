@@ -1,0 +1,11 @@
+why is taking so long to upload asnsw data?
+A: SQLTypeInfo2 use BinTable and use get_value (to gen sql literal value) which uses iterrows()
+
+
+why xls_mnclhd.py has issue
+pyodbc.DataError: ('22018', '[22018] [Microsoft][ODBC Driver 17 for SQL Server][SQL Server]Operand type clash: time is incompatible with date (206) (SQLExecDirectW); 
+[22018] [Microsoft][ODBC Driver 17 for SQL Server][SQL Server]Statement(s) could not be prepared. (8180)')
+
+
+
+if more then 1 type found then update the dict to put str in 0 index?

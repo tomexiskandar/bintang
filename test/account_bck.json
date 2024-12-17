@@ -1,0 +1,12 @@
+{
+  "makerCommission": 0,
+  "takerCommission": 0,
+  "buyerCommission": 0,
+  "sellerCommission": 0,
+  "balances": [
+    { "asset": "BNB", "free": "1000.00000000", "locked": "0.00000000", "special":["abc","xyz"]},
+    { "asset": "BTC", "free": "1.00000000", "locked": "0.00000000", "special":["prq","ijk"] },
+    { "asset": "BUSD", "free": "10000.00000000", "locked": "0.00000000", "location":[{"bank":"cba","bsb":123456, "id":88888888}]}
+  ],
+  "permissions": ["SPOT"]
+}

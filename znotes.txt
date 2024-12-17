@@ -1,0 +1,2 @@
+new_columnname
+old_columnname

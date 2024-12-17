@@ -1,0 +1,36 @@
+{
+	"person": [
+		{
+			"id": 1,
+			"name": "John",
+			"surname": "Smith",
+			"address": {
+				"number": "1",
+				"street": "Station",
+				"street_type": "Street"
+			}
+		},
+		{
+			"id": 2,
+			"name": "Jane",
+			"surname": "Brown",
+			"address": {
+				"number": "8",
+				"street": "Parade",
+				"street_type": "Road"
+			}
+		}
+	],
+	"PersonDetails": [
+		{
+			"person_id": "1",
+			"hobby": "Blogging",
+			"is_meat_eater": true
+		},
+		{
+			"person_id": "2",
+			"hobby": "Reading",
+			"is_meat_eater": null
+		}
+	]
+}

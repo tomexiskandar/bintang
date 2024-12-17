@@ -1,0 +1,13 @@
+{
+  "makerCommission": 0,
+  "balances": [
+    { "asset": "BNB",  "special":{"one":"abc","two":"defg"}},
+    { "asset": "BTC",  "special":{"one":"hij","two":"klmnop"}},
+    { "asset": "A0",  "special":{"one":"qrs","two":"tuv"}}
+  ],
+  "stakes":[
+    { "assets": null, "amount": null},
+    { "assets": "A0", "amount": 5}
+  ],
+  "makerList": ["a","b","c"]
+}

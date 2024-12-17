@@ -1,0 +1,12 @@
+{
+  "makerCommission": 0,
+  "balances": [
+    { "asset": "BNB", "balances":100, "special":["abc","xyz"]},
+    { "asset": "BTC", "balances":150, "special":["prq","ijk"]},
+    { "asset": "A0",  "balances":200, "special":["***","!!!"]}
+  ],
+  "stakes":[
+    { "assets": null, "amount": null},
+    { "assets": "A0", "amount": 5}
+  ]
+}

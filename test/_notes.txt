@@ -1,0 +1,5 @@
+need to seperate flow between memory and sqlite.
+
+functions need to check:
+make_row
+most of functions used in innerjoin.

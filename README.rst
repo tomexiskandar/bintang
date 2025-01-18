@@ -15,8 +15,6 @@ How to get started
 Requirements
 ------------
 1. Python 3.7 or higher
-2. rapidfuzz
-3. openpyxl
 
 
 Installation
@@ -136,8 +134,8 @@ Common Functions
 We are going to provide some functions that may be needed most when working with Bintang objects.
 
 
-Bintang.read_excel(path, sheetnames=None)
------------------------------------------
+Bintang.read_excel(wb, sheetnames=None)
+---------------------------------------
 
 Read an Excel file and create Bintang tables. The first row will be assumed as column header.
 Go to Bintang.Table.read_excel() to read a single sheet and populate the data into created table.
@@ -147,7 +145,10 @@ Go to Bintang.Table.read_excel() to read a single sheet and populate the data in
 
 .. code-block:: python
 
-   bt.read_excel('/path/to/file.xlsx')
+   from openpyxl import Workbook
+   ...
+   wb = load_workbook('/path/to/file.xlsx',  read_only=True, data_only=True)
+   bt.read_excel(wb, sheetnames)
 
 
 
@@ -421,19 +422,22 @@ Read csv file and populate its records to table.
 
 
 
-Bintang.Table.read_excel(path, sheetname, header_row=1)
--------------------------------------------------------
+Bintang.Table.read_excel(wb, sheetname, header_row=1)
+-----------------------------------------------------
 
 Read an Excel file into Bintang table.
 
-:path: an excel file path to read from.
+:wb: a workbook object
 :sheetname: the sheetname to read from.
 :header_row: the row number that contains column name or label.
 
 .. code-block:: python
 
+   from openpyxl import load_workbook
+   ...
+   wb = load_workbook('/path/to/file.xlsx', read_only=True, data_only=True)
    bt.create_table('Person')
-   bt['Person'].read_excel('/path/to/file.xlsx', 'Sheet1')
+   bt['Person'].read_excel(wb, 'Sheet1')
    
    
 
@@ -488,8 +492,8 @@ Notes: setting quoting parameter properly will provide correct value to be prese
 
                   
 
-Bintang.Table.to_excel(path, index=False)
------------------------------------------
+Bintang.Table.to_excel(wb, path, index=False)
+---------------------------------------------
 
 Write Bintang table to an Excel file.
 
@@ -498,7 +502,10 @@ Write Bintang table to an Excel file.
 
 .. code-block:: python
 
-   bt['tablename'].to_excel('/path/to/file.xlsx')
+   from openpyxl import Workbook # import a Workbook class
+   ...
+   wb = Worbook() # create a wb class
+   bt['tablename'].to_excel(wb, '/path/to/file.xlsx')
 
 
 

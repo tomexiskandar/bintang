@@ -1,7 +1,7 @@
 import os
 import sys
 import json
-
+from openpyxl import load_workbook
 use_package = False
 if use_package is False:
     from pathlib import Path
@@ -17,12 +17,12 @@ import bintang
 if __name__ == '__main__':
     test_dirname = Path(__file__).resolve().parent
     bt = bintang.Bintang()
-    
-    bt.read_excel(test_dirname / "contacts.xlsx",["Person"])
+    wb = load_workbook("contacts.xlsx", read_only=True, data_only=True)
+    bt.read_excel(wb,["Person"])
     print(bt)
     #ft.copy_db()
     # ft.create_table_fromexcel(tes t_dirname / "contacts.xlsx","Group")
-    bt.read_excel(test_dirname / "contacts.xlsx",["FishingClub"])
+    bt.read_excel(wb,["FishingClub"])
     
 
 

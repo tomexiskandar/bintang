@@ -1,5 +1,4 @@
 import bintang
-from openpyxl import load_workbook
 from bintang.column import Column
 from bintang.cell import Cell
 from bintang.row import Row
@@ -11,8 +10,6 @@ import re
 import types
 import sys
 import copy
-from difflib import SequenceMatcher
-from rapidfuzz import fuzz , process, utils
 from operator import itemgetter
 from pathlib import Path
 from typing import Callable
@@ -1885,7 +1882,7 @@ class Table(object):
                 matches = 0
                 ratios = []
                 for i in range(lenof_keys):
-                    ratio = int(fuzz.ratio(lrow[lkeys[i]], rrow[rkeys[i]], processor=utils.default_process))
+                    ratio = bintang.get_diff_ratio(lrow[lkeys[i]], rrow[rkeys[i]])
                     if ratio >= min_ratios[i]:
                         matches += 1 # increment
                         ratios.append(ratio)
@@ -2217,8 +2214,8 @@ class Table(object):
                     self.insert(row, columns)
 
 
-    def read_excel(self, path, sheetname, header_row=1):
-        wb = load_workbook(path, read_only=True, data_only=True)
+    def read_excel(self, wb, sheetname, header_row=1):
+        #wb = load_workbook(path, read_only=True, data_only=True)
         # validate sheetname
         sheetnames_lced = {x.lower(): x  for x in wb.sheetnames}
         if sheetname.lower() not in sheetnames_lced:
@@ -2349,9 +2346,7 @@ class Table(object):
         return res    
             
 
-    def to_excel(self, path, columns=None, index=False):
-        from openpyxl import Workbook
-        wb = Workbook()
+    def to_excel(self, wb, path, columns=None, index=False):
         ws = wb.active
         ws.title = 'Sheet1'
         # add header

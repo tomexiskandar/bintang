@@ -1,15 +1,21 @@
-from openpyxl import load_workbook
 import os
 import json
 import copy
 import unicodedata
 from difflib import SequenceMatcher
 from bintang.table import Table, Table_Path
-#from bintang.table import match_case, match_caseless, match
 from bintang import iterdict
 from pathlib import Path
 from bintang.log import log
-from rapidfuzz import fuzz , process, utils
+FUZZY_LIB = 'DIFFLIB'
+try: 
+    from rapidfuzz import fuzz , process, utils
+    FUZZY_LIB = 'RAPIDFUZZ'
+except ImportError as e:
+    pass
+
+
+
 
 # import logging
 
@@ -60,9 +66,8 @@ def match(value1, value2):
             return True
     else:
         if value1 == value2:
-            return True
-
-
+            return True  
+    
 def get_similar_values(value, similar_values, min_ratio=0.6):
         # use standard difflib SequenceMatcher
         res = []
@@ -71,7 +76,33 @@ def get_similar_values(value, similar_values, min_ratio=0.6):
             if ratio >= min_ratio:
                 res.append((col,ratio))
         res_sorted = sorted(res, key=lambda tup: tup[1], reverse=True)
-        return [x[0] for x in res_sorted] # just extract the name, not ratio 
+        return [x[0] for x in res_sorted] # just extract the name, not ratio
+
+def get_diff_ratio(value1, value2, default_process=True):
+    """ get string similarity between two values.
+        It'll use rapidfuzz package if installed, otherwise python difflib will be used.
+    """
+    if value1 is None or value2 is None:
+        return 0
+        
+    if FUZZY_LIB == 'RAPIDFUZZ' and default_process == True:
+        return  round(fuzz.ratio(value1, value2, processor=utils.default_process), 2)
+    elif FUZZY_LIB == 'RAPIDFUZZ' and default_process == False:
+        return  round(fuzz.ratio(value1, value2), 2)
+    elif FUZZY_LIB == 'DIFFLIB' and default_process == True:
+        value1 = default_stringify(value1)
+        value2 = default_stringify(value2)
+        return round(SequenceMatcher(None, value1, value2).ratio() * 100, 2)
+    else:
+        return round(SequenceMatcher(None, value1, value2).ratio() * 100, 2)
+
+def default_stringify(value):
+    if isinstance(value, str):
+        value = value.strip()
+        value =unicodedata.normalize("NFKD", value.casefold()) #experiment
+        return value.lower()
+    else:
+        return str(value)
 
 
 class Bintang():
@@ -403,8 +434,8 @@ class Bintang():
             self.get_table(table_).add_row_into_be()
 
 
-    def read_excel(self, path, sheetnames=None):
-        wb = load_workbook(path, read_only=True, data_only=True)
+    def read_excel(self, wb, sheetnames=None):
+        #wb = load_workbook(path, read_only=True, data_only=True)
         # validate sheetnames
         sheetnames_lced = {x.lower(): x  for x in wb.sheetnames}
         if sheetnames is not None: # user specify sheets
@@ -413,12 +444,12 @@ class Bintang():
                     similar_sheetnames = get_similar_values(sheetname, wb.sheetnames)
                     raise ValueError ('could not find sheetname {}. Did you mean {}?'.format(repr(sheetname),' or '.join(similar_sheetnames)))
                 self.create_table(sheetname)
-                self[sheetname].read_excel(path, sheetname)
+                self[sheetname].read_excel(wb, sheetname)
         else: # exctract all sheets and create all tables
             for ws in wb:
                 sheetname = ws.title
                 self.create_table(sheetname)
-                self[sheetname].read_excel(path, sheetname)
+                self[sheetname].read_excel(wb, sheetname)
 
 
     def read_dict(self, dict_obj, tablepaths=None):

@@ -34,7 +34,7 @@ if __name__ == "__main__":
     print('-----')
     bt.create_table("FishingClub")
     bt['FishingClub'].insert([1, 'Ajes','Freeman','Active'], ['id', 'FirstName','LastName','Membership'])
-    bt['FishingClub'].insert([2, 'Jhon','Smith','Active'], ['id', 'FirstName','LastName','Membership'])
+    bt['FishingClub'].insert([2, 'jon','Smith','Active'], ['id', 'FirstName','LastName','Membership'])
     bt['FishingClub'].insert([3, 'Janey','Brown','Active'], ['id', 'FirstName','LastName','Membership'])
     bt['FishingClub'].insert([4, 'Jane','Brown','Active'], ['id', 'FirstName','LastName','Membership'])
     bt['FishingClub'].insert([5, 'Nutmeg','Spaniel','Active'], ['id', 'FirstName','LastName','Membership'])

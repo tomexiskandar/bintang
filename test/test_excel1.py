@@ -13,13 +13,15 @@ if use_package is False:
     
 #from bintang.core import Bintang
 import bintang
-
+from openpyxl import load_workbook
 if __name__ == '__main__':
     test_dirname = Path(__file__).resolve().parent
     bt = bintang.Bintang("mybt")
     #bt = Bintang("mybt", backend="sqlite")
     bt.create_table('Person')
-    bt['Person'].read_excel("contacts.xlsx","personx")
+    
+    wb = load_workbook("contacts.xlsx", read_only=True, data_only=True)
+    bt['Person'].read_excel(wb,"person")
     print(bt)
     for idx, row in bt['Person'].iterrows():
         print(idx, row)
@@ -27,7 +29,7 @@ if __name__ == '__main__':
     #bt.copy_db()
     
    
-    bt.read_excel(test_dirname / "contacts.xlsx",["FishingClub"])
+    bt.read_excel(wb,["FishingClub"])
     for idx, row in bt['FishingClub'].iterrows():
         print(idx, row)
 

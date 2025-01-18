@@ -6,7 +6,7 @@ import os
 import sys
 from pathlib import Path
 import json
-
+from openpyxl import Workbook
 
 use_package = False
 if use_package is False:
@@ -33,7 +33,7 @@ if __name__ == "__main__":
     for idx, row in bt['Person'].iterrows():
         print(idx,row)
     print('-----')
-
-    bt["Person"].to_excel('output_excel.xlsx',['Name','address'], index='index')
+    wb = Workbook()
+    bt["Person"].to_excel(wb, 'output_excel.xlsx',['Name','address'], index='index')
 
     

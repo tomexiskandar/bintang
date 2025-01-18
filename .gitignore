@@ -1,3 +1,12 @@
 __pycache__
 setup.py
 zheck_pkcg.py
+zgen_dist.py
+.venv
+bintang.egg-info
+build
+dist
+test
+testbm
+testsql
+temp

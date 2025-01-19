@@ -4,6 +4,9 @@ Bintang
 A tiny and temporary db for quick data cleansing and transformation.
 It is a high-level Python coding and would help any Pythonistas up to speed with ETL work.
 
+.. contents:: Table of Contents
+   :depth: 2
+
 ------------------
 How to get started
 ------------------

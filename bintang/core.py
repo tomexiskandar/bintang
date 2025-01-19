@@ -103,6 +103,31 @@ def default_stringify(value):
         return value.lower()
     else:
         return str(value)
+    
+
+    
+def get_wb_type_toread(wb):
+    """
+        get workbook type so read_excel() know which func/attrb to use.
+    """
+    if str(type(wb)) == "<class 'openpyxl.workbook.workbook.Workbook'>":
+        return 'openpyxl'
+    elif str(type(wb)) == "<class 'xlrd.book.Book'>":
+        return 'xlrd'
+    else:
+        raise ValueError('Sorry, for reading excel file, only openpyxl or xlrd workbook accepted!')
+    
+
+def get_wb_type_towrite(wb):
+    """
+        get workbook type so to_excel() know which func/attrb to use.
+    """
+    if str(type(wb)) == "<class 'openpyxl.workbook.workbook.Workbook'>":
+        return 'openpyxl'
+    elif str(type(wb)) == "<class 'xlwt.Workbook.Workbook'>":
+        return 'xlwt'
+    else:
+        raise ValueError('Sorry, for writting excel file, only openpyxl or xlwt workbook accepted!')
 
 
 class Bintang():
@@ -396,52 +421,24 @@ class Bintang():
         cursor.close()
         conn.close() 
 
-
-    def _read_excel_OLD(self, path, sheetname, table=None):
-        table_ = sheetname
-        if table is not None:
-            table_ = table
-        if table_ not in self.get_tables():
-            self.create_table(table_)        
-        if self.__be is not None:
-            self.__be.create_table(table_)
-        wb = load_workbook(path, read_only=True, data_only=True)
-        ws = wb[sheetname]
-        columns = []
-        Nonecolumn_cnt = 0
-        for rownum, row_cells in enumerate(ws.iter_rows(),start=1):
-            values = [] # hold column value for each row
-            if rownum == 1:
-                for cell in row_cells:
-                    if cell.value is None:
-                        columname = 'noname' + str(Nonecolumn_cnt)
-                        Nonecolumn_cnt += 1
-                        columns.append(columname)
-                    else:
-                        columns.append(cell.value)
-                if Nonecolumn_cnt > 0:
-                    log.warning('Warning! Noname column detected!')          
-            
-            if rownum > 1:
-                for cell in row_cells:
-                    values.append(cell.value)
-                # if rownum == 370:
-                #     log.debug(f'{values} at rownum 370.')
-                #     log.debug(any(values))
-                if any(values):
-                    self.get_table(table_).insert(values, columns)
-        if self.__be is not None:
-            self.get_table(table_).add_row_into_be()
-
-
+        
     def read_excel(self, wb, sheetnames=None):
-        #wb = load_workbook(path, read_only=True, data_only=True)
+        wb_type = get_wb_type_toread(wb)
         # validate sheetnames
-        sheetnames_lced = {x.lower(): x  for x in wb.sheetnames}
+        # sheetnames_lced = {x.lower(): x  for x in wb.sheetnames}
+        # validate sheetname
+        if wb_type == 'openpyxl':
+            sheetnames_lced = {x.lower(): x  for x in wb.sheetnames}
+        else: # assume xlrd
+            sheetnames_lced = {x.lower(): x  for x in wb.sheet_names()}
         if sheetnames is not None: # user specify sheets
             for sheetname in sheetnames:
                 if sheetname.lower() not in sheetnames_lced:
-                    similar_sheetnames = get_similar_values(sheetname, wb.sheetnames)
+                    # get similar sheetname
+                    if wb_type == 'openpyxl':
+                        similar_sheetnames = get_similar_values(sheetname, wb.sheetnames)
+                    else: # assume xlrd
+                        similar_sheetnames = get_similar_values(sheetname, wb.sheet_names())
                     raise ValueError ('could not find sheetname {}. Did you mean {}?'.format(repr(sheetname),' or '.join(similar_sheetnames)))
                 self.create_table(sheetname)
                 self[sheetname].read_excel(wb, sheetname)

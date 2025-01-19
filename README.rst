@@ -4,9 +4,6 @@ Bintang
 A tiny and temporary db for quick data cleansing and transformation.
 It is a high-level Python coding and would help any Pythonistas up to speed with ETL work.
 
-.. contents:: Table of Contents (Click the three dots menu above if in Github)
-   :depth: 2
-
 ------------------
 How to get started
 ------------------
@@ -15,6 +12,12 @@ How to get started
 Requirements
 ------------
 1. Python 3.7 or higher
+
+Some functions require other packages to work. These packages can be installed from pypi using the pip package manager.
+Here is a list of functions and its dependencies:
+- read_sql() and to_sql() | pyodbc
+- read_excel() | openpyxl (xlsx) and xlrd (xls)
+- to_excel() | openpyxl (xlsx) and xlwt (xls)
 
 
 Installation
@@ -139,6 +142,14 @@ Bintang.read_excel(wb, sheetnames=None)
 
 Read an Excel file and create Bintang tables. The first row will be assumed as column header.
 Go to Bintang.Table.read_excel() to read a single sheet and populate the data into created table.
+Use openpyxl workbook (wb) to read from xlsx, or use xlrd wb to read from xls.
+Before using openpyxl or xlrd package, you must install the packages. Below is an example on how to install the packge from a terminal.
+
+.. code-block:: console
+
+  C:\project_dir>pip install openpyxl
+  C:\project_dir>pip install xlrd
+
 
 :path: an excel file path to read from.
 :sheetname: a list of sheets that only needed to be read. If not specified all available sheets will be read (default).
@@ -426,6 +437,14 @@ Bintang.Table.read_excel(wb, sheetname, header_row=1)
 -----------------------------------------------------
 
 Read an Excel file into Bintang table.
+Use openpyxl workbook (wb) to read from xlsx, or use xlrd wb to read from xls.
+Before using openpyxl or xlrd package, you must install the packages. Below is an example on how to install the packge from a terminal.
+
+.. code-block:: console
+
+  C:\project_dir>pip install openpyxl
+  C:\project_dir>pip install xlrd
+
 
 :wb: a workbook object
 :sheetname: the sheetname to read from.
@@ -433,13 +452,22 @@ Read an Excel file into Bintang table.
 
 .. code-block:: python
 
+   ### to read from xlsx
    from openpyxl import load_workbook
    ...
    wb = load_workbook('/path/to/file.xlsx', read_only=True, data_only=True)
    bt.create_table('Person')
    bt['Person'].read_excel(wb, 'Sheet1')
    
+
+   ### to read from xls
+   import xlrd
+   ...
+   wb = xlrd.open_workbook('/path/to/file.xlsx', read_only=True, data_only=True)
+   bt.create_table('Person')
+   bt['Person'].read_excel(wb, 'Sheet1')
    
+
 
 Bintang.Table.read_sql(conn, sql_str=None, params=None)
 -------------------------------------------------------
@@ -492,20 +520,37 @@ Notes: setting quoting parameter properly will provide correct value to be prese
 
                   
 
-Bintang.Table.to_excel(wb, path, index=False)
----------------------------------------------
+Bintang.Table.to_excel(wb, path, columns=None, index=False, sheet_title=None)
+-----------------------------------------------------------------------------
 
 Write Bintang table to an Excel file.
+Use openpyxl workbook (wb) to save as xlxs, or xlwt to save as xls.
+Before using openpyxl or xlwt package, you must install the packages. Below is an example on how to install the packge from a terminal.
+
+.. code-block:: console
+
+  C:\project_dir>pip install openpyxl
+  C:\project_dir>pip install xlwt
+
 
 :path: an excel file path to write to.
+:columns: a list of columns to save, if None then all columns will be saved.
 :index: write row index if it sets True.
+:sheet_title: the sheet title, if None then table name will be passed.
 
 .. code-block:: python
 
-   from openpyxl import Workbook # import a Workbook class
+   ### to target xlxs
+   from openpyxl import Workbook  # import a Workbook class
    ...
    wb = Worbook() # create a wb class
    bt['tablename'].to_excel(wb, '/path/to/file.xlsx')
+
+   ### to target xls
+   from xlwt import Workbook
+   ...
+   wb = Workbook()
+   bt['tablename'].to_excel(wb, '/path/to/file.xls')
 
 
 

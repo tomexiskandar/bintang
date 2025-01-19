@@ -251,9 +251,6 @@ class Table(object):
     def set_sql_literal(self, sql_cols_withtype, conn):
         try:
             sql_typeinfo_tab = self.get_sql_typeinfo_table(conn)
-        
-            # sql_typeinfo_tab.print()
-            # sql_typeinfo_tab.to_excel(r'C:\Users\60145210\Documents\Projects\bintang\test\sql_typeinfo.xlsx')
             sql_cols_withliteral = {}
             for k, v in sql_cols_withtype.items():
                 prefix = sql_typeinfo_tab.get_value('literal_prefix',where=lambda row: row['type_name']==v)
@@ -2214,17 +2211,37 @@ class Table(object):
                     self.insert(row, columns)
 
 
+    def iterrows_ws(self, ws, wb_type, header_row=1):
+        if wb_type == 'openpyxl':
+            for rownum, row_cells in enumerate(ws.iter_rows(min_row=header_row), start=1):
+                yield rownum, row_cells
+        else: # assume 'xlrd'
+            rownum = 1
+            for i, row_cells in enumerate(ws, start=1):
+                if i < header_row: # simulate 'skiprow' like openpyxl
+                    continue # skip
+                else:
+                    yield rownum, row_cells
+                    rownum += 1
+
+
     def read_excel(self, wb, sheetname, header_row=1):
-        #wb = load_workbook(path, read_only=True, data_only=True)
+        wb_type = bintang.get_wb_type_toread(wb)
+        
         # validate sheetname
-        sheetnames_lced = {x.lower(): x  for x in wb.sheetnames}
+        if wb_type == 'openpyxl':
+            sheetnames_lced = {x.lower(): x  for x in wb.sheetnames}
+        else: # assume xlrd
+            sheetnames_lced = {x.lower(): x  for x in wb.sheet_names()}
+
         if sheetname.lower() not in sheetnames_lced:
             similar_sheetnames = bintang.get_similar_values(sheetname, sheetnames_lced)
             raise ValueError ('could not find sheetname {}. Did you mean {}?'.format(repr(sheetname),' or '.join(similar_sheetnames)))
         ws = wb[sheetnames_lced[sheetname.lower()]] # assign with the correct name (caseless) through validated user input.
         columns = []
         Nonecolumn_cnt = 0
-        for rownum, row_cells in enumerate(ws.iter_rows(min_row=header_row),start=1):
+        #for rownum, row_cells in enumerate(ws.iter_rows(min_row=header_row),start=1):
+        for rownum, row_cells in self.iterrows_ws(ws, wb_type, header_row):
             values = [] # hold column value for each row
             if rownum == 1:
                 for cell in row_cells:
@@ -2346,16 +2363,22 @@ class Table(object):
         return res    
             
 
-    def to_excel(self, wb, path, columns=None, index=False):
-        ws = wb.active
-        ws.title = 'Sheet1'
+    def to_excel(self, wb, path, columns=None, index=False, sheet_title=None):
+        wb_type = bintang.get_wb_type_towrite(wb)
+        sheet_title = self.name if sheet_title is None else sheet_title
+        if wb_type == 'openpyxl':
+            ws = wb.active
+            ws.title = sheet_title
+        else: # assume xlwt as user want to save as xls
+            ws = wb.add_sheet(sheet_title)
+
         # add header
         columns_towrite = []
         if columns is None:
             columns_towrite = self.get_columns()
         else:
             columns_towrite = [col for col in columns]
-        log.debug('index: {}'.format(index))
+        # log.debug('index: {}'.format(index))
         if index:
             if index:                          # if column index wanted
                 idx_column = INDEX_COLUMN_NAME
@@ -2364,15 +2387,29 @@ class Table(object):
                 columns_towrite.insert(0,idx_column)
             if index != True:
                 columns_towrite.insert(0,str(index))        
-        ws.append(columns_towrite)
-        # add row
-        if index:
-            for idx, row in self.iterrows(columns, row_type='list'):
+        # add headers' row
+        if wb_type == 'openpyxl':
+            ws.append(columns_towrite)
+        else: # assume xlwt
+            for i, col in enumerate(columns_towrite):
+                ws.write(0, i, col)
+        # add data row
+        for idx, row in self.iterrows(columns, row_type='list'):
+            if index:
                 row.insert(0,idx)
+            if wb_type == 'openpyxl':
                 ws.append(row)
-        if not index:
-            for idx, row in self.iterrows(columns, row_type='list'):
-                ws.append(row)          
+            else: # assume xlwt
+                for cidx, value in enumerate(row): # enumerate column value
+                    ws.write(idx, cidx, value)     # write value for each column
+
+        # if index:
+        #     for idx, row in self.iterrows(columns, row_type='list'):
+        #         row.insert(0,idx)
+        #         ws.append(row)
+        # if not index:
+        #     for idx, row in self.iterrows(columns, row_type='list'):
+        #         ws.append(row)          
         wb.save(path)
 
 

@@ -18,7 +18,7 @@ Requirements
 
 Some functions require other packages to work. These packages can be installed from pypi using the pip package manager.
 Here is a list of functions and its dependencies:
-- read_sql() and to_sql() | pyodbc
+- read_sql() and to_sql() | pyodbc or psycopg (postgresql specific)
 - read_excel() | openpyxl (xlsx) and xlrd (xls)
 - to_excel() | openpyxl (xlsx) and xlwt (xls)
 
@@ -476,6 +476,13 @@ Bintang.Table.read_sql(conn, sql_str=None, params=None)
 -------------------------------------------------------
 
 Read sql table and populate the data to Bintang table.
+This function requires pyodbc or psycopg (postgresql specific) connection, therefore you must install the required package.
+Below is an example to install the package from a terminal.
+
+.. code-block:: console
+
+   C:\project_dir>pip install pyodbc
+   C:\project_dir>pip install psycopg
 
 :conn: pyodbc database connection
 :sql_str: sql query, if none it will select * from a same sql table name.
@@ -589,7 +596,13 @@ Bintang.Table.to_sql(conn, table, columns=None, schema=None, method='prep', max_
 -----------------------------------------------------------------------------------------
 
 Insert records into sql table.
-Notes: Currently tested for SQL Server 15 and Postgresql 16. However this function should work with other dbms supported by pyodbc.
+This function requires pyodbc or psycopg (postgresql specific) connection, therefore you must install the required package.
+Below is an example to install the package from a terminal.
+
+.. code-block:: console
+
+   C:\project_dir>pip install pyodbc
+   C:\project_dir>pip install psycopg
 
 :conn: pyodbc database connection
 :table: the table name in the sql database

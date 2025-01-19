@@ -18,6 +18,7 @@ Requirements
 
 Some functions require other packages to work. These packages can be installed from pypi using the pip package manager.
 Here is a list of functions and its dependencies:
+
 - read_sql() and to_sql() | pyodbc or psycopg (postgresql specific)
 - read_excel() | openpyxl (xlsx) and xlrd (xls)
 - to_excel() | openpyxl (xlsx) and xlwt (xls)
@@ -689,7 +690,8 @@ To rename Bintang object name can be done through normal assignment.
 Bintang.Table.add_column(name)
 ------------------------------
 
-Add a column to table. Bintang can create columns during record insertion (dynamic schema effect).
+Add a new column to table. 
+Note that intang can also create columns during record insertion (dynamic schema effect).
 
 :column: a string of column name
 
@@ -717,8 +719,6 @@ Bintang.Table.delete_row(index)
 To delete the row at index.
 
 :index: row index
-
-
 
 
 

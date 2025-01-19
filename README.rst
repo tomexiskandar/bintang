@@ -17,11 +17,23 @@ Requirements
 1. Python 3.7 or higher
 
 Some functions require other packages to work. These packages can be installed from pypi using the pip package manager.
-Here is a list of functions and its dependencies:
+Here is a list of the functions and its dependencies:
 
-- read_sql() and to_sql() | pyodbc or psycopg (postgresql specific)
-- read_excel() | openpyxl (xlsx) and xlrd (xls)
-- to_excel() | openpyxl (xlsx) and xlwt (xls)
+
+.. list-table::
+   :widths: 40 50
+   :header-rows: 1
+
+   * - Functions
+     - Packages
+   * - read_sql() and to_sql()
+     - pyodbc or psycopg (postgresql specific)
+   * - read_excel()
+     - openpyxl (xlsx) and xlrd (xls)
+   * - to_excel()
+     - openpyxl (xlsx) and xlwt (xls)
+
+
 
 
 Installation

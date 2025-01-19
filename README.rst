@@ -650,6 +650,17 @@ Add a table to Bintang object. Think Bintang is a container of tables.
 :table_object: table object is a table created from create_table function.
 
 
+
+Bintang.copy_table(source_tablename, destination_tablename)
+-----------------------------------------------------------
+
+Copy a table
+
+:source_tablename: an existing table name from which copy will be made
+:destination_tablename: a new table name as the result of the copy
+
+
+
 Bintang.create_table(name, columns=None)
 ----------------------------------------
 
@@ -683,7 +694,6 @@ To rename Bintang object name can be done through normal assignment.
    import bintang
    bt = bintang.Bintang('my db')
    bt.name = 'your db' # change name from 'my db' to 'your db'
-
 
 
 

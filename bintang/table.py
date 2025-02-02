@@ -482,18 +482,20 @@ class Table(object):
 
 
     def get_columnid(self,column):
-        for id, cobj in self.__columns.items():
-            # match the column case insensitive
-            if cobj.get_name_uppercased() == column.upper():
-                return id
-        return None
+        if self.conn is None:
+            for id, cobj in self.__columns.items():
+                # match the column case insensitive
+                if cobj.get_name_uppercased() == column.upper():
+                    return id
+            return None
+        else: # assume conn
+            return self._get_columnid_sql(column)
 
 
     def _get_columnid_sql(self, column):
         sql = 'SELECT id FROM __columns__ where name = ?'
-        param = column
         cursor = self.conn.cursor()
-        res = cursor.execute(sql,[column])
+        res = cursor.execute(sql,(column,))
         ret = res.fetchone()
         if ret:
             return ret['id']
@@ -522,19 +524,38 @@ class Table(object):
                 return
 
         
-
-    def drop_column(self,name):
+    def drop_column(self,column):
         # get columnid
-        columnid = self.get_columnid(name)
-        #provide warning if the passed column does not exist
-        if columnid is None:
-            log.warning("warning... trying to drop a non-existence column '{}'".format(name))
-            return False
-        # delete the cell from cell
-        for row in self.__rows.values():
-            row.cells.pop(columnid,None)
-        # delete the column
-        self.__columns.pop(columnid,None)
+        columnid = self.get_columnid(column)
+        if self.conn is None:
+            #provide warning if the passed column does not exist
+            if columnid is None:
+                log.warning("warning... trying to drop a non-existence column '{}'".format(name))
+                return False
+            # delete the cell from cell. Let's revisit this, Q: do we need to delete the data coz it's not linked to existing column since the the colum dropped.
+            for row in self.__rows.values():
+                row.cells.pop(columnid,None)
+            # delete the column
+            self.__columns.pop(columnid,None)
+        else:
+            columnid = self._get_columnid_sql(column)
+            log.debug(columnid)
+            
+            sql = 'DELETE FROM __columns__ WHERE id = ?;'
+            cursor = self.conn.cursor()
+            cursor.execute(sql, (columnid,))
+            self.conn.commit()
+
+
+#  sql = 'SELECT id FROM __columns__ where name = ?'
+#         cursor = self.conn.cursor()
+#         res = cursor.execute(sql,(column,))
+#         ret = res.fetchone()
+#         if ret:
+#             return ret['id']
+#         else:
+#             return None
+        
 
 
     def get_column(self,columnid):
@@ -562,10 +583,13 @@ class Table(object):
 
 
     def get_columns(self):
-        # DEP as not sorted wise return [x.name for x in self.__columns.values()]
-        col_objs = [col for col in self.__columns.values()]
-        col_objs.sort(key=lambda col: col.ordinal_position)
-        sorted_columns = [col.name for col in col_objs]
+        if self.conn is not None:
+            sorted_columns = self._get_columns_sql()
+        else:
+            # DEP as not sorted wise return [x.name for x in self.__columns.values()]
+            col_objs = [col for col in self.__columns.values()]
+            col_objs.sort(key=lambda col: col.ordinal_position)
+            sorted_columns = [col.name for col in col_objs]
         return sorted_columns
 
     def _get_columns_sql(self) -> list:
@@ -824,31 +848,32 @@ class Table(object):
         """
         if isinstance(record, dict):
             row = self.make_row()
-            for idx, (col, val) in enumerate(record.items()):
-                cell = self.make_cell(col,val)
-                row.add_cell(cell) # add to row
+            if self.conn is None:
+                for idx, (col, val) in enumerate(record.items()):
+                    cell = self.make_cell(col,val)
+                    row.add_cell(cell) # add to row
+                self.add_row(row, index)      
             if self.conn is not None:
                 for idx, (col, val) in enumerate(record.items()):
                     cell = self._make_cell_sql(col, val)
                     row.add_cell(cell) # add to rows
                 row = json.dumps({v.columnid: v.value for v in row.cells.values()})
                 self._add_row_sql(row, index)
-            else:
-                self.add_row(row, index)                                    
+            
+                                                  
         elif isinstance(columns,list) or isinstance(columns,tuple) or isinstance(record,list) or isinstance(record,tuple):
             row = self.make_row()
             if self.conn is None:
                 for idx, col in enumerate(columns):
                     cell = self.make_cell(col,record[idx])
                     row.add_cell(cell) # add to rows
+                self.add_row(row, index)     
             if self.conn is not None:
                 for idx, col in enumerate(columns):
-                    cell = self.make_cell_sql(col,record[idx])
+                    cell = self._make_cell_sql(col,record[idx])
                     row.add_cell(cell) # add to rows
                 row = json.dumps({v.columnid: v.value for v in row.cells.values()})
                 self._add_row_sql(row, index)
-            else:
-                self.add_row(row, index)    
         else:
             raise ValueError("Arg for record set for dictionary or list/tuple of values with list/tuple of columns.")
         
@@ -1001,7 +1026,7 @@ class Table(object):
         columnid = self._get_columnid_sql(column)
         if columnid is None: # if columnid is None then assume user wants a new column
             if new_column == True:
-                self._add_column_sql(column)
+                self._add_column_sql_(column)
                 columnid = self._get_columnid_sql(column) # reassign the columnid
                 # if self.__be is not None:
                 #     self.__be.add_column(self.name, columnid, column)
@@ -1175,6 +1200,28 @@ class Table(object):
                 else:
                     row_asdict[col] = None
             yield row["idx"], row_asdict
+
+
+    def _gen_row_aslist_sql(self,columns):
+        # get columnames
+        db_cols_withid = self._get_columns_withid_sql()
+        user_cols = {k:v for k,v in db_cols_withid.items() if k in columns} #refine columns
+       
+        cur = self.conn.cursor()
+        sql = "SELECT idx, cells FROM {}".format(self.name)
+        for row in cur.execute(sql):
+            # debug cells_dict = json.loads(row["cells"])
+            # log.debug(cells_dict)
+            cells_dict = self._gen_cells_dict(row['cells'])
+            row_aslist = []
+            for col in columns:
+                if user_cols[col] in cells_dict:
+                    row_aslist.append(cells_dict[user_cols[col]])
+                else:
+                    row_aslist.append(None) #???? this is strange line of code. revisit!!
+            yield row["idx"], row_aslist
+
+
         
 
     def iterrows(self, 
@@ -1196,7 +1243,7 @@ class Table(object):
                 # for column in columns:
                 #     self.check_column(column)
                 columns = self.validate_columns(columns)
-                
+                  
 
         if columns is None:
             if self.conn is not None:
@@ -1216,10 +1263,17 @@ class Table(object):
             if self.conn is not None:
                 for idx, row in self._gen_row_asdict_sql(columns):
                     yield idx, row
+                  
         elif row_type == 'list':
-            columnids = self.get_columnids(columns)
-            for idx, row in self.__rows.items():
-                yield idx, self._gen_row_aslist(row,columnids)
+            if self.conn is not None:
+                for idx, row in self._gen_row_aslist_sql(columns):
+                    yield idx, row 
+            else:
+                columnids = self.get_columnids(columns)
+                for idx, row in self.__rows.items():
+                    yield idx, self._gen_row_aslist(row,columnids)
+            
+            
 
 
     def set_data_props(self):

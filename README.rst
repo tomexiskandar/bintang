@@ -524,8 +524,8 @@ Below is an example to install the package from a terminal.
 
 
 
-Bintang.table.to_csv(path, index=False, delimiter=',', quotechar='"', quoting=0)
---------------------------------------------------------------------------------
+Bintang.table.to_csv(path, columns=None, index=False, delimiter=',', quotechar='"', quoting=0)
+----------------------------------------------------------------------------------------------
 
 Write bintang table to a csv file.
 

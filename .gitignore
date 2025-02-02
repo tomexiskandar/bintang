@@ -6,7 +6,7 @@ zgen_dist.py
 bintang.egg-info
 build
 dist
-test/*
+test
 testbm
 testsql
 temp

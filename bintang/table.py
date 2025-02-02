@@ -410,7 +410,7 @@ class Table(object):
             log.debug(f'Warning! trying to add existing column "{name}".')
 
 
-    def add_column_sql_(self, name, data_type=None, column_size=None):
+    def _add_column_sql_(self, name, data_type=None, column_size=None):
         # check if the passed name already exists
         columnid = self._get_columnid_sql(name)
         ord_pos = self._get_last_assigned_ord_pos() + 1

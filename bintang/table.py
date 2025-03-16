@@ -49,8 +49,13 @@ class Table(object):
         self.__last_assigned_rowid = 0 # for use when row created
         self.__last_assigned_idx = 0 # for use when add idx
         #self.__be = None
-        self.conn = conn
+        self.type = None
+        self.conn = conn  # for backend use
+        self.sql_conn = None    # for fromsql use
+        self.sql_str = None     # for fromsql use
+        self.sql_params = None  # for fromsql use
         if self.conn:
+            self.type = 'SQL'
             self.conn.row_factory = sqlite3.Row
             self.create_sql_table()
 
@@ -1252,7 +1257,34 @@ class Table(object):
                 columns = self.get_columns() # assign all available column names
 
         if row_type == 'dict': 
-            if self.conn is None:
+            if self.type == 'FROMSQL': #self.sql_conn and self.sql_str:
+                # execute sql
+                cursor = self.sql_conn.cursor()
+                if self.sql_str is None:
+                    sql_str = "SELECT * FROM {}".format(self.name)
+                if self.sql_params is not None:
+                    cursor.execute(self.sql_str, self.sql_params)
+                else:
+                    cursor.execute(self.sql_str)
+                columns_fromsql = [col[0] for col in cursor.description]    
+                idx = 1 # initial index
+                while True:
+                    rows = cursor.fetchmany(300)
+                    if not rows: break
+                    if columns is not None:
+                        for row in rows:
+                            yield idx, {k: dict(zip(columns_fromsql, row))[k] for k in columns}
+                            idx += 1
+                    else:
+                        for row in rows:
+                            yield idx, dict(zip(columns_fromsql, row))
+                            idx += 1
+                     
+            elif self.type == 'SQL': #self.conn is not None:
+                for idx, row in self._gen_row_asdict_sql(columns):
+                    yield idx, row
+
+            else:
                 if where is not None:
                     for idx, row in self.__rows.items():
                         if where(self._gen_row_asdict(row, columns, rowid)):
@@ -1260,12 +1292,40 @@ class Table(object):
                 else:
                     for idx, row in self.__rows.items():
                         yield idx, self._gen_row_asdict(row,columns,rowid)
-            if self.conn is not None:
-                for idx, row in self._gen_row_asdict_sql(columns):
-                    yield idx, row
+            
                   
         elif row_type == 'list':
-            if self.conn is not None:
+            if self.type == 'FROMSQL':
+                # execute sql
+                cursor = self.sql_conn.cursor()
+                if self.sql_str is None:
+                    sql_str = "SELECT * FROM {}".format(self.name)
+                if self.sql_params is not None:
+                    cursor.execute(self.sql_str, self._sql_params)
+                else:
+                    cursor.execute(self.sql_str)
+                columns_fromsql = [col[0] for col in cursor.description]
+                # row = cursor.fetchone()
+                # idx = 1
+                # while row is not None:
+                #     yield idx, row
+                #     row = cursor.fetchone()
+                #     idx += 1 
+                # 
+                idx = 1
+                while True:
+                    rows = cursor.fetchmany(300)
+                    if not rows: break
+                    if columns is not None:
+                        for row in rows:
+                            yield idx, [dict(zip(columns_fromsql, row))[x] for x in columns] 
+                            idx += 1
+                    else:
+                        for row in rows:
+                            yield idx, list(row)
+                            idx += 1    
+
+            elif self.type == 'SQL': #self.conn is not None:
                 for idx, row in self._gen_row_aslist_sql(columns):
                     yield idx, row 
             else:
@@ -1721,7 +1781,7 @@ class Table(object):
                 matches = 0 # store matches for each rrow
                 # compare value for any matching keys, if TRUE then increment matches
                 for i in range(numof_keys): 
-                    if match(lrow[lkeys[i]], rrow[rkeys[i]]):
+                    if bintang.match(lrow[lkeys[i]], rrow[rkeys[i]]):
                         matches += 1 # incremented!
                 if matches == numof_keys: # if fully matched, create the row & add into the output table
                     #debug merged.insert(["lrowid","rrowid"], [lrow["_rowid"], rrow["_rowid"]])
@@ -1802,56 +1862,7 @@ class Table(object):
     #             used_types.append(used_type)
     #     return used_types    
 
-
-    def __DEPblookup_old(self, 
-                lkp_table: object, 
-                on: str, 
-                ret_columns: list[str] | list[tuple]):
-        lkp_table_obj = None
-        if isinstance(lkp_table,Table):
-            lkp_table_obj = lkp_table
-            lkp_table = lkp_table.name
-        else:
-            lkp_table_obj = self.bing[lkp_table]
-        
-        # validate input eg. column etc
-        lkeys = [x[0] for x in on] # generate lkeys from on (1st sequence)
-        rkeys = [x[1] for x in on] # generate rkeys from on (2nd sequence)
-        lkeys = self.validate_columns(lkeys)
-        rkeys = lkp_table_obj.validate_columns(rkeys)
-        lcolumn_prematch = self.get_columns() # will use this list when matching occurs below
-        # validate ret_columns once:
-        # otherwise will make lots of call later
-        valid_ret_columns = []
-        for item in ret_columns:
-            if isinstance(item,str):
-                item = lkp_table_obj.validate_column(item)
-                valid_ret_columns.append(item)
-            if isinstance(item, tuple):
-                valid_column  = lkp_table_obj.validate_column(item[0])
-                item_ = tuple([valid_column,item[1]])
-                valid_ret_columns.append(item_)
-        numof_keys = len(on)
-        for lidx, lrow in self.iterrows(lkeys, rowid=True):
-            for ridx, rrow in lkp_table_obj.iterrows():
-                matches = 0
-                for i in range(numof_keys):
-                    # if lrow[lkeys[i]] == rrow[rkeys[i]]:
-                    if match(lrow[lkeys[i]], rrow[rkeys[i]]):
-                        matches += 1 # increment
-                if matches == numof_keys:
-                    # update this table lrow for each ret_columns
-                    for item in valid_ret_columns:
-                        if isinstance(item, str): # if item is a column
-                            value = lkp_table_obj[ridx][item]
-                            if item in lcolumn_prematch:
-                                print('item',item,'in',self.name)
-                                self.update_row(lidx, lkp_table_obj.name + '_' + item, value)
-                            else:
-                                self.update_row(lidx, item, value)
-                        if isinstance(item, tuple): # if a tuple (0=column to return from lkp_table, 1=as_column)
-                            value = lkp_table_obj[ridx][item[0]]
-                            self.update_row(lidx, item[1], value)                   
+                   
 
 
     def blookup(self, 
@@ -2328,8 +2339,30 @@ class Table(object):
         else:
             cursor.execute(sql_str)
         columns = [col[0] for col in cursor.description]
-        for row in cursor.fetchall():
-            self.insert(row, columns)        
+        # for row in cursor.fetchall():
+        #     self.insert(row, columns) 
+        while True:
+            rows = cursor.fetchmany(300)
+            if not rows: break
+            for row in rows:
+                self.insert(row, columns)
+
+
+    def from_sql(self, conn, sql_str=None, params=None ):
+        self.type = 'FROMSQL'
+        self.sql_conn = conn
+        self.sql_str = sql_str
+        self.sql_params = params
+        cursor = self.sql_conn.cursor()
+        if self.sql_str is None:
+            sql_str = "SELECT * FROM {}".format(self.name)
+        if self.sql_params is not None:
+            cursor.execute(self.sql_str, self.sql_params)
+        else:
+            cursor.execute(self.sql_str)
+        columns = [col[0] for col in cursor.description]
+        for col in columns:
+            self.add_column(col)                  
 
 
     def reindex(self):

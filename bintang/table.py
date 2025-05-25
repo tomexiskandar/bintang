@@ -49,13 +49,13 @@ class Table(object):
         self.__last_assigned_rowid = 0 # for use when row created
         self.__last_assigned_idx = 0 # for use when add idx
         #self.__be = None
-        self.type = None
+        self.type = 'MEMORY'   # None = self's column and rows; FROMSQL= linked table; SQLBACKEND=column and rows in sql
         self.conn = conn  # for backend use
-        self.sql_conn = None    # for fromsql use
-        self.sql_str = None     # for fromsql use
-        self.sql_params = None  # for fromsql use
+        self.fromsql_conn = None    # for fromsql use
+        self.fromsql_str = None     # for fromsql use
+        self.fromsql_params = None  # for fromsql use
         if self.conn:
-            self.type = 'SQL'
+            self.type = 'SQLBACKEND'
             self.conn.row_factory = sqlite3.Row
             self.create_sql_table()
 
@@ -296,9 +296,15 @@ class Table(object):
             for v in row:
                 temp_rows.append(v)
             if len(temp_rows) == (mrpb * numof_col):
-                log.debug(prep_stmt)
-                log.debug(temp_rows)
-                cursor.execute(prep_stmt, temp_rows)
+                # log.debug(prep_stmt)
+                # log.debug(temp_rows)
+                try:
+                    cursor.execute(prep_stmt, temp_rows)
+                except Exception as e:
+                    log.error(e)
+                    log.error(prep_stmt)
+                    log.error(temp_rows)  
+
                 total_rowcount += cursor.rowcount
                 temp_rows.clear()     
         
@@ -399,20 +405,23 @@ class Table(object):
     
 
     def add_column(self, name, data_type=None, column_size=None):
-        # check if the passed name already exists
-        columnid = self.get_columnid(name)
-        if columnid is None:
-            cobj = Column(name)
-            if data_type is not None:
-                cobj.data_type = data_type
-            if column_size is not None:
-                cobj.column_size = column_size
-            cobj.id = self.__last_assigned_columnid + 1
-            cobj.ordinal_position = self.__last_assigned_columnid + 1
-            self.__columns[cobj.id] = cobj
-            self.__last_assigned_columnid= self.__last_assigned_columnid + 1
+        if self.type == 'MEMORY':
+            # check if the passed name already exists
+            columnid = self.get_columnid(name)
+            if columnid is None:
+                cobj = Column(name)
+                if data_type is not None:
+                    cobj.data_type = data_type
+                if column_size is not None:
+                    cobj.column_size = column_size
+                cobj.id = self.__last_assigned_columnid + 1
+                cobj.ordinal_position = self.__last_assigned_columnid + 1
+                self.__columns[cobj.id] = cobj
+                self.__last_assigned_columnid= self.__last_assigned_columnid + 1
+            else:
+                log.debug(f'Warning! trying to add existing column "{name}".')
         else:
-            log.debug(f'Warning! trying to add existing column "{name}".')
+            log.debug(f'Warning! add_columns() only alowed for Memory table.')
 
 
     def _add_column_sql_(self, name, data_type=None, column_size=None):
@@ -588,14 +597,26 @@ class Table(object):
 
 
     def get_columns(self):
-        if self.conn is not None:
+        if self.type == 'SQLBACKEND':#conn is not None:
             sorted_columns = self._get_columns_sql()
+        elif self.type == 'FROMSQL':
+            sorted_columns = self._get_columns_fromsql()
         else:
             # DEP as not sorted wise return [x.name for x in self.__columns.values()]
             col_objs = [col for col in self.__columns.values()]
             col_objs.sort(key=lambda col: col.ordinal_position)
             sorted_columns = [col.name for col in col_objs]
         return sorted_columns
+    
+    def _get_columns_fromsql(self) -> list:
+        cursor = self.fromsql_conn.cursor()
+        if self.fromsql_str is None:
+            sql_str = "SELECT * FROM {}".format(self.name)
+        if self.fromsql_params is not None:
+            cursor.execute(self.fromsql_str, self.fromsql_params)
+        else:
+            cursor.execute(self.fromsql_str)
+        return [col[0] for col in cursor.description] 
 
     def _get_columns_sql(self) -> list:
         cursor = self.conn.cursor()
@@ -617,7 +638,17 @@ class Table(object):
 
 
     def _get_columnnames_lced(self, columns=None):
-        return {x.name.lower(): x.name  for x in self.__columns.values()}
+        if self.type == 'SQLBACKEND':
+            pass
+        elif self.type == 'FROMSQL':
+            # execute sql
+            # cursor = self.fromsql_conn.cursor()
+            # cursor.execute(self.fromsql_str)
+            # columns_fromsql = [col[0] for col in cursor.description]
+            # return {x.name.lower(): x.name  for x in columns_fromsql}
+            pass
+        else:
+            return {x.name.lower(): x.name  for x in self.__columns.values()}
 
 
     def get_data_props(self, column):
@@ -1227,16 +1258,19 @@ class Table(object):
             yield row["idx"], row_aslist
 
 
-        
-
-    def iterrows(self, 
+    def iterrows_old(self, 
                  columns: list=None, 
                  row_type: str='dict', 
                  where=None, 
                  rowid: bool=False):
+        
+        # need to refactor this funct ion:
+        # the main structure should be based on table type!!!
+
         # validate user's args
         if columns is not None:
-            if self.conn is not None:
+            ## need to work on validation from diff types of table
+            if self.type == 'SQLBACKEND':
                 db_columns = self._get_columns_sql()
                 missing_cols = []
                 for col in columns:
@@ -1244,6 +1278,8 @@ class Table(object):
                         missing_cols.append(col)
                 if len(missing_cols) > 0:
                     raise ValueError ('Error! Column {} not found.'.format(','.join(missing_cols)))
+            elif self.type == 'FROMSQL':
+                pass
             else:
                 # for column in columns:
                 #     self.check_column(column)
@@ -1251,29 +1287,26 @@ class Table(object):
                   
 
         if columns is None:
-            if self.conn is not None:
-                columns = self._get_columns_sql()
-            else:
-                columns = self.get_columns() # assign all available column names
-
+            columns = self.get_columns() # assign all available column names
+            
         if row_type == 'dict': 
-            if self.type == 'FROMSQL': #self.sql_conn and self.sql_str:
+            if self.type == 'FROMSQL': #self.fromsql_conn and self.fromsql_str:
                 # execute sql
-                cursor = self.sql_conn.cursor()
-                if self.sql_str is None:
+                cursor = self.fromsql_conn.cursor()
+                if self.fromsql_str is None:
                     sql_str = "SELECT * FROM {}".format(self.name)
-                if self.sql_params is not None:
-                    cursor.execute(self.sql_str, self.sql_params)
+                if self.fromsql_params is not None:
+                    cursor.execute(self.fromsql_str, self.fromsql_params)
                 else:
-                    cursor.execute(self.sql_str)
-                columns_fromsql = [col[0] for col in cursor.description]    
+                    cursor.execute(self.fromsql_str)
+                columns_fromsql = [col[0] for col in cursor.description]
                 idx = 1 # initial index
                 while True:
                     rows = cursor.fetchmany(300)
                     if not rows: break
-                    if columns is not None:
+                    if columns_fromsql is not None:
                         for row in rows:
-                            yield idx, {k: dict(zip(columns_fromsql, row))[k] for k in columns}
+                            yield idx, {k: dict(zip(columns_fromsql, row))[k] for k in columns_fromsql}
                             idx += 1
                     else:
                         for row in rows:
@@ -1297,13 +1330,13 @@ class Table(object):
         elif row_type == 'list':
             if self.type == 'FROMSQL':
                 # execute sql
-                cursor = self.sql_conn.cursor()
-                if self.sql_str is None:
+                cursor = self.fromsql_conn.cursor()
+                if self.fromsql_str is None:
                     sql_str = "SELECT * FROM {}".format(self.name)
-                if self.sql_params is not None:
-                    cursor.execute(self.sql_str, self._sql_params)
+                if self.fromsql_params is not None:
+                    cursor.execute(self.fromsql_str, self._sql_params)
                 else:
-                    cursor.execute(self.sql_str)
+                    cursor.execute(self.fromsql_str)
                 columns_fromsql = [col[0] for col in cursor.description]
                 # row = cursor.fetchone()
                 # idx = 1
@@ -1318,7 +1351,7 @@ class Table(object):
                     if not rows: break
                     if columns is not None:
                         for row in rows:
-                            yield idx, [dict(zip(columns_fromsql, row))[x] for x in columns] 
+                            yield idx, [dict(zip(columns_fromsql, row))[x] for x in columns_fromsql] 
                             idx += 1
                     else:
                         for row in rows:
@@ -1332,10 +1365,156 @@ class Table(object):
                 columnids = self.get_columnids(columns)
                 for idx, row in self.__rows.items():
                     yield idx, self._gen_row_aslist(row,columnids)
-            
-            
 
 
+    def iterrows(self, 
+                 columns: list=None, 
+                 row_type: str='dict', 
+                 where=None, 
+                 rowid: bool=False):
+        
+        if self.type == 'FROMSQL':
+            for idx, row in self._iterrows_fromsql(columns, row_type, where, rowid):
+                yield idx, row
+        elif self.type == 'SQLBACKEND':
+            for idx, row in self._iterrows_sqlbackend(columns, row_type, where, rowid):
+                yield idx, row        
+        else: # assume MEMORY table
+            for idx, row in self._iterrows(columns, row_type, where, rowid):
+                yield idx, row
+
+
+
+    def _iterrows(self, 
+                 columns: list=None, 
+                 row_type: str='dict', 
+                 where=None, 
+                 rowid: bool=False):
+        
+        # need to refactor this funct ion:
+        # the main structure should be based on table type!!!
+
+        # validate user's args
+        if columns is not None:
+            columns = self.validate_columns(columns)
+                  
+
+        if columns is None:
+            columns = self.get_columns() # assign all available column names
+            
+        if row_type == 'list':
+            columnids = self.get_columnids(columns)
+            for idx, row in self.__rows.items():
+                yield idx, self._gen_row_aslist(row,columnids)
+
+        else: # assume row_type is dict
+            if where is not None:
+                for idx, row in self.__rows.items():
+                    if where(self._gen_row_asdict(row, columns, rowid)):
+                        yield idx, self._gen_row_asdict(row,columns,rowid)
+            else:
+                for idx, row in self.__rows.items():
+                    yield idx, self._gen_row_asdict(row,columns,rowid)
+            
+                  
+    def _iterrows_sqlbackend(self, 
+                 columns: list=None, 
+                 row_type: str='dict', 
+                 where=None, 
+                 rowid: bool=False):
+        
+        # need to refactor this funct ion:
+        # the main structure should be based on table type!!!
+        # validate user's args
+        if columns is not None:
+            ## need to work on validation from diff types of table
+            db_columns = self._get_columns_sql()
+            missing_cols = []
+            for col in columns:
+                if col not in db_columns:
+                    missing_cols.append(col)
+            if len(missing_cols) > 0:
+                raise ValueError ('Error! Column {} not found.'.format(','.join(missing_cols)))
+                
+
+        if columns is None:
+            columns = self.get_columns() # assign all available column names
+            
+        if row_type == 'list':
+            for idx, row in self._gen_row_aslist_sql(columns):
+                yield idx, row 
+                    
+        else: # assume row_type is dict 
+            for idx, row in self._gen_row_asdict_sql(columns):
+                yield idx, row
+      
+        
+    def _iterrows_fromsql(self, 
+                 columns: list=None, 
+                 row_type: str='dict', 
+                 where=None, 
+                 rowid: bool=False):
+        
+        # validate user's args
+        if columns is not None:
+            pass
+                  
+        if columns is None:
+            columns = self.get_columns() # assign all available column names
+            
+        if row_type == 'list':
+            # execute sql
+            cursor = self.fromsql_conn.cursor()
+            if self.fromsql_str is None:
+                sql_str = "SELECT * FROM {}".format(self.name)
+            if self.fromsql_params is not None:
+                cursor.execute(self.fromsql_str, self._sql_params)
+            else:
+                cursor.execute(self.fromsql_str)
+            columns_fromsql = [col[0] for col in cursor.description]
+            # row = cursor.fetchone()
+            # idx = 1
+            # while row is not None:
+            #     yield idx, row
+            #     row = cursor.fetchone()
+            #     idx += 1 
+            # 
+            idx = 1
+            while True:
+                rows = cursor.fetchmany(300)
+                if not rows: break
+                if columns is not None:
+                    for row in rows:
+                        yield idx, [dict(zip(columns_fromsql, row))[x] for x in columns_fromsql] 
+                        idx += 1
+                else:
+                    for row in rows:
+                        yield idx, list(row)
+                        idx += 1    
+        else:  # assume row_type as dict
+            # execute sql
+            cursor = self.fromsql_conn.cursor()
+            if self.fromsql_str is None:
+                sql_str = "SELECT * FROM {}".format(self.name)
+            if self.fromsql_params is not None:
+                cursor.execute(self.fromsql_str, self.fromsql_params)
+            else:
+                cursor.execute(self.fromsql_str)
+            columns_fromsql = [col[0] for col in cursor.description]
+            idx = 1 # initial index
+            while True:
+                rows = cursor.fetchmany(300)
+                if not rows: break
+                if columns_fromsql is not None:
+                    for row in rows:
+                        yield idx, {k: dict(zip(columns_fromsql, row))[k] for k in columns_fromsql}
+                        idx += 1
+                else:
+                    for row in rows:
+                        yield idx, dict(zip(columns_fromsql, row))
+                        idx += 1            
+
+    
     def set_data_props(self):
         """ scan table to obtain columns properties - data type, column size (if str type then the max of len of string)"""
         columnids = self.get_columnids()
@@ -2258,6 +2437,26 @@ class Table(object):
                     group_tobj.update_row(index, col_max, maxed)
 
 
+    def from_csv_DEV(self, path, delimiter=',', quotechar='"', header_row=1):
+        import csv
+        with open(path,newline='') as f:
+            reader = csv.reader(f, delimiter=delimiter, quotechar=quotechar)
+            # determine columns
+            columns = []
+            for rownum, row in enumerate(reader, start=1):
+                print(rownum, row)
+                if rownum == header_row:
+                    columns = [col for col in row] # add all columns
+                    f.seek(0) # return to BOF
+                    break
+            #insert records
+            for rownum, row in enumerate(reader, start=1):
+                if rownum > header_row: # assume records after header
+                    self.insert(row, columns)
+
+
+
+
     def read_csv(self, path, delimiter=',', quotechar='"', header_row=1):
         import csv
         with open(path,newline='') as f:
@@ -2350,16 +2549,16 @@ class Table(object):
 
     def from_sql(self, conn, sql_str=None, params=None ):
         self.type = 'FROMSQL'
-        self.sql_conn = conn
-        self.sql_str = sql_str
-        self.sql_params = params
-        cursor = self.sql_conn.cursor()
-        if self.sql_str is None:
+        self.fromsql_conn = conn
+        self.fromsql_str = sql_str
+        self.fromsql_params = params
+        cursor = self.fromsql_conn.cursor()
+        if self.fromsql_str is None:
             sql_str = "SELECT * FROM {}".format(self.name)
-        if self.sql_params is not None:
-            cursor.execute(self.sql_str, self.sql_params)
+        if self.fromsql_params is not None:
+            cursor.execute(self.fromsql_str, self.fromsql_params)
         else:
-            cursor.execute(self.sql_str)
+            cursor.execute(self.fromsql_str)
         columns = [col[0] for col in cursor.description]
         for col in columns:
             self.add_column(col)                  

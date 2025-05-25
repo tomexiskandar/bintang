@@ -702,5 +702,19 @@ class Bintang():
             out_tobj.add_row(outrow)             
         #debug merged.print() 
         return out_tobj
+    
+
+    def create_linked_table(self, name, conn, sql_str=None, params=None ):
+        tobj = Table(name, bing=self) # create a tobj object
+        tobj.type = 'FROMSQL'
+        tobj.fromsql_conn = conn
+        if sql_str is None:
+            tobj.fromsql_str = "SELECT * FROM {}".format(name)
+        else:
+            tobj.fromsql_str = sql_str
+        tobj.fromsql_params = params    
+        self.add_table(tobj)
+  
+
 
     

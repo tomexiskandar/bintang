@@ -153,6 +153,50 @@ Common Functions
 We are going to provide some functions that may be needed most when working with Bintang objects.
 
 
+.. _from_sql:
+
+Bintang.create_linked_table(conn, sql_str=None, params=None)
+------------------------------------------------------------
+
+Store sql connection and sql table/statement. It'll read the data from the sql database later only when needed. 
+This will not use much memory as read_sql_ function.
+
+This function requires pyodbc or psycopg (postgresql specific) connection, therefore you must install the required package.
+Below is an example to install the package from a terminal.
+
+
+.. code-block:: console
+
+   C:\project_dir>pip install pyodbc
+   C:\project_dir>pip install psycopg
+
+:conn: pyodbc database connection
+:sql_str: sql query, if none it will select * from table_name, assuming the table name exists in the database.
+:params: sql parameters
+
+.. code-block:: python
+
+   import bintang
+   import pyodbc
+   
+   # connect to sql server
+   conn_str = "DRIVER={ODBC Driver 17 for SQL Server};SERVER=localhost;PORT=1443;DATABASE=test;Trusted_Connection=yes;"
+   conn = pyodbc.connect(conn_str)
+   sql_str = "SELECT * FROM Person WHERE LastName=?"
+   params = ('Dokey')
+
+   bt = bintang.Bintang()
+   bt.create_table('Person')
+   bt['Person'].from_sql(conn, sql_str, params)
+
+   for idx, row in bt['Person'].iterrows():
+       print(idx, row)
+       # would print {'ID': 3, 'FirstName': 'Okie', 'LastName': 'Dokey', 'address': '7 Ocean Rd'}
+
+   conn.close()    
+
+
+
 Bintang.read_excel(wb, sheetnames=None)
 ---------------------------------------
 
@@ -274,50 +318,6 @@ Return one or more columns from lookup table.
    # 3 {'name': 'Maria', 'Membership': None}    
    
 We can see only John and Jane got the membership because their names exists in both tables.
-
-
-
-.. _from_sql:
-
-Bintang.Table.from_sql(conn, sql_str=None, params=None)
--------------------------------------------------------
-
-Store sql connection and sql table/statement. It'll read the data from the sql database later only when needed. 
-This will not use much memory as read_sql_ function.
-
-This function requires pyodbc or psycopg (postgresql specific) connection, therefore you must install the required package.
-Below is an example to install the package from a terminal.
-
-
-.. code-block:: console
-
-   C:\project_dir>pip install pyodbc
-   C:\project_dir>pip install psycopg
-
-:conn: pyodbc database connection
-:sql_str: sql query, if none it will select * from a same sql table name.
-:params: sql parameters
-
-.. code-block:: python
-
-   import bintang
-   import pyodbc
-   
-   # connect to sql server
-   conn_str = "DRIVER={ODBC Driver 17 for SQL Server};SERVER=localhost;PORT=1443;DATABASE=test;Trusted_Connection=yes;"
-   conn = pyodbc.connect(conn_str)
-   sql_str = "SELECT * FROM Person WHERE LastName=?"
-   params = ('Dokey')
-
-   bt = bintang.Bintang()
-   bt.create_table('Person')
-   bt['Person'].from_sql(conn, sql_str, params)
-
-   for idx, row in bt['Person'].iterrows():
-       print(idx, row)
-       # would print {'ID': 3, 'FirstName': 'Okie', 'LastName': 'Dokey', 'address': '7 Ocean Rd'}
-
-   conn.close()    
 
 
 

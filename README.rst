@@ -155,8 +155,8 @@ We are going to provide some functions that may be needed most when working with
 
 .. _from_sql:
 
-Bintang.create_linked_table(conn, sql_str=None, params=None)
-------------------------------------------------------------
+Bintang.create_linked_table(name, conn, sql_str=None, params=None)
+------------------------------------------------------------------
 
 Store sql connection and sql table/statement. It'll read the data from the sql database later only when needed. 
 This will not use much memory as read_sql_ function.
@@ -170,6 +170,7 @@ Below is an example to install the package from a terminal.
    C:\project_dir>pip install pyodbc
    C:\project_dir>pip install psycopg
 
+:name: linked table name to be created
 :conn: pyodbc database connection
 :sql_str: sql query, if none it will select * from table_name, assuming the table name exists in the database.
 :params: sql parameters

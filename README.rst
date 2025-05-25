@@ -186,7 +186,7 @@ Below is an example to install the package from a terminal.
    params = ('Dokey')
 
    bt = bintang.Bintang()
-   bt.create_table('Person')
+   bt.create_linked_table('Person', conn, sql_str)
    bt['Person'].from_sql(conn, sql_str, params)
 
    for idx, row in bt['Person'].iterrows():

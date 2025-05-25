@@ -1468,7 +1468,7 @@ class Table(object):
             if self.fromsql_str is None:
                 sql_str = "SELECT * FROM {}".format(self.name)
             if self.fromsql_params is not None:
-                cursor.execute(self.fromsql_str, self._sql_params)
+                cursor.execute(self.fromsql_str, self.fromsql_params)
             else:
                 cursor.execute(self.fromsql_str)
             columns_fromsql = [col[0] for col in cursor.description]

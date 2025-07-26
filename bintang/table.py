@@ -2464,7 +2464,6 @@ class Table(object):
             # determine columns
             columns = []
             for rownum, row in enumerate(reader, start=1):
-                print(rownum, row)
                 if rownum == header_row:
                     columns = [col for col in row] # add all columns
                     f.seek(0) # return to BOF

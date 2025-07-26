@@ -224,32 +224,41 @@ Before using openpyxl or xlrd package, you must install the packages. Below is a
 
 
 
-Bintang.read_json(json_str, tablepaths=None)
+Bintang.read_dict(dict_obj, tablepaths=None)
 --------------------------------------------
-Read JSON string and create a table or more according to hierarchy paths contained in json 'object'.
+Read dictionary object and create a table or more according to hierarchy paths contained in the object.
 
-:json_str: a json string
-:tablepaths: a list of paths which contain a list of objects (equivalent to records).
+:dict_obj: a python dictionary object
+:tablepaths: a list of paths which contains a list of objects (equivalent to records).
 
 .. code-block:: python
    
    # other module import
    # ...
    import bintang
-   import json
-   
-   # example json data
-   json_str = '{"Page:": 100, "Time": "2033-09-05T00:00:00Z", \
-               "Person": [{"id": 1, "name": "John", "surname": "Smith", \
-                            "Address": {"number": 1, "street": "Station", "street_type": "Street"}}, \
-                          {"id": 2, "name": "Jane", "surname": "Brown", \
-                            "Address": {"number": 8, "street": "Parade", "street_type": "Road"}}], \
-               "PersonDetails": [{"person_id": "1", "hobby": "Blogging", "is_meat_eater": true}, \
-                                 {"person_id": "2", "hobby": "Reading", "is_meat_eater": null, \
-                                   "LuckyDays": [13, 17, 19]}]}'
 
-   bt = bintang.Bintang('From JSON')
-   bt.read_json(json_str)
+   # example dict object
+   dict_obj = {
+        'Page:': 100,
+        'Time': '2033-09-05T00:00:00Z',
+        'Person': [
+            {'id': 1,'name': 'John','surname': 'Smith',
+                'Address': {'number': 1, 'street': 'Station','street_type': 'Street'}
+            },
+            {'id': 2,'name': 'Jane','surname': 'Brown',
+                'Address': {'number': 8,'street': 'Parade','street_type': 'Road'}
+            }
+        ],
+        'PersonDetails': [
+            {'person_id': '1', 'hobby': 'Blogging','is_meat_eater': True
+            },
+            {'person_id': '2','hobby': 'Reading','is_meat_eater': None,
+                'LuckyDays': [13,17,19]
+            }
+        ]
+   }
+   bt = bintang.Bintang()
+   bt.read_dict(dict_obj)
 
    print(bt) # show bt tables
    # {
@@ -288,7 +297,39 @@ Read JSON string and create a table or more according to hierarchy paths contain
    # -----------+--------------+--------------+-----------+---------------
    # (2 rows)
 
-Please note that since json can contain complex hierarchy paths and still valid (eg. system configuration), then a further transformation is required. A well written JSON can be transformed to Bintang tabular model straight away.
+Please note that since dictionary can contain complex hierarchy paths and still valid (eg. system configuration), then a further transformation is required. A dictionary that consists of a list of record objects can be transformed to Bintang table straight away.
+   
+
+
+Bintang.read_json(json_str, tablepaths=None)
+--------------------------------------------
+Read JSON string and create a table or more according to hierarchy paths contained in the object.
+This function merely wraps read_dict() and use json.loads to decode json string argument to dictionary.
+
+:json_str: a json string
+:tablepaths: a list of paths which contains a list of objects (equivalent to records).
+
+.. code-block:: python
+   
+   # other module import
+   # ...
+   import bintang
+   
+   # example json data
+   json_str = '{"Page:": 100, "Time": "2033-09-05T00:00:00Z", \
+               "Person": [{"id": 1, "name": "John", "surname": "Smith", \
+                            "Address": {"number": 1, "street": "Station", "street_type": "Street"}}, \
+                          {"id": 2, "name": "Jane", "surname": "Brown", \
+                            "Address": {"number": 8, "street": "Parade", "street_type": "Road"}}], \
+               "PersonDetails": [{"person_id": "1", "hobby": "Blogging", "is_meat_eater": true}, \
+                                 {"person_id": "2", "hobby": "Reading", "is_meat_eater": null, \
+                                   "LuckyDays": [13, 17, 19]}]}'
+
+   bt = bintang.Bintang()
+   bt.read_json(json_str)
+
+   print(bt) # show bt tables
+   # see read_dict() above to navigate the tables
    
 
 

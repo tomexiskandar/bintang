@@ -565,7 +565,7 @@ Before using openpyxl or xlrd package, you must install the packages. Below is a
    ### to read from xls
    import xlrd
    ...
-   wb = xlrd.open_workbook('/path/to/file.xlsx', read_only=True, data_only=True)
+   wb = xlrd.open_workbook('/path/to/file.xlsx')
    bt.create_table('Person')
    bt['Person'].read_excel(wb, 'Sheet1')
    

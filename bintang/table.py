@@ -123,7 +123,7 @@ class Table(object):
             raise ValueError('Sorry Only pyodbc and psycopg connection accepted!')   
 
 
-    def to_sql(self, conn: str, 
+    def to_sql(self, conn: object, 
                table: str, 
                columns: list[str]=None,
                schema: str=None,  
@@ -484,17 +484,6 @@ class Table(object):
                 cursor.execute(sql,params)           
 
 
-    def __DEPadd_column(self,name):
-        # check if the passed name already exists
-        columnid = self._get_columnid(name)
-        log.debug(columnid)
-        if columnid is None:
-            cobj = Column(name)
-            cobj.id = self.__last_assigned_columnid + 1
-            self.__columns[cobj.id] = cobj
-            self.__last_assigned_columnid= self.__last_assigned_columnid + 1        
-
-
     def get_columnid(self,column):
         if self.conn is None:
             for id, cobj in self.__columns.items():
@@ -765,18 +754,6 @@ class Table(object):
             self.order_columns([column])
 
 
-    def __DEPVOID_validate_columns(self,columns):
-        res = []
-        for column in columns:
-            columnid = self.get_columnid(column)
-            if columnid is not None:
-                existing_column = self.get_column(columnid)
-                res.append(existing_column)
-            else:
-                raise ValueError("Cannot find column {}.".format(column))
-        return columns
-
-
     def get_index(self, condition_column, condition_value):
         """will return the first index which value matches the condition"""
         for idx, row in self.iterrows():
@@ -794,36 +771,6 @@ class Table(object):
             if row[condition_column] == condition_value:
                 indexes.append(idx)
         return indexes    
-
-
-    def __deprecated_get_value_OLD(self, search_column, condition_column, condition_value):
-        ## will return a scalar value for the first match
-        for idx, row in self.iterrows():
-            if row[condition_column] == condition_value:
-                # print(row[condition_columnname])
-                # print(row[search_columnname])
-                # print('hello')
-                return row[search_column]
-
-
-    def __deprecated_get_value_original(self, column, where):
-        """ 
-        return a scalar value.
-        switch different process if user want column pass as string or lambda
-        params:
-        column: either column name or using lambda expression
-        where: always a lambda expression"""
-        
-        if isinstance(column,str):
-            for idx, row in self.iterrows():
-                if where(row):
-                    return row[column]
-        elif isinstance(column, types.FunctionType):
-            for idx, row in self.iterrows():
-                if where(row):
-                    return column(row)
-        else:
-            raise 'param column must be either column name or lambda and param where must be a lambda.'
 
 
     def get_value(self, column, where = None):
@@ -940,39 +887,6 @@ class Table(object):
             raise ValueError("Arg for record set for dictionary or list/tuple of values with list/tuple of columns.")    
             
             
-    def __DEPinsert_old(self,columns,values):
-        """ restrict arguments for data insertion for this function as the followings:
-        1. a pair of columns and its single-row values
-        deprecated2. a pair of columns and its multiple-row values (as a list of tuple)
-        """
-
-        # if isinstance(values[0],tuple): # if no. 2
-        #     for value in values:
-        #         if isinstance(value,tuple): # if True then expect a multi-row insert. so add a row for each value
-        #             row = self.make_row()
-        #             for idx,column in enumerate(columns):
-        #                 cell = self.make_cell(column,value[idx])
-        #                 row.add_cell(cell)
-        #             # add to rows
-        #             self.add_row(row)    
-        #else: # if no. 1return None
-        # elif isinstance(columns,list) and not isinstance(values[0],tuple):
-        if isinstance(columns,list) or isinstance(columns,tuple) or isinstance(values,list) or isinstance(values,tuple):
-            row = self.make_row()
-            for idx, column in enumerate(columns):
-                cell = self.make_cell(column,values[idx])
-                row.add_cell(cell)
-            # add to rows
-            if self.__be is not None:
-                self.__temprows.append(json.dumps({v.columnid: v.value for v in row.cells.values()}))
-                if len(self.__temprows) == self.__be.MAX_ROW_SQL_INSERT:
-                    self.add_row_into_be()
-            else:
-                self.add_row(row)    
-        else:
-            raise ValueError("insert only allows a pair of columns and values with type list or tuple")
-
-
     def add_row_into_be(self):
         self.__be.add_row(self.name, self.__temprows)
         self.__temprows.clear()      
@@ -996,9 +910,6 @@ class Table(object):
             self.add_row(row)
         else:
             raise ValueError("Insert only allows a pair of columns and values in a list or tuple")
-
-    def __get_indexes_OLD(self):
-        return [x for x in self.__rows.keys()]
 
 
     def get_rowidx_byrowid(self, rowid):
@@ -1095,19 +1006,6 @@ class Table(object):
         # log.debug(sql)
         # log.debug(row)
         cur.execute(sql, [row])      
-
-
-    def __XXgen_row_asdict(self, row, columns, rowid=False):
-        res = {}
-        if rowid == True:
-            res['_rowid_'] = row.id # add rowid for internal purpose eg. a merged table
-        for column in columns:
-            columnid = self.get_columnid(column)
-            if columnid not in row.cells:
-                res[column] = None
-            else:
-                res[column] = row.cells[columnid].value
-        return res
 
 
     def delete(self, where):
@@ -2208,22 +2106,6 @@ class Table(object):
             return matches_tobj                
     
 
-    def __DEPDEV_groupby_count_OLD(self, columns, count_column):
-        group_tobj = Table('testq')
-        res_dict = {} #key=a tuple of columns, value=count
-        for idx, row in self.iterrows(columns, row_type='list'):
-            trow = tuple(row)
-            if trow not in res_dict.keys():
-                res_dict[trow] = 1
-            else:
-                res_dict[trow] += 1      
-        for k, v in res_dict.items():
-            columns_ = columns + [count_column]
-            values = list(k) + [v]
-            group_tobj.insert(values, columns_,)       
-        return group_tobj
-
-
     def groupby(self, 
                     columns, 
                     drop_none: bool = True, 
@@ -2467,11 +2349,15 @@ class Table(object):
                 if rownum == header_row:
                     columns = [col for col in row] # add all columns
                     f.seek(0) # return to BOF
-                    break
+                    break 
+            
             # insert records
             for rownum, row in enumerate(reader, start=1):
                 if rownum > header_row: # assume records after header
-                    self.insert(row, columns)
+                    if len(columns) == len(row):
+                        self.insert(row, columns)
+                    else:
+                        raise IndexError ('length of column and row is not the same at rownum {}. Possible issues were incorrect quoting or missing value.'.format(rownum))
 
 
     def iterrows_ws(self, ws, wb_type, header_row=1):

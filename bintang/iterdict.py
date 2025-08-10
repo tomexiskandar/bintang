@@ -84,7 +84,6 @@ def gen_table_path_row(path_list, value):
             del pathl[-1]
 
     # create the cell
-    pathl_norowid = [x for x in path_list if not isinstance(x, int)]
     cell = Cell_Path_List(len(pathl), path_list, value)
     row.add_cell(cell)
     #log.debug(f'  len pathl {pathl}-> cell {cell}')

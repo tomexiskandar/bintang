@@ -40,7 +40,7 @@ class Row:
 class Row_Table_Path(Row):
     def __init__(self,id):
         super().__init__(id)
-        self.tablepath = None
+        self.tablepath: str | None = None
 
     # DEPRECATED use super() instead
     # def __init__(self, id):

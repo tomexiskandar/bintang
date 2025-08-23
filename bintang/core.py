@@ -127,7 +127,7 @@ def get_wb_type_towrite(wb):
     elif str(type(wb)) == "<class 'xlwt.Workbook.Workbook'>":
         return 'xlwt'
     else:
-        raise ValueError('Sorry, for writting excel file, only openpyxl or xlwt workbook accepted!')
+        raise ValueError('Sorry, for writing excel file, only openpyxl or xlwt workbook accepted!')
 
 
 class Bintang():
@@ -449,12 +449,12 @@ class Bintang():
                 self[sheetname].read_excel(wb, sheetname)
 
 
-    def read_dict(self, dict_obj, tablepaths=None):
+    def read_dict(self, dict_obj, tablepaths=None, root='/', path_sep='/'):
         debug = False
-        for tprow in iterdict.iterdict(dict_obj, tablepaths):
+        for tprow in iterdict.iterdict(dict_obj, tablepaths=tablepaths, root=root, path_sep=path_sep):
             # if debug:
             #     print("\n---------------------in bintang---------------------")
-            #     print(row)
+            #     print(tprow)
             
             for k,v in tprow.cells.items():
                 # print(k,'->',v)
@@ -502,10 +502,6 @@ class Bintang():
         columns = [col[0] for col in cursor.description]
         for row in cursor.fetchall():
             self.insert(tablename, row, columns)
-             
-
-    def VOID_get_row_asdict(self, tablename, idx, columns=None):
-        return self.get_table(tablename).get_row_asdict(idx, columns=columns)
 
 
     def _add_lcell(self, lidx, ltable, outrow, out_table, out_lcolumns, rowid):
@@ -550,62 +546,13 @@ class Bintang():
         return rcol_resolved  
 
 
-
-    # def _DEPRECATED_innerjoin(self,ltable, lkeys
-    #             ,rtable, rkeys
-    #             ,into
-    #             ,out_lcolumns=None
-    #             ,out_rcolumns=None
-    #             ,rowid=False):
-
-    #     # validate input eg. column etc
-    #     lkeys = self[ltable].validate_columns(lkeys)
-    #     rkeys = self[rtable].validate_columns(rkeys)
-    #     if out_lcolumns is not None:
-    #         out_lcolumns = self[ltable].validate_columns(out_lcolumns)
-    #     if out_rcolumns is not None:
-    #         out_rcolumns = self[rtable].validate_columns(out_rcolumns)
-
-    #     # resolve columns conflicts
-    #     rcol_resolved = self._resolve_join_columns(ltable, rtable, rowid)
-    #     # create an output table
-    #     out_table = into
-    #     self.create_table(out_table)
-    #     out_tobj = self.get_table(out_table)
-
-    #     # for debuging create merged table to store the matching rowids
-    #     #merged = self.create_table("merged",["lrowid","rrowid"])
-
-    #     numof_keys = len(lkeys)
-    #     # loop left table
-    #     for lidx, lrow in self.iterrows(ltable, columns=lkeys, rowid=rowid):
-    #         # loop right table
-    #         for ridx, rrow in self.iterrows(rtable, columns=rkeys, rowid=rowid):
-    #             matches = 0 # store matches for each rrow
-    #             # compare value for any matching keys, if TRUE then increment matches
-    #             for i in range(numof_keys):
-    #                 if lrow[lkeys[i]] == rrow[rkeys[i]]:
-    #                     matches += 1 # incremented!
-    #             if matches == numof_keys: # if fully matched, create the row & add into the output table
-    #                 #debug merged.insert(["lrowid","rrowid"], [lrow["_rowid"], rrow["_rowid"]])
-    #                 #and add the row to output table
-    #                 outrow = out_tobj.make_row()
-    #                 # add cells from left table
-    #                 outrow = self._add_lcell(lidx, ltable, outrow, out_table, out_lcolumns, rowid)
-    #                 # add cells from right table
-    #                 outrow = self._add_rcell(ridx, rtable, outrow, out_table, out_rcolumns, rcol_resolved, rowid)   
-    #                 out_tobj.add_row(outrow)
-    #     #debug merged.print() 
-    #     return out_tobj
-
-
     def innerjoin(self
                 ,ltable: str #, lkeys
                 ,rtable: str | Table #, rkeys
                 ,on: list[tuple] # list of lkey & r key tuple
-                ,into: str=None
-                ,out_lcolumns: list=None
-                ,out_rcolumns: list=None
+                ,into: str | None =None
+                ,out_lcolumns: list | None = None
+                ,out_rcolumns: list | None = None
                 ,rowid=False) -> Table:
         
         rtable_obj = None

@@ -3,27 +3,23 @@ from bintang.cell import Cell_Path_List
 from bintang.row import Row_Table_Path
 from bintang.log import log
 
-def gen_tablepath(path_list):
+def gen_tablepath(path_list, path_sep):
     pathl_norowid = [x for x in path_list if not isinstance(x, int)]
     if path_list[-1] == pathl_norowid[-1]:
         # this should work for pattern #1 and #2
         del pathl_norowid[-1]
-        tablepath = '/'.join(pathl_norowid)
+        tablepath = path_sep.join(pathl_norowid)
         # if len(tablepath) > 2:
         #     tablepath = tablepath[1:]
         #log.debug(tablepath)
-        if len(tablepath) > 1: # to remove the first / to solve double slash issue
-            tablepath = tablepath[1:]
         return tablepath
     if (path_list[-2] == pathl_norowid[-1]) and isinstance(path_list[-1], int):
         # this shold work for pattern #3
         #log.debug(pathl_norowid)
-        tablepath = '/'.join(pathl_norowid)
+        tablepath = path_sep.join(pathl_norowid)
         # if len(tablepath) > 2:
         #     tablepath = tablepath[1:]
-        #log.debug(tablepath)
-        if len(tablepath) > 1: # to remove the first / to solve double slash issue
-            tablepath = tablepath[1:]
+        # #log.debug(tablepath)
         return tablepath
 
 
@@ -36,14 +32,14 @@ def gen_rowid(path_list):
         return ''.join(str(x) for x in path_list)
     
 
-def gen_table_path_row(path_list, value):
+def gen_table_path_row(path_list, path_sep, value):
     # there are two types of cell will be created as the result of data path location
     # 1. main cell
     # 2. parent cell (if any)
     # for the path_list 
     rowid = gen_rowid(path_list)
     row = Row_Table_Path(rowid)
-    row.tablepath = gen_tablepath(path_list)
+    row.tablepath = gen_tablepath(path_list, path_sep)
     pathl = copy.deepcopy(path_list) 
     
     #log.debug('\n---------------------in gen_table_path_row (iterdict.py)--------------------------')
@@ -103,10 +99,10 @@ def _iterdict(dict_or_list, path=['/']):
                 yield k,v
 
 
-def iterdict(dict_obj, tablepaths=None):
+def iterdict(dict_obj, root='/', path_sep='/', tablepaths=None):
     # yield a tprow (row with a table path)
     # also allow to yield only the row that matches tablepath list arg.
-    for path_list, value in _iterdict(dict_obj): 
+    for path_list, value in _iterdict(dict_obj, path=[root]): 
         #log.debug(f'k-> {path_list} v--> {value}')
         if isinstance(value,(list,dict)):
             continue # use continue and comment the below line value = None to create column with list/dict
@@ -114,9 +110,9 @@ def iterdict(dict_obj, tablepaths=None):
         # print(path_list, value)
         if tablepaths is None: #len(tablepaths) == 0:
             # client wants to return all available tablepaths
-            yield gen_table_path_row(path_list,value)
+            yield gen_table_path_row(path_list, path_sep, value)
         else: #elif len(tablepaths) > 0:
             # client wants to return specific tablepaths
             for tp in tablepaths:
-                if tp == gen_tablepath(path_list):
-                    yield gen_table_path_row(path_list,value)
+                if tp == gen_tablepath(path_list, path_sep):
+                    yield gen_table_path_row(path_list, path_sep, value)

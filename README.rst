@@ -224,12 +224,15 @@ Before using openpyxl or xlrd package, you must install the packages. Below is a
 
 
 
-Bintang.read_dict(dict_obj, tablepaths=None)
---------------------------------------------
+Bintang.read_dict(dict_obj, tablepaths=None, root='/', path_sep='/')
+--------------------------------------------------------------------
 Read dictionary object and create a table or more according to hierarchy paths contained in the object.
 
 :dict_obj: a python dictionary object
-:tablepaths: a list of paths which contains a list of objects (equivalent to records).
+:tablepaths: a list of paths which contains a list of objects (equivalent to records)
+:root: name for root table equivalent to root node in the dictionary
+:path_sep: separator for paths
+
 
 .. code-block:: python
    
@@ -265,10 +268,10 @@ Read dictionary object and create a table or more according to hierarchy paths c
    #    "name": "From JSON",
    #    "tables": [
    #       "/",
-   #       "/Person",
-   #       "/Person/Address",
-   #       "/PersonDetails",
-   #       "/PersonDetails/LuckyDays"
+   #       "//Person",
+   #       "//Person/Address",
+   #       "//PersonDetails",
+   #       "//PersonDetails/LuckyDays"
    #    ]
    # }
 
@@ -277,18 +280,18 @@ Read dictionary object and create a table or more according to hierarchy paths c
        print(idx, row)
    # 0 {'Page:': 100, 'Time': '2033-09-05T00:00:00Z'}
 
-   # loop through  /Person table.
-   for idx, row in bt['/Person'].iterrows():
+   # loop through  //Person table.
+   for idx, row in bt['//Person'].iterrows():
        print(idx, row)
    # 0 {'Person': 0, 'id': 1, 'name': 'John', 'surname': 'Smith'}
    # 1 {'Person': 1, 'id': 2, 'name': 'Jane', 'surname': 'Brown'} 
 
-   # print /Person/Address table. Because this table under /Person, then each record will have their own 
+   # print //Person/Address table. Because this table under /Person, then each record will have their own 
    # reference to /Person table.
    
    bt['/Person/Address'].print()
 
-   #                      Table: /Person/Address
+   #                      Table: //Person/Address
    # -----------+--------------+--------------+-----------+---------------
    #   Address  |    Person    |    number    |   street  |  street_type
    # -----------+--------------+--------------+-----------+---------------
@@ -301,13 +304,16 @@ Please note that since dictionary can contain complex hierarchy paths and still 
    
 
 
-Bintang.read_json(json_str, tablepaths=None)
---------------------------------------------
+Bintang.read_json(json_str, tablepaths=None, root='/', path_sep='/')
+--------------------------------------------------------------------
 Read JSON string and create a table or more according to hierarchy paths contained in the object.
 This function merely wraps read_dict() and use json.loads to decode json string argument to dictionary.
 
 :json_str: a json string
 :tablepaths: a list of paths which contains a list of objects (equivalent to records).
+:root: name for root table equivalent to root node in the dictionary
+:path_sep: separator for paths
+
 
 .. code-block:: python
    

@@ -349,7 +349,7 @@ class Table(object):
             yield dict(zip(columns, row))
 
     
-    def gen_create_sqltable(self, dbms):
+    def gen_create_sqltable(self, dbms, schema = None, str_size = None):
         # scanning table to get column properties
         # and assign the data type and size (when able)
         self.set_data_props()
@@ -358,16 +358,23 @@ class Table(object):
             if cobj.data_type is None:
                 if len(cobj.data_props) == 0: # a column that has no data at all
                     cobj.data_type = 'str'  # force to str
-                    cobj.column_size = 50 # force to 50
+                    cobj.column_size = str_size # force to str_size
                 # loop through the data props for column that has it
                 if 'str' in cobj.data_props:
                     cobj.data_type = 'str'
-                    col_size = cobj.data_props['str']['column_size']
+                    if str_size: # if user size to be used
+                        if dbms == 'sqlserver':
+                            if cobj.data_props['str']['column_size'] > 1:
+                                cobj.column_size = str_size
+                            else:
+                                cobj.column_size = cobj.data_props['str']['column_size']
+                    else:    
+                        cobj.column_size = cobj.data_props['str']['column_size']
                     # loop through any other type if the column_size bigger, if it is assign it.
-                    for k, v in cobj.data_props.items():
-                        if v['column_size'] > col_size:
-                            col_size = v['column_size']
-                    cobj.column_size = col_size #cobj.data_props['str']['column_size']
+                    # for k, v in cobj.data_props.items():
+                    #     if v['column_size'] > col_size:
+                    #         col_size = v['column_size']
+                    # cobj.column_size = col_size #cobj.data_props['str']['column_size']
                 elif 'datetime' in cobj.data_props:
                     cobj.data_type = 'datetime'
                     cobj.column_size = cobj.data_props['datetime']['column_size']
@@ -400,7 +407,8 @@ class Table(object):
                 create_item_str.append(i)
             create_item_str.append('\n')
             create_columns_str.append(' '.join(create_item_str))
-        create_sqltable_templ = 'CREATE TABLE "{}" (\n{})'.format(self.name, '\t,'.join(create_columns_str))
+            schema_name = '' if schema is None else schema + '.'
+        create_sqltable_templ = 'CREATE TABLE {}"{}" (\n{})'.format(schema_name, self.name, '\t,'.join(create_columns_str))
         return create_sqltable_templ 
     
 
@@ -926,7 +934,7 @@ class Table(object):
         return None    
 
 
-    def upsert_table_path_row(self, tprow):
+    def upsert_table_path_row_moved(self, tprow):
         #log.debug("\n  ------------------in upsert_table_path_row (table.py) --------------------")
         # extract the rowid and use it as the table index (the key of rows{})
         # create a row if the rowid not found in the table's index
@@ -2655,7 +2663,40 @@ class Table_Path(Table):
                 path_as_list.append('/')
             else:
                 path_as_list.append(node)
-        return path_as_list        
+        return path_as_list
+
+
+    def upsert_table_path_row(self, tprow):
+        #log.debug("\n  ------------------in upsert_table_path_row (table.py) --------------------")
+        # extract the rowid and use it as the table index (the key of rows{})
+        # create a row if the rowid not found in the table's index
+        res_idx = self.get_rowidx_byrowid(tprow.id)
+        
+        if res_idx is None:
+            #log.debug(f'inserting... row does not exist {tprow}')
+            row = self.make_row(tprow.id)
+            # re-make cells from tprow
+            for id, c in tprow.cells.items():
+                #log.debug(f'{id} cell: {c}')
+                if c.is_key == True:
+                    cell = self.make_cell(PARENT_PREFIX + c.get_column(), c.value)
+                else:
+                    cell = self.make_cell(c.get_column(), c.value)
+
+                row.add_cell(cell)
+            # add to rows
+            self.add_row(row)
+            
+        elif res_idx is not None:
+            #log.debug(f"updating... row exists {tprow}")
+            for id, c in tprow.cells.items():
+                if c.is_key == True:
+                    cell = self.make_cell(PARENT_PREFIX + c.get_column(), c.value)
+                else:
+                    cell = self.make_cell(c.get_column(), c.value)
+                # self.__rows[res_idx].add_cell(cell)  
+                self._Table__rows[res_idx].add_cell(cell)        
+        #log.debug("\n  ------------------out upsert_table_path_row (table.py)-------------------")        
     
 
 type_map = {

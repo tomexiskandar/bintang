@@ -26,7 +26,7 @@ Here is a list of the functions and its dependencies:
 
    * - Functions
      - Packages
-   * - read_sql() and to_sql()
+   * - create_linked_table(), read_sql() and to_sql()
      - pyodbc or psycopg (postgresql specific)
    * - read_excel()
      - openpyxl (xlsx) and xlrd (xls)
@@ -123,7 +123,7 @@ Inspect Person table column list. You can also use function table.get_columns() 
 
    print(bt['Person'])
    # {  
-   #   "table name": "Person",  
+   #   "name": "Person",  
    #   "columns": [
    #       {"id": 0,"name": "id"},  
    #       {"id": 1,"name": "name"},  
@@ -153,13 +153,15 @@ Common Functions
 We are going to provide some functions that may be needed most when working with Bintang objects.
 
 
-.. _from_sql:
+.. _create_linked_table:
 
 Bintang.create_linked_table(name, conn, sql_str=None, params=None)
 ------------------------------------------------------------------
 
-Store sql connection and sql table/statement. It'll read the data from the sql database later only when needed. 
-This will not use much memory as read_sql_ function.
+Store sql connection and sql table/statement. It'll read the data directly from the sql database later only when needed. 
+This function will not create in memory table therefore adding/delete column or records are not allowed.
+This table is suitable for extracting data from a DB and dump it to a flat file like csv.
+Use read_sql_ function if data manipulation is required.
 
 This function requires pyodbc or psycopg (postgresql specific) connection, therefore you must install the required package.
 Below is an example to install the package from a terminal.
@@ -187,8 +189,7 @@ Below is an example to install the package from a terminal.
    params = ('Dokey')
 
    bt = bintang.Bintang()
-   bt.create_linked_table('Person', conn, sql_str)
-   bt['Person'].from_sql(conn, sql_str, params)
+   bt.create_linked_table('Person', conn, sql_str, params=params)
 
    for idx, row in bt['Person'].iterrows():
        print(idx, row)
@@ -242,7 +243,7 @@ Read dictionary object and create a table or more according to hierarchy paths c
 
    # example dict object
    dict_obj = {
-        'Page:': 100,
+        'Page': 100,
         'Time': '2033-09-05T00:00:00Z',
         'Person': [
             {'id': 1,'name': 'John','surname': 'Smith',
@@ -265,7 +266,7 @@ Read dictionary object and create a table or more according to hierarchy paths c
 
    print(bt) # show bt tables
    # {
-   #    "name": "From JSON",
+   #    "name": null,
    #    "tables": [
    #       "/",
    #       "//Person",
@@ -286,10 +287,10 @@ Read dictionary object and create a table or more according to hierarchy paths c
    # 0 {'Person': 0, 'id': 1, 'name': 'John', 'surname': 'Smith'}
    # 1 {'Person': 1, 'id': 2, 'name': 'Jane', 'surname': 'Brown'} 
 
-   # print //Person/Address table. Because this table under /Person, then each record will have their own 
-   # reference to /Person table.
+   # print //Person/Address table. Because this table under //Person, then each record will have their own 
+   # reference to //Person table.
    
-   bt['/Person/Address'].print()
+   bt['//Person/Address'].print()
 
    #                      Table: //Person/Address
    # -----------+--------------+--------------+-----------+---------------
@@ -337,6 +338,53 @@ This function merely wraps read_dict() and use json.loads to decode json string 
    print(bt) # show bt tables
    # see read_dict() above to navigate the tables
    
+
+Bintang.read_xml()
+------------------
+This is just a placeholder. To read XML data, you may use xml.etree.ElementTree or lxml package or xmltodict to parse the XML data and convert it to a dictionary object, then use read_dict() function to create Bintang tables.
+Here is an example to read XML data and convert it to Bintang tables.
+
+.. code-block:: python
+
+   import bintang
+   import xmltodict
+
+
+   # example xml data that have two tables from its paths.
+   # they are Person (parent table) and Address (child table)
+   xml_str = """<root>
+                  <Person>
+                     <id>1</id>
+                     <name>John</name>
+                     <surname>Smith</surname>
+                     <Address>
+                           <number>1</number>
+                           <street>Station</street>
+                           <street_type>Street</street_type>
+                     </Address>
+                  </Person>
+                  <Person>
+                     <id>2</id>
+                     <name>Jane</name>
+                     <surname>Brown</surname>
+                     <Address>
+                           <number>8</number>
+                           <street>Parade</street>
+                           <street_type>Road</street_type>
+                     </Address>
+                  </Person>
+               </root>"""
+
+   dict_obj = xmltodict.parse(xml_str)
+   bt = bintang.Bintang()
+   bt.read_dict(dict_obj)
+
+   print(bt) # show bt tables
+
+   # print each table
+   for tbl_name in bt.get_tables():
+      bt[tbl_name].print()
+
 
 
 Bintang.Table.blookup(lkp_table, on, ret_columns)
@@ -582,7 +630,7 @@ Bintang.Table.read_sql(conn, sql_str=None, params=None)
 -------------------------------------------------------
 
 Read sql table/statement and populate the data to Bintang table.
-If you need to read sql table/statement without populating data then you must use from_sql_ function.
+If you need to read sql table/statement without populating data then you must use create_linked_table_ function.
 This function requires pyodbc or psycopg (postgresql specific) connection, therefore you must install the required package.
 Below is an example to install the package from a terminal.
 
@@ -724,7 +772,7 @@ Below is an example to install the package from a terminal.
    import bintang
    import pyodbc
 
-   bt = bintang.Bintang('my bintang')
+   bt = bintang.Bintang()
    bt.create_table('Person')
    person = bt.get_table('Person')
    person.insert([1,'John','Smith','1 Station St'], ['id','name','surname','address'])
@@ -788,6 +836,37 @@ Drop table from tables container.
 .. code-block:: python
    
    bt.drop_table(name)
+
+
+Bintang.get_table(name)
+-----------------------
+Return a table object from Bintang object.
+
+:name: table name
+
+.. code-block:: python
+
+   # assume bt is a Bintang object
+   p = bt.get_table('Person') # get Person table object
+   print(p) # print Person table object
+   # {  
+   #   "name": "Person",  
+   #   "columns": [
+   #       {"id": 0,"name": "id"},  
+   #       {"id": 1,"name": "name"},  
+   #       {"id": 2,"name": "age"},  
+   #       etc...
+   # }
+
+
+Bintang.get_tables()
+--------------------
+return a list of table's name.
+
+.. code-block:: python
+
+   # assume bt is a Bintang object
+   tables = bt.get_tables()
 
 
 

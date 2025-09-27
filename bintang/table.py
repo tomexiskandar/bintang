@@ -92,6 +92,20 @@ class Table(object):
 
     def get_size(self):
         return sys.getsizeof(self.__rows)
+
+    
+    def get_schema_name(self) -> str | None:
+        splitname = self.name.split('.')
+        if len(splitname)==2:
+            return splitname[0]
+
+    def get_table_name(self) -> str | None:
+        splitname = self.name.split('.')
+        if len(splitname)==2:
+            return splitname[1]
+        elif len(splitname) == 1:
+            return self.name
+        
           
 
     def create_sql_table(self):
@@ -105,7 +119,7 @@ class Table(object):
             
 
     def set_to_sql_colmap(self, columns):
-        if isinstance(columns, list):
+        if isinstance(columns, list) or isinstance(columns, tuple):
             return dict(zip(columns, columns))
         elif isinstance(columns, dict):
             return columns
@@ -129,7 +143,7 @@ class Table(object):
                schema: str=None,  
                method: str='prep', 
                max_rows: str = 1) -> int:
-        """conn: only pyodbc.Connection or psycopg.Connection allowed
+        """conn: accept only pyodbc.Connection or psycopg.Connection
            schema: database schema name
            table: table name in the database
            columns: If a dictionary then a columns mapping where the key is sql column (destination) and the value is bintang columns (source). 
@@ -142,9 +156,9 @@ class Table(object):
         if columns is None: # check if user want to include all columns in the table
             columns = self.get_columns()
         else:
-            if isinstance(columns,list):
+            if isinstance(columns,list) or isinstance(columns, tuple):
                 columns= self.validate_columns(columns)
-            if isinstance(columns,dict):
+            elif isinstance(columns,dict):
                 columns_key = [x for x in columns.keys()]
                 columns_val = [x for x in columns.values()] ## trouble maker
                 columns_val= self.validate_columns(columns_val) ## trouble maker
@@ -276,7 +290,6 @@ class Table(object):
             #log.warning('Warning! max_rows {} set greater than totalrows {}. max_rows set to 1'.format(max_rows, len(self)))
             mrpb = 1
         numof_col = len(columns) # num of columns
-
         colmap = self.set_to_sql_colmap(columns)
         src_cols = [x for x in colmap.values()]
         dest_columns = [x for x in colmap.keys()]
@@ -349,7 +362,7 @@ class Table(object):
             yield dict(zip(columns, row))
 
     
-    def gen_create_sqltable(self, dbms, schema = None, str_size = None):
+    def gen_create_table_stmt_dev(self, dbms, schema = None, str_size = None):
         # scanning table to get column properties
         # and assign the data type and size (when able)
         self.set_data_props()
@@ -392,7 +405,7 @@ class Table(object):
             di_start = type_map[dbms]['delimited_identifiers']['start']
             di_end = type_map[dbms]['delimited_identifiers']['end']
             if cobj.data_type == 'str':
-                col_size = cobj.column_size
+                col_size = cobj.column_size if cobj.column_size <= 4000 else 'max'
                 create_item = [f'{di_start}{colname}{di_end}', f'{dtype}', f'({col_size})']
                 create_columns.append(create_item)
             else:
@@ -593,7 +606,7 @@ class Table(object):
             self._update_column_sql(col, ordinal_position=i)        
 
 
-    def get_columns(self):
+    def get_columns(self) -> tuple:
         if self.type == 'SQLBACKEND':#conn is not None:
             sorted_columns = self._get_columns_sql()
         elif self.type == 'FROMSQL':
@@ -603,7 +616,7 @@ class Table(object):
             col_objs = [col for col in self.__columns.values()]
             col_objs.sort(key=lambda col: col.ordinal_position)
             sorted_columns = [col.name for col in col_objs]
-        return sorted_columns
+        return tuple(sorted_columns)
     
     def _get_columns_fromsql(self) -> list:
         cursor = self.fromsql_conn.cursor()
@@ -2440,7 +2453,7 @@ class Table(object):
                 self.insert(row, columns)
 
 
-    def from_sql(self, conn, sql_str=None, params=None ):
+    def _from_sql(self, conn, sql_str=None, params=None ):
         self.type = 'FROMSQL'
         self.fromsql_conn = conn
         self.fromsql_str = sql_str
@@ -2633,6 +2646,93 @@ class Table(object):
         obj_dict  = {}
         obj_dict[self.name] = rows_
         return json.dumps(obj_dict)
+
+    def quote(self, name, dbms):
+        STARTQ = type_map[dbms]['delimited_identifiers']['start']
+        ENDQ = type_map[dbms]['delimited_identifiers']['end']
+        split_name = name.split('.')
+        return '.'.join([STARTQ + x + ENDQ for x in split_name]) 
+    
+
+    def gen_merge_stmt_dev(self
+                           ,trg_table
+                           ,dbms = None
+                           ,key_columns = None
+                           ,proc_name = None
+                           ):
+        SQU = type_map[dbms]['delimited_identifiers']['start']
+        EQU = type_map[dbms]['delimited_identifiers']['end']
+        columns = self.get_columns()
+
+        # generate 'on' clause
+        on_colmap_str = '<TO BE DEFINED>'
+        on_colmap = []
+        if key_columns is not None:
+            for col in key_columns:
+                item = self.quote('src.' + col, dbms) + ' = ' + self.quote('trg.' + col, dbms)       
+                on_colmap.append(item)
+            on_colmap_str = ' AND '.join(on_colmap)
+
+        # generate colmap for update clause
+        update_colmap = []
+        for col in columns:
+            if col not in key_columns:
+                item = self.quote(col, dbms) + ' = ' + self.quote('src', dbms) + '.' + self.quote(col, dbms) + '\n\t\t'
+                update_colmap.append(item)
+        update_colmap_str = ','.join(update_colmap)
+
+        merge_stmt = f"""
+        MERGE INTO {self.quote(trg_table, dbms)} AS trg
+        USING {self.quote(self.name, dbms)} AS src
+        ON ({on_colmap_str})
+        WHEN MATCHED THEN
+            UPDATE SET {update_colmap_str}
+        WHEN NOT MATCHED BY TARGET THEN
+            INSERT ({','.join([self.quote(col, dbms) for col in columns])})
+            VALUES ({','.join([self.quote('src', dbms) + '.' + self.quote(col, dbms) for col in columns])})
+        WHEN NOT MATCHED BY SOURCE THEN
+            DELETE
+        ;
+        """
+        # gen proc_name
+        schema_str = ''
+        schema = self.get_schema_name()
+        if schema is not None:
+            schema_str = self.quote(schema, dbms) + '.'
+
+        proc_name_str = self.quote(f'Merge_{self.get_table_name()}_To_TRG', dbms)
+        proc_name = f'{schema_str}{proc_name_str}' if proc_name is None else 'proc_name'
+
+        proc_stmt = f"""
+        CREATE OR ALTER PROCEDURE {proc_name}
+        AS
+        BEGIN
+        {merge_stmt}
+        END
+        """
+        return proc_stmt
+        
+
+    def gen_truncate_stmt_dev(self, dbms, proc_name = None):
+        schema_str = ''
+        schema = self.get_schema_name()
+        if schema is not None:
+            schema_str = self.quote(schema, dbms) + '.'
+        
+        truncate_stmt = f"""
+        TRUNCATE TABLE {self.quote(self.name, dbms)}
+        """
+        proc_name_str = self.quote(f'Truncate_Table_{self.get_table_name()}', dbms)
+        proc_name = f'{schema_str}{proc_name_str}' if proc_name is None else 'proc_name'
+        proc_stmt = f"""
+        CREATE OR ALTER PROCEDURE {proc_name}
+        AS
+        BEGIN
+        {truncate_stmt}
+        END
+        """
+        return proc_stmt
+
         
 
 class Table_Path(Table):

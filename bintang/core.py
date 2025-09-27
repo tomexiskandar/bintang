@@ -135,7 +135,7 @@ class Bintang():
         self.name = name
         self.parent = 'dad'
         self.__tables = {} # this must be a dict of id:table object
-        self.__last_assigned_tableid= -1 #
+        self.__last_assigned_tableid= 0 #-1 #
         self.__be = None # will be deprecated
         if backend is not None: # will be deprecated
             from bintang.besqlite import Besqlite # will be deprecated
@@ -268,7 +268,10 @@ class Bintang():
 
     def get_table(self, name):
         tableid = self.get_tableid(name)
-        return self.__tables[tableid]
+        if tableid is not None:
+            return self.__tables[tableid]
+        else:
+            return None
 
 
     def copy_table(self,source_tablename, destination_tablename):

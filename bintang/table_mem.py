@@ -429,24 +429,24 @@ class Memory_Table(Base_Table):
     def drop_column(self,column):
         # get columnid
         columnid = self.get_columnid(column)
-        if self.conn is None:
+        #if self.conn is None:
             #provide warning if the passed column does not exist
-            if columnid is None:
-                log.warning("warning... trying to drop a non-existence column '{}'".format(name))
-                return False
-            # delete the cell from cell. Let's revisit this, Q: do we need to delete the data coz it's not linked to existing column since the the colum dropped.
-            for row in self.__rows.values():
-                row.cells.pop(columnid,None)
-            # delete the column
-            self.__columns.pop(columnid,None)
-        else:
-            columnid = self._get_columnid_sql(column)
-            log.debug(columnid)
+        if columnid is None:
+            log.warning("warning... trying to drop a non-existence column '{}'".format(name))
+            return False
+        # delete the cell from cell. Let's revisit this, Q: do we need to delete the data coz it's not linked to existing column since the the colum dropped.
+        for row in self.__rows.values():
+            row.cells.pop(columnid,None)
+        # delete the column
+        self.__columns.pop(columnid,None)
+        # else:
+        #     columnid = self._get_columnid_sql(column)
+        #     log.debug(columnid)
             
-            sql = 'DELETE FROM __columns__ WHERE id = ?;'
-            cursor = self.conn.cursor()
-            cursor.execute(sql, (columnid,))
-            self.conn.commit()
+        #     sql = 'DELETE FROM __columns__ WHERE id = ?;'
+        #     cursor = self.conn.cursor()
+        #     cursor.execute(sql, (columnid,))
+        #     self.conn.commit()
 
 
 #  sql = 'SELECT id FROM __columns__ where name = ?'
@@ -497,7 +497,7 @@ class Memory_Table(Base_Table):
         return tuple(sorted_columns)   
 
 
-    def _get_columnnames_lced(self, columns=None):
+    def _get_columnnames_lced(self, columns=None) -> dict:
         # if self.type == 'SQLBACKEND':
         #     pass
         # elif self.type == 'FROMSQL':
@@ -508,7 +508,8 @@ class Memory_Table(Base_Table):
         #     # return {x.name.lower(): x.name  for x in columns_fromsql}
         #     pass
         # else:
-        return {x.name.lower(): x.name  for x in self.__columns.values()}
+        #return {x.name.lower(): x.name  for x in self.__columns.values()}
+        return {col.lower(): col  for col in self.get_columns()}
 
 
     def get_data_props(self, column):

@@ -1,5 +1,5 @@
-
 from bintang.table import Base_Table
+from bintang.log import log
 
 class From_CSV_Table(Base_Table):
     def __init__(self, name, filepath, bing=None, delimiter=',', quotechar='"', header_row=1):
@@ -28,7 +28,7 @@ class From_CSV_Table(Base_Table):
 
     
     def iterrows(self, 
-                 columns: list=None, 
+                 columns: list | tuple | None = None, 
                  row_type: str='dict', 
                  where=None, 
                  rowid: bool=False):
@@ -42,10 +42,19 @@ class From_CSV_Table(Base_Table):
             #     print('i', i)
             #     next(reader)
             for rownum, row in enumerate(reader, start=1):
-                #print(f'rownum: {rownum} row: {row}')
                 if len(self.columns) == len(row):
-                    # print('->', rownum, row)
-                    yield rownum, row
+                    row_dict = dict(zip(self.columns, row))
+                    if columns is not None:
+                        row_dict = {col: row_dict[col] for col in columns}
+                        if row_type == 'list':
+                            yield rownum, [row_dict[col] for col in columns]
+                        else:
+                            yield rownum, row_dict
+                    else:
+                        if row_type == 'list':
+                            yield rownum, row
+                        else:
+                            yield rownum, row_dict
                 else:
                     raise IndexError ('length of column and row is not the same at rownum {}. Possible issues were incorrect quoting or missing value.'.format(rownum))
 
@@ -71,7 +80,7 @@ class From_CSV_Table(Base_Table):
     
     def to_sql(self, conn: object, 
                table: str, 
-               columns: list[str]=None,
+               columns: list | tuple | dict | None = None,
                schema: str=None,  
                method: str='prep', 
                max_rows: str = 1) -> int:
@@ -96,7 +105,7 @@ class From_CSV_Table(Base_Table):
                 columns_val= self.validate_columns(columns_val) ## trouble maker
                 columns = dict(zip(columns_key, columns_val))
             else: 
-                raise ValueError('Error! Only list or dict allowed for columns.')    
+                raise ValueError('Error! Only list/tuple or dict allowed for columns.')    
             
         if method == 'prep':
             return self._to_sql_prep(conn, table, columns, schema=schema, max_rows=max_rows,conn_name=conn_name)
@@ -238,12 +247,12 @@ class From_CSV_Table(Base_Table):
         cursor = conn.cursor()
         temp_rows = []
         total_rowcount = 0
-        for idx, row in self.iterrows(src_cols, row_type='list'):
+        for idx, row in self.iterrows(columns=src_cols, row_type='list'):
             for v in row:
                 temp_rows.append(v)
             if len(temp_rows) == (mrpb * numof_col):
-                # log.debug(prep_stmt)
-                # log.debug(temp_rows)
+                log.debug(prep_stmt)
+                log.debug(temp_rows)
                 try:
                     cursor.execute(prep_stmt, temp_rows)
                 except Exception as e:
@@ -270,27 +279,4 @@ class From_CSV_Table(Base_Table):
             params.append(param)
         return ",".join(params)
     
-    
-    def _to_sql_upsert_dev(self, conn: str,
-                    schema: str,
-                    table: str,
-                    columns: list[str],
-                    on: list[tuple], # keys to match btw bintang and sql
-                    method='prep') -> None:
-        
-        for row in self._iterrow_sql(conn):
-            print(row)
-
-
-    def _iterrow_sql(self, conn, sql_str=None, params=None):
-        cursor = conn.cursor()
-        if sql_str is None:
-            sql_str = "SELECT * FROM {}".format(self.name)
-        if params is not None:
-            cursor.execute(sql_str, params)
-        else:
-            cursor.execute(sql_str)
-        columns = [col[0] for col in cursor.description]
-        for row in cursor.fetchall():
-            yield dict(zip(columns, row))
     

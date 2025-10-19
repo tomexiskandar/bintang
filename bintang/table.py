@@ -40,6 +40,41 @@ class Base_Table(ABC):
         self.type_map = type_map # assign type_map to self.type_map
 
     
+    @abstractmethod
+    def get_columns(self):
+        pass
+
+
+    @abstractmethod
+    def iterrows(self):
+        pass
+
+    
+    def _get_columnnames_lced(self, columns=None) -> dict:
+        return {col.lower(): col  for col in self.get_columns()}
+
+    
+    def validate_columns(self, columns):
+        """return columns from those stored in table.columns"""
+        validated_cols = []
+        unmatched_cols = []
+        for column in columns:
+            if column.lower() in self._get_columnnames_lced().keys():
+                validated_cols.append(self._get_columnnames_lced().get(column.lower()))
+            else:
+                unmatched_cols.append(column)
+        # print(validated_cols)
+        # print(unmatched_cols)
+        # quit()        
+        if len(unmatched_cols) > 0:
+            #raise ColumnNotFoundError(self.name, column)
+            res = self._suggest_similar_columns(unmatched_cols)
+            res_msg = self._suggest_columns_msg(res)
+            raise ValueError(res_msg)
+        else:
+            return validated_cols 
+
+    
     def get_schema_name(self) -> str | None:
         splitname = self.name.split('.')
         if len(splitname)==2:

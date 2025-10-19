@@ -14,7 +14,7 @@ How to get started
 
 Requirements
 ------------
-1. Python 3.7 or higher
+1. Python 3.10 or higher
 
 Some functions require other packages to work. These packages can be installed from pypi using the pip package manager.
 Here is a list of the functions and its dependencies:

@@ -183,9 +183,9 @@ class Bintang():
     def create_path_table(self, name, columns=None):
         tobj = Path_Table(name, bing=self) # create a table object
         self.add_table(tobj)
-        if self.__be is not None:   # if is_persistent is True then update the tobj attributes and pass the connection
-            tobj._Table__be = self.__be           
-            tobj._Table__be.add_table(self.get_tableid(name), name)
+        # if self.__be is not None:   # if is_persistent is True then update the tobj attributes and pass the connection
+        #     tobj._Table__be = self.__be           
+        #     tobj._Table__be.add_table(self.get_tableid(name), name)
         if columns is not None:
             for column in columns: # add column
                 tobj.add_column(column)            

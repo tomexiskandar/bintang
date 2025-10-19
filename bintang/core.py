@@ -1,9 +1,17 @@
+from typing import Union
 import os
 import json
 import copy
 import unicodedata
 from difflib import SequenceMatcher
-from bintang.table import Table, Table_Path
+from bintang.table import Base_Table
+from bintang.table_mem import Memory_Table, Path_Table
+from bintang.table_sqlbe import SQL_Backend_Table
+from bintang.table_fsql import From_SQL_Table
+from bintang.table_fcsv import From_CSV_Table
+
+
+
 from bintang import iterdict
 from pathlib import Path
 from bintang.log import log
@@ -14,22 +22,6 @@ try:
 except ImportError as e:
     pass
 
-
-
-
-# import logging
-
-# log = logging.getLogger(__name__)
-# FORMAT = "[%(filename)s:%(lineno)s - %(funcName)10s() ] %(message)s"
-# logging.basicConfig(format=FORMAT)
-# log.setLevel(logging.DEBUG)
-# class TableNotFoundError(Exception):
-#     def __init__(self,tablename):
-#         tablenames = self.get_tables()
-#         suggest = process.extract(tablename, tablenames, limit=2)
-#         print('hello',suggest)
-#         self.message = "Cannot find table '{}'.".format(tablename)
-#         super().__init__(self.message)
 
 def match_case(value1, value2):
     "Ascii case sensitive matching"
@@ -108,7 +100,7 @@ def default_stringify(value):
     
 def get_wb_type_toread(wb):
     """
-        get workbook type so read_excel() know which func/attrb to use.
+        get workbook type so read_excel() will know which func/attrb to use.
     """
     if str(type(wb)) == "<class 'openpyxl.workbook.workbook.Workbook'>":
         return 'openpyxl'
@@ -135,14 +127,9 @@ class Bintang():
         self.name = name
         self.parent = 'dad'
         self.__tables = {} # this must be a dict of id:table object
-        self.__last_assigned_tableid= 0 #-1 #
-        self.__be = None # will be deprecated
-        if backend is not None: # will be deprecated
-            from bintang.besqlite import Besqlite # will be deprecated
-            self.__be = Besqlite(self.name) # will be deprecated
- 
+        self.__last_assigned_tableid= 0 # to keep track of last assigned tableid
 
-    def __getitem__(self, tablename: str) -> Table: # subscriptable version of self.get_table()
+    def __getitem__(self, tablename: str) -> Memory_Table: # subscriptable version of self.get_table()
         tableid = self.get_tableid(tablename)
         if tableid is None:
             tablenames = self.get_tables()
@@ -154,6 +141,7 @@ class Bintang():
         else:
             return self.__tables[tableid]       
 
+    
     def __repr__(self):
         rb = {}
         rb['name'] = self.name
@@ -163,37 +151,25 @@ class Bintang():
         rb['tables'] = table
         return json.dumps(rb, indent=2)
 
-    
-
-    def __del__(self):
-        if self.__be is not None:
-            self.__be.conn.close() #win need this otherwise a PermissionError: [WinError 32] ...
-            #os.remove(self.__be.dbpath)
-        
-
-    def copy_db(self, dest=None):
-        import shutil
-        if dest == None:
-            dest = os.getcwd()
-        shutil.copy(self.__be.dbpath, dest)      
-
 
     def create_table(self, name: str, 
                      columns: list=None,
-                     conn: str=None) -> Table:
+                     conn: str=None) -> Memory_Table:
         """ create a table under bintang object
         name: Name of the table
         columns: List of columns (optional)"""
-        tobj = Table(name, bing=self, conn=conn) # create a tobj object
+        tobj = Memory_Table(name, bing=self) # create a tobj object
+        tobj.conn = conn  # for backend use
         self.add_table(tobj)
-        if self.__be is not None:   # if is_persistent is True then update the tobj attributes and pass the connection
-            tobj._Table__be = self.__be           
-            tobj._Table__be.add_table(self.get_tableid(name), name)
+        # if self.__be is not None:   # if is_persistent is True then update the tobj attributes and pass the connection
+        #     tobj._Table__be = self.__be           
+        #     tobj._Table__be.add_table(self.get_tableid(name), name)
         if columns is not None:
             for column in columns: # add column
                 tobj.add_column(column)
         return tobj        
 
+    
     def drop_table(self, name):
         tableid = self.get_tableid(name)
         if tableid is None:
@@ -205,7 +181,7 @@ class Bintang():
 
 
     def create_path_table(self, name, columns=None):
-        tobj = Table_Path(name, bing=self) # create a table object
+        tobj = Path_Table(name, bing=self) # create a table object
         self.add_table(tobj)
         if self.__be is not None:   # if is_persistent is True then update the tobj attributes and pass the connection
             tobj._Table__be = self.__be           
@@ -240,14 +216,9 @@ class Bintang():
     
     def get_columns(self, tablename):
         return self.get_table(tablename).get_columns()
-
-
-    # def get_columnids(self, tablename, columns):
-    #     tableid = self.get_tableid(tablename)
-    #     return self.__tables[tableid].get_columnids
     
 
-    def add_table(self,table: Table): 
+    def add_table(self, table: Union[Memory_Table, Path_Table, SQL_Backend_Table, From_SQL_Table, From_CSV_Table]): 
         tableid = self.get_tableid(table.name)
         if tableid is None:
             tableid = self.__last_assigned_tableid + 1
@@ -266,6 +237,7 @@ class Bintang():
         else:
             raise ValueError('Tablename {} does not exist.'.format(name))
 
+    
     def get_table(self, name):
         tableid = self.get_tableid(name)
         if tableid is not None:
@@ -297,6 +269,7 @@ class Bintang():
                 _cells[columnid] = row.cells[columnid]
         return _cells
 
+    
     def delete_row(self, tablename, index):
         self.get_table(tablename).delete_row(index)
 
@@ -325,33 +298,22 @@ class Bintang():
 
 
     def print(self):
-        tobj = Table('Tables')
+        tobj = Memory_Table('Tables')
         for tab in self.get_tables():
             row_dict = {}
             row_dict['Bintang'] = self.name
             row_dict['Table'] = tab
             tobj.insert(row_dict)
-        tobj.print()    
+        tobj.print()
 
 
-    def raise_valueerror_tablename(self,tablename):
-        tableid = self.get_tableid(tablename)
-        if tableid is None:
-            #tablenames = self.get_tables()
-            # suggest = process.extract(tablename, tablenames, limit=2)
-            # print('hello',suggest)
-            # print('yes')
-            # quit()
-            raise ValueError('Tablename {} does not exist.'.format(tablename))
-
-
-    def iterrows(self, table, columns=None, row_type = 'dict', rowid=False):
+    def iterrowsXX(self, table, columns=None, row_type = 'dict', rowid=False):
         """get the table form the collection
         then yield idx and row from table's iterrows()
         """
         
         #self.raise_valueerror_tablename(tablename)
-        if isinstance(table, Table):
+        if isinstance(table, Memory_Table):
             for idx, row in table.iterrows(columns, row_type=row_type, rowid=rowid):
                 yield idx, row
         else:
@@ -551,15 +513,15 @@ class Bintang():
 
     def innerjoin(self
                 ,ltable: str #, lkeys
-                ,rtable: str | Table #, rkeys
+                ,rtable: str | Memory_Table #, rkeys
                 ,on: list[tuple] # list of lkey & r key tuple
                 ,into: str | None =None
                 ,out_lcolumns: list | None = None
                 ,out_rcolumns: list | None = None
-                ,rowid=False) -> Table:
+                ,rowid=False) -> Memory_Table:
         
         rtable_obj = None
-        if isinstance(rtable,Table):
+        if isinstance(rtable, Memory_Table):
             rtable_obj = rtable
             rtable = rtable.name
         else:
@@ -580,7 +542,7 @@ class Bintang():
         rcol_resolved = self._resolve_join_columns(ltable, rtable_obj, rowid)
         # create an output table
         out_table = into if into is not None else 'innerjoin'
-        out_tobj = Table(out_table)
+        out_tobj = Memory_Table(out_table)
         # self.create_table(out_table)
         # out_tobj = self.get_table(out_table)
 
@@ -589,9 +551,11 @@ class Bintang():
 
         numof_keys = len(on) #(lkeys)
         # loop left table
-        for lidx, lrow in self.iterrows(ltable, columns=lkeys, rowid=rowid):
+        # for lidx, lrow in self.iterrows(ltable, columns=lkeys, rowid=rowid):
+        for lidx, lrow in self[ltable].iterrows(columns=lkeys, rowid=rowid):    
             # loop right table
-            for ridx, rrow in self.iterrows(rtable_obj, columns=rkeys, rowid=rowid):
+            #for ridx, rrow in self.iterrows(rtable_obj, columns=rkeys, rowid=rowid):
+            for ridx, rrow in self[rtable].iterrows(columns=rkeys, rowid=rowid):
                 matches = 0 # store matches for each rrow
                 # compare value for any matching keys, if TRUE then increment matches
                 for i in range(numof_keys): 
@@ -654,8 +618,14 @@ class Bintang():
         return out_tobj
     
 
+    def create_sql_backend_table(self, name, conn):
+        tobj = SQL_Backend_Table(name, conn, bing=self) # create a tobj object
+        self.add_table(tobj)
+        return tobj
+    
+    
     def create_linked_table(self, name, conn, sql_str=None, params=None ):
-        tobj = Table(name, bing=self) # create a tobj object
+        tobj = From_SQL_Table(name, bing=self) # create a tobj object
         tobj.type = 'FROMSQL'
         tobj.fromsql_conn = conn
         if sql_str is None:
@@ -664,6 +634,27 @@ class Bintang():
             tobj.fromsql_str = sql_str
         tobj.fromsql_params = params    
         self.add_table(tobj)
+
+
+    def create_sql_linked_table(self, name, conn, sql_str=None, params=None ):
+        """ this is an alias to create_linked_table() """
+        tobj = From_SQL_Table(name, bing=self) # create a tobj object
+        tobj.fromsql_conn = conn
+        if sql_str is None:
+            tobj.fromsql_str = "SELECT * FROM {}".format(name)
+        else:
+            tobj.fromsql_str = sql_str
+        tobj.fromsql_params = params    
+        self.add_table(tobj)
+
+
+    def create_csv_linked_table(self, name, filepath, delimiter=',', quotechar='"', header_row=1):
+        tobj = From_CSV_Table(name, filepath, delimiter=delimiter, quotechar=quotechar, header_row=header_row, bing=self) # create a tobj object
+        tobj.filepath = filepath
+        tobj.delimiter = delimiter
+        tobj.quotechar = quotechar
+        tobj.header_row = header_row
+        self.add_table(tobj) 
   
 
 

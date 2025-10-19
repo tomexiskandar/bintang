@@ -89,10 +89,11 @@ Loop your data using iterrows function. This will loop through all the rows one 
    for idx, row in bt['Person'].iterrows():
        print(idx, row)  
   
-   # 0 {'id': 1, 'name': 'John', 'surname': 'Smith', 'address': '1 Station St', 'hobby': None}
-   # 1 {'id': 2, 'name': 'Jane', 'surname': 'Brown', 'address': '8 Parade Rd', 'hobby': 'Digging'}
-   # 2 {'id': 3, 'name': 'Okie', 'surname': 'Dokie', 'address': '7 Ocean Rd', 'hobby': None}
-   # 3 {'id': 4, 'name': 'Maria', 'surname': None, 'address': '7 Heaven Ave', 'hobby': 'Digging'}
+   # 1 {'id': 1, 'name': 'John', 'surname': 'Smith', 'address': '1 Station St', 'hobby': None}
+   # 2 {'id': 2, 'name': 'Jane', 'surname': 'Brown', 'address': '8 Parade Rd', 'hobby': 'Digging'}
+   # 4 {'id': 3, 'name': 'Okie', 'surname': 'Dokie', 'address': '7 Ocean Rd', 'hobby': None}
+   # 4 {'id': 4, 'name': 'Maria', 'surname': None, 'address': '7 Heaven Ave', 'hobby': 'Digging'}
+   # 5 {'id': 5, 'name': 'Bing', 'surname': None, 'address': None, 'hobby': 'Digging'}
 
 If the table is small, you can use print() function to output the records to terminal.
 
@@ -153,14 +154,44 @@ Common Functions
 We are going to provide some functions that may be needed most when working with Bintang objects.
 
 
-.. _create_linked_table:
+.. _create_csv_linked_table:
 
-Bintang.create_linked_table(name, conn, sql_str=None, params=None)
-------------------------------------------------------------------
+Bintang.create_csv_linked_table(name, filepath, delimiter=',', quotechar='"', header_row=1)
+-------------------------------------------------------------------------------------------
+
+Store csv file path and csv attributes when the function gets called. It'll read the data directly from the csv file later only when needed. 
+This function will not create in memory table therefore adding/delete column or records are not allowed.
+This table is suitable for extracting 'big' data from a csv file that is beyond memory capacity and upload it to a SQL database.
+Use read_csv_ function if data manipulation is required.
+
+This function requires pyodbc or psycopg (postgresql specific) connection, therefore you must install the required package.
+Below is an example to install the package from a terminal.
+
+Read csv file and populate its records to table.
+
+:path: a csv file path to read from.
+:delimiter: field seperator, by default it'll accept a comma character.
+:quotechar: a character to quote the data
+:header_row: the row number that contains column name or label.
+
+.. code-block:: python
+
+   from bintang import Bintang
+   bt = Bintang()
+   bt.create_csv_linked_table('Person', '/path/to/file.csv') 
+   ## upload to sql database
+   # ... <define sql connection here> ...
+   bt['Person'].to_sql(conn, 'PersonTableInSQL')
+
+
+.. _create_sql_linked_table:
+
+Bintang.create_sql_linked_table(name, conn, sql_str=None, params=None)
+----------------------------------------------------------------------
 
 Store sql connection and sql table/statement. It'll read the data directly from the sql database later only when needed. 
 This function will not create in memory table therefore adding/delete column or records are not allowed.
-This table is suitable for extracting data from a DB and dump it to a flat file like csv.
+This table is suitable for extracting 'big' data from a DB that is beyond memory capacity and dump it to a flat file like csv.
 Use read_sql_ function if data manipulation is required.
 
 This function requires pyodbc or psycopg (postgresql specific) connection, therefore you must install the required package.
@@ -557,6 +588,7 @@ Loop through Bintang table's rows and yield index and row. Row can be called out
        print(idx, row) 
 
 
+.. _read_csv:
 
 Bintang.Table.read_csv(path, delimiter=',', quotechar='"', header_row=1)
 ------------------------------------------------------------------------
@@ -630,7 +662,7 @@ Bintang.Table.read_sql(conn, sql_str=None, params=None)
 -------------------------------------------------------
 
 Read sql table/statement and populate the data to Bintang table.
-If you need to read sql table/statement without populating data then you must use create_linked_table_ function.
+If you need to read sql table/statement without populating data then you must use create_sql_linked_table_ function.
 This function requires pyodbc or psycopg (postgresql specific) connection, therefore you must install the required package.
 Below is an example to install the package from a terminal.
 

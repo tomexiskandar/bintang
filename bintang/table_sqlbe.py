@@ -9,7 +9,6 @@ from bintang.table import Base_Table
 class SQL_Backend_Table(Base_Table):
     def __init__(self, name, conn, bing):
         super().__init__(name, bing=bing)
-        self.type = 'SQLBACKEND'  # type of table
         self.conn = conn  # for backend use
         self.conn.row_factory = sqlite3.Row
         self.create_sql_table()
@@ -278,7 +277,7 @@ class SQL_Backend_Table(Base_Table):
             warnings.warn(f'Warning! {fn}() trying to update a non existed row (ie. idx {idx}).')
 
 
-    def _update_row_sql(self, idx, column, value):
+    def update_row_sql(self, idx, column, value):
         """ using json_set so only update for a specific key"""
         cursor = self.conn.cursor() 
         columnid = self._get_columnid_sql(column)

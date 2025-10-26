@@ -6,6 +6,8 @@ from bintang.cell import Cell
 from bintang.row import Row
 from bintang.log import log
 import types
+from operator import itemgetter
+
 class Memory_Table(Base_Table):
     """Define a Bintang table object
        - provide columns to store a dictionary of column objects
@@ -61,218 +63,7 @@ class Memory_Table(Base_Table):
             return columns
 
         
-    def _get_sql_conn_name_xp(self, conn):
-        # experimenting to get connector name
-        # so code can act differently for eg. params list used in prepared statement.
-        # at the moment only two db connectors being used, pyodbc and psycopg (specific to Postgresql)
-        if str(type(conn)) == "<class 'pyodbc.Connection'>":
-            return 'pyodbc'
-        elif str(type(conn)) == "<class 'psycopg.Connection'>":
-            return 'psycopg'
-        else:
-            raise ValueError('Sorry Only pyodbc and psycopg connection accepted!')   
-
-
-    def to_sql(self, conn: object, 
-               table: str, 
-               columns: list[str]=None,
-               schema: str=None,  
-               method: str='prep', 
-               max_rows: int = 1) -> int:
-        """conn: accept only pyodbc.Connection or psycopg.Connection
-           schema: database schema name
-           table: table name in the database
-           columns: If a dictionary then a columns mapping where the key is sql column (destination) and the value is bintang columns (source). 
-                    If a list, column mapping will be created automatically assuming source columns and destination columns are the same. 
-                    If not provided it assumes that user wants to insert all the columns from the table.
-           method: prep=Prepared (default) or string
-           return-> row_count
-        """
-        conn_name = self._get_sql_conn_name_xp(conn)
-        if columns is None: # check if user want to include all columns in the table
-            columns = self.get_columns()
-        else:
-            if isinstance(columns,list) or isinstance(columns, tuple):
-                columns= self.validate_columns(columns)
-            elif isinstance(columns,dict):
-                columns_key = [x for x in columns.keys()]
-                columns_val = [x for x in columns.values()] ## trouble maker
-                columns_val= self.validate_columns(columns_val) ## trouble maker
-                columns = dict(zip(columns_key, columns_val))
-            else: 
-                raise ValueError('Error! Only list or dict allowed for columns.')    
-            
-        if method == 'prep':
-            return self._to_sql_prep(conn, table, columns, schema=schema, max_rows=max_rows,conn_name=conn_name)
-        elif method =='string':
-            return self._to_sql_string(conn, table, columns, schema=schema, max_rows=max_rows, conn_name=conn_name)
-
- 
-    def _to_sql_string(self, conn, table, columns, schema=None, max_rows = 300, conn_name='psycopg'):
-        colmap = self.set_to_sql_colmap(columns)
-        src_cols = [x for x in colmap.values()]
-        dest_columns = [x for x in colmap.keys()]
-        
-        if schema:
-            sql_template = 'INSERT INTO "{}"."{}" ({}) VALUES'
-            str_stmt = sql_template.format(schema,table,",".join(['"{}"'.format(x) for x in colmap]))
-        else:
-            sql_template = 'INSERT INTO "{}" ({}) VALUES'
-            str_stmt = sql_template.format(table,",".join(['"{}"'.format(x) for x in colmap]))
-        
-        sql_cols_withtype = self.set_sql_datatype(dest_columns, conn, schema, table)
-        sql_cols_withliteral = None if sql_cols_withtype is None else self.set_sql_literal(sql_cols_withtype, conn)
-        log.debug(sql_template)
-        # start insert to sql
-        cursor = conn.cursor()
-        temp_rows = []  
-        total_rowcount = 0 # to hold total record affected
-        for idx, values in self.iterrows(src_cols, row_type='list'):
-            ## question: can values and d_cols_withliteral align? dict python 3.7 is ordered and will solve it?
-            sql_record = self.gen_sql_literal_record(values, sql_cols_withliteral)
-            
-            temp_rows.append(sql_record)
-            if len(temp_rows) == max_rows:
-                stmt = str_stmt + ' {}'.format(",".join(temp_rows))
-                log.debug(stmt)
-                cursor.execute(stmt)
-                total_rowcount += cursor.rowcount
-                temp_rows.clear()
-        if len(temp_rows) > 0:
-            stmt = str_stmt + ' {}'.format(",".join(temp_rows))
-            log.debug(stmt)
-            cursor.execute(stmt)
-            total_rowcount += cursor.rowcount
-        return total_rowcount           
-
-
-    def gen_sql_literal_record(self, values, sql_cols_withliteral=None):
-        sql_record = []
-        if sql_cols_withliteral:
-            sql_columns = [x for x in sql_cols_withliteral.keys()]
-        for i, value in enumerate(values):
-            if sql_cols_withliteral:
-                col = sql_columns[i]
-                literals = sql_cols_withliteral[col]
-                sql_value = self.gen_sql_literal_value(value, literals)
-            else:
-                sql_value = self.gen_sql_literal_value(value)
-            sql_record.append(sql_value)
-        return "({})".format(','.join(sql_record))
-        
-
-    def gen_sql_literal_value(self, value, literals=None):
-        if value == "" or value is None:
-            return "NULL"
-        if isinstance(value, str):
-            value = value.replace("'","''")
-        if literals:    
-            return "{}{}{}".format('' if literals[0] is None else literals[0], value, '' if literals[1] is None else literals[1])
-        else:
-            if type(value) in [int, float, bool]:
-                return str(value) # so we can just join them later
-            else:
-                return f"'{value}'"
-            # return "{}{}{}".format('' if literals[0] is None else literals[0], value, '' if literals[1] is None else literals[1])
-    
-
-    def get_sql_typeinfo_table(self, conn):
-        cursor = conn.cursor()
-        sql_type_info_tuple = cursor.getTypeInfo(sqlType = None)
-        columns_ = [column[0] for column in cursor.description]
-        tobj = Memory_Table('sql_typeinfo')
-        for row in sql_type_info_tuple:
-            tobj.insert(row, columns_)
-        return tobj
-    
-
-    def set_sql_datatype(self, dest_columns, conn, schema, table):
-        cursor = conn.cursor()
-        try:
-            sql_columns = cursor.columns(schema=schema, table=table)
-            columns_ = [column[0] for column in cursor.description]
-            tobj = Memory_Table('sql_columns_')
-            for row in sql_columns: #cursor.columns(schema=schema, table=table):
-                tobj.insert(row, columns_)
-            sql_columns_withtype = {}    
-            for col in dest_columns:
-                _type = tobj.get_value('type_name', where = lambda row: row['column_name']==col)
-                sql_columns_withtype[col] = _type
-            return sql_columns_withtype
-        except: # oppss.. no support then fill up None
-            return None  
-    
-
-    def set_sql_literal(self, sql_cols_withtype, conn):
-        try:
-            sql_typeinfo_tab = self.get_sql_typeinfo_table(conn)
-            sql_cols_withliteral = {}
-            for k, v in sql_cols_withtype.items():
-                prefix = sql_typeinfo_tab.get_value('literal_prefix',where=lambda row: row['type_name']==v)
-                suffix = sql_typeinfo_tab.get_value('literal_suffix',where=lambda row: row['type_name']==v)
-                literals = (prefix,suffix)
-                sql_cols_withliteral[k] = literals
-            return sql_cols_withliteral    
-        except: # opps... no support
-            literals = (None, None)
-            return {col:literals for col in sql_cols_withtype.keys()}
-        
-
-
-    def _to_sql_prep(self, conn, table, columns, schema=None, max_rows = 1, conn_name='pyodbc'):
-        if max_rows <= len(self): # validate max_row
-            mrpb = max_rows # assign max row per batch
-        else:
-            #log.warning('Warning! max_rows {} set greater than totalrows {}. max_rows set to 1'.format(max_rows, len(self)))
-            mrpb = 1
-        numof_col = len(columns) # num of columns
-        colmap = self.set_to_sql_colmap(columns)
-        src_cols = [x for x in colmap.values()]
-        dest_columns = [x for x in colmap.keys()]
-        
-        # create as prepared statement
-        param_markers = self.gen_row_param_markers(numof_col, mrpb, conn_name=conn_name)
-        if schema:
-            sql_template = 'INSERT INTO "{}"."{}" ({}) VALUES {}'
-            prep_stmt = sql_template.format(schema, table, ",".join(['"{}"'.format(x) for x in dest_columns]),param_markers)
-        else:
-            sql_template = 'INSERT INTO "{}" ({}) VALUES {}'
-            prep_stmt = sql_template.format(table, ",".join(['"{}"'.format(x) for x in dest_columns]),param_markers)
-        cursor = conn.cursor()
-        temp_rows = []
-        total_rowcount = 0
-        for idx, row in self.iterrows(src_cols, row_type='list'):
-            for v in row:
-                temp_rows.append(v)
-            if len(temp_rows) == (mrpb * numof_col):
-                # log.debug(prep_stmt)
-                # log.debug(temp_rows)
-                try:
-                    cursor.execute(prep_stmt, temp_rows)
-                except Exception as e:
-                    log.error(e)
-                    log.error(prep_stmt)
-                    log.error(temp_rows)  
-
-                total_rowcount += cursor.rowcount
-                temp_rows.clear()     
-        
-        if len(temp_rows) > 0: # if any reminder
-            param_markers = self.gen_row_param_markers(numof_col, int(len(temp_rows)/numof_col), conn_name=conn_name)
-            prep_stmt = sql_template.format(schema,table,",".join(['"{}"'.format(x) for x in dest_columns]),param_markers)
-            cursor.execute(prep_stmt, temp_rows)
-            total_rowcount += cursor.rowcount
-        return total_rowcount        
-
-
-    def gen_row_param_markers(self,numof_col,num_row, conn_name='pyodbc'):
-        p = "%s" if conn_name == 'psycopg' else "?"
-        param = "(" + ",".join([p]  *numof_col) + ")"
-        params = []
-        for i in range(num_row):
-            params.append(param)
-        return ",".join(params)
-    
+    # here the location of def_to_sql()    
     
     def _to_sql_upsert_dev(self, conn: str,
                     schema: str,
@@ -497,7 +288,7 @@ class Memory_Table(Base_Table):
         return tuple(sorted_columns)   
 
 
-    def _get_columnnames_lced(self, columns=None) -> dict:
+    def _get_columnnames_lced_XXX(self, columns=None) -> dict:
         # if self.type == 'SQLBACKEND':
         #     pass
         # elif self.type == 'FROMSQL':
@@ -530,91 +321,6 @@ class Memory_Table(Base_Table):
             similar_cols = bintang.core.get_similar_values(column, self.get_columns())
             raise ValueError ('could not find column {}. Did you mean {}?'.format(repr(column),' or '.join(similar_cols)))
 
-
-    def validate_columns(self, columns):
-        """return columns from those stored in table.columns"""
-        validated_cols = []
-        unmatched_cols = []
-        for column in columns:
-            if column.lower() in self._get_columnnames_lced().keys():
-                validated_cols.append(self._get_columnnames_lced().get(column.lower()))
-            else:
-                unmatched_cols.append(column)
-        # print(validated_cols)
-        # print(unmatched_cols)
-        # quit()        
-        if len(unmatched_cols) > 0:
-            #raise ColumnNotFoundError(self.name, column)
-            res = self._suggest_similar_columns(unmatched_cols)
-            res_msg = self._suggest_columns_msg(res)
-            raise ValueError(res_msg)
-        else:
-            return validated_cols    
-
-
-    def _suggest_similar_columns(self, columns, min_ratio=75):
-        res = {}
-        for col in columns:
-            # extracted = process.extract(col, self.get_columns(), scorer=fuzz.ratio, processor=utils.default_process)
-            # res[col] = ['{}'.format(x[0]) for x in extracted if x[1] > min_ratio]
-            similar_cols = bintang.get_similar_values(col, self.get_columns())
-            res[col] = ['{}'.format(x) for x in similar_cols]
-        return res  
-
-
-    def _suggest_columns_msg(self, suggested_columns):   
-        unmatched_cols = [x for x in suggested_columns.keys()]
-        if len(suggested_columns) > 0:
-            message = f'table {self.name} has no column {unmatched_cols}.\n' 
-            line_msg = []
-            for col, suggestion  in suggested_columns.items():
-                msg = f' for column {repr(col)}, did you mean: {suggestion}?\n'
-                line_msg.append(msg)
-            # construct message
-            for msg in line_msg:
-                message += msg
-            return message
-        # deprecated else lines below!
-        # else:
-        #     the_suggested_column = next(iter(suggested_columns.values()))[0]
-        #     message = f'table {self.name} has no column {repr(unmatched_cols[0])}, did you mean: {repr(the_suggested_column)}?'
-        #     return message
-
-
-    # CHANGED T bintang.core get_similar_values(). its more usable
-    # def _get_similar_columns(self, column, min_ratio=0.6):
-    #     # use standard difflib SequenceMatcher
-    #     res = []
-    #     for col in self.get_columns():
-    #         ratio = SequenceMatcher(None, col, column).ratio()
-    #         if ratio >= min_ratio:
-    #             res.append((col,ratio))
-    #     res_sorted = sorted(res, key=lambda tup: tup[1], reverse=True)
-    #     return [x[0] for x in res_sorted] # just extract the name, not ratio        
-
-
-    # MOVED to bintang.core def _get_similar_values(self, value, similar_values, min_ratio=0.6):
-    #     # use standard difflib SequenceMatcher
-    #     res = []
-    #     for col in similar_values:
-    #         ratio = SequenceMatcher(None, col, value).ratio()
-    #         if ratio >= min_ratio:
-    #             res.append((col,ratio))
-    #     res_sorted = sorted(res, key=lambda tup: tup[1], reverse=True)
-    #     return [x[0] for x in res_sorted] # just extract the name, not ratio        
-
-    
-
-
-    # def check_column(self, column):
-    #     # refactoring required and to be compared with validate_column()
-    #     """check if column exits in table.columns"""
-    #     if column.lower() not in self._get_columnnames_lced().keys():
-    #         # extracted = process.extract(column, self.get_columns(), limit=2, processor=utils.default_process)
-    #         # fuzzies = [repr(x[0]) for x in extracted if x[1] > 75]
-    #         similar_cols = get_similar_values(column, self.get_columns)
-    #         raise ValueError ('could not find column {}. Did you mean {}?'.format(repr(column),' or '.join(similar_cols)))
-        
 
     def copy_index(self, column='idx',at_start=False):
         for idx in self.__rows:
@@ -891,10 +597,10 @@ class Memory_Table(Base_Table):
             # DEPRECATED raise KeyError ('Cannot find index {}.'.format(idx))
             return None
         if idx in self.__rows:
-            if columns is None:
-                columns = self.get_columns()
             if columns is not None:
                 columns = self.validate_columns(columns)
+            else:
+                columns = self.get_columns()
             return self._gen_row_asdict(self.__rows[idx],columns, rowid)
 
 
@@ -1347,7 +1053,7 @@ class Memory_Table(Base_Table):
                 ,rowid=False):
         
         rtable_obj = None
-        if isinstance(rtable,Table):
+        if isinstance(rtable,Memory_Table):
             rtable_obj = rtable
             rtable = rtable.name
         else:
@@ -1475,14 +1181,16 @@ class Memory_Table(Base_Table):
             if isinstance(col, tuple):
                 self.add_column(col[1]) # use the alias
         # for each matching, update it
-        for lidx, ridx in self._scan(lkeys, lkp_table_obj, rkeys):
+        for lidx, ridx in self.scan(lkp_table, on=on, full=False):
             # update this table lrow for each ret_columns
             for item in valid_ret_columns:
                 if isinstance(item, str): # if item is a column
-                    value = lkp_table_obj[ridx][item]
+                    # value = lkp_table_obj[ridx][item]
+                    value = lkp_table_obj.get_row_asdict(ridx, columns=[item])[item]
                     if item in lcolumn_prematch:
-                        #print('item',item,'in',self.name)
-                        self.update_row(lidx, lkp_table_obj.name + '_' + item, value)
+                        # update left table with the lkp_table name as prefix
+                        # this is to avoid column name conflict
+                        self.update_row(lidx, self.bing[lkp_table].name + '_' + item, value)
                     else:
                         self.update_row(lidx, item, value)
                 if isinstance(item, tuple): # if a tuple (0=column to return from lkp_table, 1=as_column)
@@ -1490,17 +1198,17 @@ class Memory_Table(Base_Table):
                     self.update_row(lidx, item[1], value)
     
 
-    def _scan(self, lkeys, lkp_table_obj, rkeys):
-        lenof_keys = len(lkeys)
-        for lidx, lrow in self.iterrows(lkeys, rowid=True):
-            for ridx, rrow in lkp_table_obj.iterrows():
+    def scan(self, lkp_table: str, on: list[str] = None, full=True):
+        for lidx, lrow in self.iterrows(columns=(col[0] for col in on), rowid=True):
+            for ridx, rrow in self.bing[lkp_table].iterrows(col[1] for col in on):
                 matches = 0
-                for i in range(lenof_keys):
-                    # if lrow[lkeys[i]] == rrow[rkeys[i]]:
-                    if bintang.match(lrow[lkeys[i]], rrow[rkeys[i]]):
-                        matches += 1 # increment
-                if matches == lenof_keys:
+                for i in range(len(on)):
+                    if bintang.match(lrow[on[i][0]], rrow[on[i][1]]):
+                        matches += 1 
+                if matches == len(on):
                     yield lidx, ridx
+                    if not full:
+                        break  # only return the first match
 
 
     def _scanfuzzy(self, lkeys, lkp_table_obj, rkeys, min_ratios):
@@ -1510,9 +1218,6 @@ class Memory_Table(Base_Table):
                [(4, [80, 90]),(3, [70, 69])] = the sorted tuple list
         """
         lenof_keys = len(lkeys)
-        # print('lkeys:', lkeys)
-        # print('rkeys:', rkeys)
-        res_tobj = Memory_Table('result')
         for lidx, lrow in self.iterrows(lkeys, rowid=True):
             res_dict = {}
             for ridx, rrow in lkp_table_obj.iterrows():
@@ -1521,7 +1226,7 @@ class Memory_Table(Base_Table):
                 for i in range(lenof_keys):
                     ratio = bintang.get_diff_ratio(lrow[lkeys[i]], rrow[rkeys[i]])
                     if ratio >= min_ratios[i]:
-                        matches += 1 # increment
+                        matches += 1 
                         ratios.append(ratio)
                 if matches == lenof_keys:
                     res_dict[ridx] = ratios
@@ -1533,15 +1238,51 @@ class Memory_Table(Base_Table):
                 yield lidx, list(res_dict.items())
 
 
-    def flookup(self, 
-                lkp_table: object, 
-                on: list[tuple], 
-                ret_columns: list[str] | list[tuple],
-                min_ratio: int | list[int],
-                ret_matches: bool = False
+    def fuzzy_scan(self, lkp_table, on, full=True):
+        """ will yield two items. a left idx and result (a list of sorted matched right index and ratio tuple)
+        for eg. yield 1, [(4, [80, 90]),(3, [70, 69])]
+        where: 1 = the left index, 
+               [(4, [80, 90]),(3, [70, 69])] = the sorted tuple list
+        """
+        lenof_keys = len(on)
+        for lidx, lrow in self.iterrows(columns=(c[0] for c in on)):
+            res_dict = {}
+            for ridx, rrow in self.bing[lkp_table].iterrows(columns=(c[1] for c in on)):
+                matches = 0
+                ratios = []
+                for i in range(lenof_keys):
+                    ratio = bintang.get_diff_ratio(lrow[on[i][0]], rrow[on[i][1]])
+                    if ratio >= on[i][2]:
+                        matches += 1 
+                        ratios.append(ratio)
+                if matches == lenof_keys:
+                    res_dict[ridx] = ratios
+                    yield lidx, res_dict
+                    if not full:
+                        break
+                
+            # print(res_dict)
+            # if len(res_dict) > 1:
+            #     res_tuples_sorted = sorted(res_dict.items(), key=itemgetter(1), reverse=True)
+            #     yield lidx, res_tuples_sorted
+            # if len(res_dict) == 1:
+            #     yield lidx, list(res_dict.items())
+
+
+    def fmatch(self,
+                lkp_table: object,
+                on: list[tuple],
+                into: str,
+                # ret_matches: bool = False
                 ):
+        """ Perform fuzzy matching between two tables.
+            lkp_table: the lookup table to match with.
+            on: a list of tuples, each tuple contains (left column, right column, min_ratio).
+                eg. [('last_name', 'surname', 80), ('address', 'address', 70)]
+            into: the name of the output table to hold the results.
+        """
         lkp_table_obj = None
-        if isinstance(lkp_table,Table):
+        if isinstance(lkp_table,Memory_Table):
             lkp_table_obj = lkp_table
             lkp_table = lkp_table.name
         else:
@@ -1550,6 +1291,37 @@ class Memory_Table(Base_Table):
         # validate input eg. column etc
         lkeys = [x[0] for x in on] # generate lkeys from on (1st sequence)
         rkeys = [x[1] for x in on] # generate rkeys from on (2nd sequence)
+        min_ratios = [x[2] for x in on] # generate ratios from on (3rd sequence)
+        lkeys = self.validate_columns(lkeys)
+        rkeys = lkp_table_obj.validate_columns(rkeys)
+        lcolumn_prematch = self.get_columns() # will use this list when matching occurs below
+        # create a table to hold the matches
+        matches_tobj = self.bing.create_table(into) # create a table to hold the matches
+        # for each matching, update it
+        for lidx, res in self._scanfuzzy(lkeys, lkp_table_obj, rkeys, min_ratios):
+            print('lidx:',lidx,'res:',res)
+            for rank, match_row in enumerate(res, start = 1):
+                matches_tobj.insert([lidx, match_row[0], match_row[1], rank], ['lidx', 'ridx', 'ratio', 'rank'])
+        return        
+
+
+    def flookup(self, 
+                lkp_table: object, 
+                on: list[tuple], 
+                ret_columns: list[str] | list[tuple],
+                ret_matches: bool = False
+                ):      
+        lkp_table_obj = None
+        if isinstance(lkp_table,Memory_Table):
+            lkp_table_obj = lkp_table
+            lkp_table = lkp_table.name
+        else:
+            lkp_table_obj = self.bing[lkp_table]
+        
+        # validate input eg. column etc
+        lkeys = [x[0] for x in on] # generate lkeys from on (1st sequence)
+        rkeys = [x[1] for x in on] # generate rkeys from on (2nd sequence)
+        min_ratios = [x[2] for x in on] # generate ratios from on (3rd sequence)
         lkeys = self.validate_columns(lkeys)
         rkeys = lkp_table_obj.validate_columns(rkeys)
         lcolumn_prematch = self.get_columns() # will use this list when matching occurs below
@@ -1570,24 +1342,15 @@ class Memory_Table(Base_Table):
                 self.add_column(col)
             if isinstance(col, tuple):
                 self.add_column(col[1]) # use the alias
-        # generate min_ration
-        min_ratios = []
-        if isinstance(min_ratio, int):
-            for i in range (len(lkeys)):
-                min_ratios.append(min_ratio)
-        if isinstance(min_ratio, list):
-            # validate the min_ratio list
-            if len(min_ratio) == len(lkeys):
-                for i in min_ratio:
-                    min_ratios.append(i)
-            else:
-                raise ValueError ('the length of min_ratio is not the same as the length of arg on.')             
+        
+        # create a table to hold the matches
+        # matches_tobj = self.bing.create_table(into) # create a table to hold the matches
         # for each matching, update it
-        matches_tobj = Memory_Table('matches')
         for lidx, res in self._scanfuzzy(lkeys, lkp_table_obj, rkeys, min_ratios):
-            if ret_matches:
-                for rank, match_row in enumerate(res, start = 1):
-                    matches_tobj.insert([lidx, match_row[0], match_row[1], rank], ['lidx', 'ridx', 'ratio', 'rank'])
+            print('lidx:',lidx,'res:',res)
+            # if ret_matches:
+            #     for rank, match_row in enumerate(res, start = 1):
+            #         matches_tobj.insert([lidx, match_row[0], match_row[1], rank], ['lidx', 'ridx', 'ratio', 'rank'])
             # update this table lrow for each ret_columns
             for item in valid_ret_columns:
                 if isinstance(item, str): # if item is a column
@@ -1599,9 +1362,7 @@ class Memory_Table(Base_Table):
                         self.update_row(lidx, item, value)
                 if isinstance(item, tuple): # if a tuple (0=column to return from lkp_table, 1=as_column)
                     value = lkp_table_obj[res[0][0]][item[0]]
-                    self.update_row(lidx, item[1], value)
-        if ret_matches:
-            return matches_tobj                
+                    self.update_row(lidx, item[1], value)                        
     
 
     def groupby(self, 
@@ -1817,26 +1578,6 @@ class Memory_Table(Base_Table):
                     group_tobj.update_row(index, col_max, maxed)
 
 
-    def from_csv_DEV(self, path, delimiter=',', quotechar='"', header_row=1):
-        import csv
-        with open(path,newline='') as f:
-            reader = csv.reader(f, delimiter=delimiter, quotechar=quotechar)
-            # determine columns
-            columns = []
-            for rownum, row in enumerate(reader, start=1):
-                print(rownum, row)
-                if rownum == header_row:
-                    columns = [col for col in row] # add all columns
-                    f.seek(0) # return to BOF
-                    break
-            #insert records
-            for rownum, row in enumerate(reader, start=1):
-                if rownum > header_row: # assume records after header
-                    self.insert(row, columns)
-
-
-
-
     def read_csv(self, path, delimiter=',', quotechar='"', header_row=1):
         import csv
         with open(path,newline='') as f:
@@ -1908,8 +1649,6 @@ class Memory_Table(Base_Table):
                 #     log.debug(any(values))
                 if any(values):
                     self.insert(values, columns)
-        # DEPRECATED if self.__be is not None:
-        #     self.add_row_into_be()
 
 
     def read_sql(self, conn, sql_str=None, params=None ):
@@ -1929,24 +1668,7 @@ class Memory_Table(Base_Table):
             rows = cursor.fetchmany(300)
             if not rows: break
             for row in rows:
-                self.insert(row, columns)
-
-
-    def _from_sql(self, conn, sql_str=None, params=None ):
-        self.type = 'FROMSQL'
-        self.fromsql_conn = conn
-        self.fromsql_str = sql_str
-        self.fromsql_params = params
-        cursor = self.fromsql_conn.cursor()
-        if self.fromsql_str is None:
-            sql_str = "SELECT * FROM {}".format(self.name)
-        if self.fromsql_params is not None:
-            cursor.execute(self.fromsql_str, self.fromsql_params)
-        else:
-            cursor.execute(self.fromsql_str)
-        columns = [col[0] for col in cursor.description]
-        for col in columns:
-            self.add_column(col)                  
+                self.insert(row, columns)                  
 
 
     def reindex(self):

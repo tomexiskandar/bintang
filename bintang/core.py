@@ -3,24 +3,57 @@ import os
 import json
 import copy
 import unicodedata
-from difflib import SequenceMatcher
 from bintang.table import Base_Table
 from bintang.table_mem import Memory_Table, Path_Table
 from bintang.table_sqlbe import SQL_Backend_Table
 from bintang.table_fsql import From_SQL_Table
 from bintang.table_fcsv import From_CSV_Table
-
-
-
 from bintang import iterdict
 from pathlib import Path
 from bintang.log import log
-FUZZY_LIB = 'DIFFLIB'
-try: 
+import unicodedata
+
+
+def default_stringify(value):
+    """ convert value to string, normalize it and lower case it.
+        This is used to normalize the value before comparing it.
+        It aimes to cover default process that SequenceMatcher does not handle.
+    """
+    if isinstance(value, str):
+        value = value.strip()
+        value =unicodedata.normalize("NFKD", value.casefold()) #experiment
+        return value.lower()
+    else:
+        return str(value)
+
+
+# define get_diff_ratio() to use rapidfuzz or difflib depending on package availability
+try:
     from rapidfuzz import fuzz , process, utils
-    FUZZY_LIB = 'RAPIDFUZZ'
+    def get_diff_ratio(value1, value2, default_process=True):
+        """ get string similarity between two values.
+            using rapidfuzz package only
+        """
+        if value1 is None or value2 is None:
+            return 0  
+        elif default_process:
+            return  round(fuzz.ratio(value1, value2, processor=utils.default_process), 2)
+        else:
+            return  round(fuzz.ratio(value1, value2), 2)
 except ImportError as e:
-    pass
+    print(e)
+    # define get_diff_ratio to use difflib
+    from difflib import SequenceMatcher
+    def get_diff_ratio(value1, value2, default_process=True):
+        """ get string similarity between two values.
+            using python difflib's SequenceMatcher only
+        """
+        if default_process == True:
+            value1 = default_stringify(value1)
+            value2 = default_stringify(value2)
+            return round(SequenceMatcher(None, value1, value2).ratio() * 100, 2)
+        else:
+            return round(SequenceMatcher(None, value1, value2).ratio() * 100, 2)
 
 
 def match_case(value1, value2):
@@ -59,45 +92,19 @@ def match(value1, value2):
     else:
         if value1 == value2:
             return True  
+
     
-def get_similar_values(value, similar_values, min_ratio=0.6):
-        # use standard difflib SequenceMatcher
+def get_similar_values(value, similar_values, min_ratio=60.0):
         res = []
         for col in similar_values:
-            ratio = SequenceMatcher(None, col.lower(), value.lower()).ratio()
+            ratio = get_diff_ratio(col, value)
+            print(f'col {col} ratio {ratio}')
             if ratio >= min_ratio:
                 res.append((col,ratio))
         res_sorted = sorted(res, key=lambda tup: tup[1], reverse=True)
         return [x[0] for x in res_sorted] # just extract the name, not ratio
 
-def get_diff_ratio(value1, value2, default_process=True):
-    """ get string similarity between two values.
-        It'll use rapidfuzz package if installed, otherwise python difflib will be used.
-    """
-    if value1 is None or value2 is None:
-        return 0
-        
-    if FUZZY_LIB == 'RAPIDFUZZ' and default_process == True:
-        return  round(fuzz.ratio(value1, value2, processor=utils.default_process), 2)
-    elif FUZZY_LIB == 'RAPIDFUZZ' and default_process == False:
-        return  round(fuzz.ratio(value1, value2), 2)
-    elif FUZZY_LIB == 'DIFFLIB' and default_process == True:
-        value1 = default_stringify(value1)
-        value2 = default_stringify(value2)
-        return round(SequenceMatcher(None, value1, value2).ratio() * 100, 2)
-    else:
-        return round(SequenceMatcher(None, value1, value2).ratio() * 100, 2)
 
-def default_stringify(value):
-    if isinstance(value, str):
-        value = value.strip()
-        value =unicodedata.normalize("NFKD", value.casefold()) #experiment
-        return value.lower()
-    else:
-        return str(value)
-    
-
-    
 def get_wb_type_toread(wb):
     """
         get workbook type so read_excel() will know which func/attrb to use.
@@ -125,7 +132,7 @@ def get_wb_type_towrite(wb):
 class Bintang():
     def __init__(self, name=None, backend=None):
         self.name = name
-        self.parent = 'dad'
+        # self.parent = 'dad'
         self.__tables = {} # this must be a dict of id:table object
         self.__last_assigned_tableid= 0 # to keep track of last assigned tableid
 
@@ -153,19 +160,14 @@ class Bintang():
 
 
     def create_table(self, name: str, 
-                     columns: list=None,
-                     conn: str=None) -> Memory_Table:
-        """ create a table under bintang object
+                     columns: list=None) -> Memory_Table:
+        """ create a Memory_Table under bintang object
         name: Name of the table
         columns: List of columns (optional)"""
-        tobj = Memory_Table(name, bing=self) # create a tobj object
-        tobj.conn = conn  # for backend use
+        tobj = Memory_Table(name, bing=self)
         self.add_table(tobj)
-        # if self.__be is not None:   # if is_persistent is True then update the tobj attributes and pass the connection
-        #     tobj._Table__be = self.__be           
-        #     tobj._Table__be.add_table(self.get_tableid(name), name)
         if columns is not None:
-            for column in columns: # add column
+            for column in columns: 
                 tobj.add_column(column)
         return tobj        
 
@@ -181,11 +183,8 @@ class Bintang():
 
 
     def create_path_table(self, name, columns=None):
-        tobj = Path_Table(name, bing=self) # create a table object
+        tobj = Path_Table(name, bing=self)
         self.add_table(tobj)
-        # if self.__be is not None:   # if is_persistent is True then update the tobj attributes and pass the connection
-        #     tobj._Table__be = self.__be           
-        #     tobj._Table__be.add_table(self.get_tableid(name), name)
         if columns is not None:
             for column in columns: # add column
                 tobj.add_column(column)            
@@ -305,88 +304,8 @@ class Bintang():
             row_dict['Table'] = tab
             tobj.insert(row_dict)
         tobj.print()
+ 
 
-
-    def iterrowsXX(self, table, columns=None, row_type = 'dict', rowid=False):
-        """get the table form the collection
-        then yield idx and row from table's iterrows()
-        """
-        
-        #self.raise_valueerror_tablename(tablename)
-        if isinstance(table, Memory_Table):
-            for idx, row in table.iterrows(columns, row_type=row_type, rowid=rowid):
-                yield idx, row
-        else:
-            for idx, row in self.get_table(table).iterrows(columns, row_type=row_type, rowid=rowid):
-                yield idx, row
-                
-
-    def dev_read_db(self, connstr, tablename, columns = None):
-        self.create_table(tablename)
-        self[tablename].connstr = connstr
-        import pyodbc
-        conn = pyodbc.connect(connstr)
-        cursor = conn.cursor()
-        for row in cursor.tables():
-            log.debug(row.table_name)
-        if cursor.tables(table=tablename.lower()).fetchone():
-            log.debug('table {} exists!'.format(tablename))
-        else:
-            log.debug('table {} not found'.format(tablename))
-            # create table for rows
-            sql_ = 'CREATE TABLE {} (idx serial NOT NULL PRIMARY KEY, id serial NOT NULL, cells json)'.format(tablename.lower())
-            cursor.execute(sql_)
-            cursor.commit()
-            # create table for columns
-            sql_ = 'CREATE TABLE {} (id serial NOT NULL PRIMARY KEY, name varchar(150))'.format(tablename.lower()+'_columns')
-            cursor.execute(sql_)
-            cursor.commit()
-            # add columns if passed
-            if columns is not None:
-                if len(columns) > 0:
-                    for col in columns:
-                        sql_ = "INSERT INTO {} (name) VALUES ('{}');".format(tablename.lower()+'_columns', col)
-                        log.debug(sql_)
-                        cursor.execute(sql_)
-                        cursor.commit()
-        cursor.close()
-        conn.close()    
-
-
-    def _dev_read_sqlite(self, tablename, columns = None):
-        self.create_table(tablename)
-        import sqlite3
-        conn = sqlite3.connect('bintang.db')
-        cur = conn.cursor()
-        sql_ = "SELECT EXISTS (SELECT 1 FROM sqlite_master WHERE type='table' AND name='{}')".format(tablename)
-        ret = cur.execute(sql_)
-        for row in cur.execute('SELECT * FROM sqlite_master'):
-            log.debug(row)
-
-
-        conn.close()    
-        quit()
-        if True:
-            log.debug('table {} exists!'.format(tablename))
-        else:
-            log.debug('table {} not found'.format(tablename))
-            # create table for rows
-            sql_ = 'CREATE TABLE {} (id serial NOT NULL, cells json)'.format(tablename.lower())
-            cursor.execute(sql_)
-            # create table for columns
-            sql_ = 'CREATE TABLE {} (id serial NOT NULL PRIMARY KEY, name varchar(150))'.format(tablename.lower()+'_columns')
-            cursor.execute(sql_)
-            # add columns if passed
-            if columns is not None:
-                if len(columns) > 0:
-                    for col in columns:
-                        sql_ = "INSERT INTO {} (name) VALUES ('{}');".format(tablename.lower()+'_columns', col)
-                        log.debug(sql_)
-                        cursor.execute(sql_)
-        cursor.close()
-        conn.close() 
-
-        
     def read_excel(self, wb, sheetnames=None):
         wb_type = get_wb_type_toread(wb)
         # validate sheetnames
@@ -627,24 +546,24 @@ class Bintang():
     def create_linked_table(self, name, conn, sql_str=None, params=None ):
         tobj = From_SQL_Table(name, bing=self) # create a tobj object
         tobj.type = 'FROMSQL'
-        tobj.fromsql_conn = conn
+        tobj.conn = conn
         if sql_str is None:
-            tobj.fromsql_str = "SELECT * FROM {}".format(name)
+            tobj.sql_str = "SELECT * FROM {}".format(name)
         else:
-            tobj.fromsql_str = sql_str
-        tobj.fromsql_params = params    
+            tobj.sql_str = sql_str
+        tobj.params = params    
         self.add_table(tobj)
 
 
     def create_sql_linked_table(self, name, conn, sql_str=None, params=None ):
         """ this is an alias to create_linked_table() """
         tobj = From_SQL_Table(name, bing=self) # create a tobj object
-        tobj.fromsql_conn = conn
+        tobj.conn = conn
         if sql_str is None:
-            tobj.fromsql_str = "SELECT * FROM {}".format(name)
+            tobj.sql_str = "SELECT * FROM {}".format(name)
         else:
-            tobj.fromsql_str = sql_str
-        tobj.fromsql_params = params    
+            tobj.sql_str = sql_str
+        tobj.params = params    
         self.add_table(tobj)
 
 

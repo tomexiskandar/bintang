@@ -24,7 +24,8 @@ class Row:
 
 
     def get_value(self,columnid):
-        return self.cells[columnid].value
+        if columnid in self.cells:
+            return self.cells[columnid].value
 
 
     def get_values(self,columnids):

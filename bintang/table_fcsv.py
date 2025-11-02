@@ -52,7 +52,9 @@ class From_CSV_Table(Base_Table):
             for rownum, row in enumerate(reader, start=1):
                 if len(self.columns) == len(row):
                     row_dict = dict(zip(self.columns, row))
+                    # print('row_dict before where:', row_dict)
                     if columns is not None:
+                        # print('columns arg', columns)
                         row_dict = {col: row_dict[col] for col in columns}
                         if row_type == 'list':
                             yield rownum, [row_dict[col] for col in columns]

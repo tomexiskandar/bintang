@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Callable
 import warnings
 import inspect
+from itertools import product
 from abc import ABC, abstractmethod
 from bintang.log import log
 import bintang
@@ -21,10 +22,9 @@ def custom_formatwarning(msg, *args, **kwargs):
 warnings.formatwarning = custom_formatwarning
 
 
-class ColumnNotFoundError(Exception):
-    def __init__(self,table, column):
-        self.message = "Cannot find column '{}' in table {}.".format(column, table)
-        super().__init__(self.message)
+class ColumnError(Exception):
+    def __init__(self,message):
+        self.message = message
     
 
 
@@ -50,6 +50,10 @@ class Base_Table(ABC):
     @abstractmethod
     def iterrows(self):
         pass
+
+    def ColumnError(self):
+        """Raise ColumnError with table name and column name."""
+        return ColumnError(self.name, self.column)
 
     
     def _get_columnnames_lced(self, columns=None) -> dict:
@@ -84,15 +88,11 @@ class Base_Table(ABC):
             if column.lower() in self._get_columnnames_lced().keys():
                 validated_cols.append(self._get_columnnames_lced().get(column.lower()))
             else:
-                unmatched_cols.append(column)
-        # print(validated_cols)
-        # print(unmatched_cols)
-        # quit()        
+                unmatched_cols.append(column)        
         if len(unmatched_cols) > 0:
-            #raise ColumnNotFoundError(self.name, column)
-            res = self._suggest_similar_columns(unmatched_cols)
-            res_msg = self._suggest_columns_msg(res)
-            raise ValueError(res_msg)
+            similar_columns = self._suggest_similar_columns(unmatched_cols)
+            message = self._suggest_columns_msg(similar_columns)
+            raise ColumnError(message)
         else:
             return validated_cols 
 
@@ -100,8 +100,6 @@ class Base_Table(ABC):
     def _suggest_similar_columns(self, columns, min_ratio=75):
         res = {}
         for col in columns:
-            # extracted = process.extract(col, self.get_columns(), scorer=fuzz.ratio, processor=utils.default_process)
-            # res[col] = ['{}'.format(x[0]) for x in extracted if x[1] > min_ratio]
             similar_cols = bintang.get_similar_values(col, self.get_columns())
             res[col] = ['{}'.format(x) for x in similar_cols]
         return res  
@@ -110,10 +108,10 @@ class Base_Table(ABC):
     def _suggest_columns_msg(self, suggested_columns):   
         unmatched_cols = [x for x in suggested_columns.keys()]
         if len(suggested_columns) > 0:
-            message = f'table {self.name} has no column {unmatched_cols}.\n' 
+            message = f"No such {', '.join(unmatched_cols)} column{'(s)' if len(suggested_columns)>1 else ''} in {self.name} table."
             line_msg = []
             for col, suggestion  in suggested_columns.items():
-                msg = f' for column {repr(col)}, did you mean: {suggestion}?\n'
+                msg = f" For {col}, did you mean: {', '.join(suggestion)}?"
                 line_msg.append(msg)
             # construct message
             for msg in line_msg:
@@ -163,6 +161,36 @@ class Base_Table(ABC):
             return 'psycopg'
         else:
             raise ValueError('Sorry Only sqlite3, pyodbc and psycopg connection accepted!')   
+
+
+    def cmprows(self, lkp_table: str, on: list[str] = None, min_keys=None, full=True):
+        cartprod = False 
+        if on is None:
+            lcolumns = self.get_columns()
+            rcolumns = self.bing[lkp_table].get_columns()
+            on = list(product(lcolumns,rcolumns))
+            cartprod = True
+        if not cartprod:
+            req_matches = len(on)
+        else:
+            req_matches = min_keys if min_keys is not None else 1
+        for lidx, lrow in self.iterrows(columns=[col[0] for col in on]):
+            for ridx, rrow in self.bing[lkp_table].iterrows(columns=[col[1] for col in on]):
+                # print('rrow', rrow)
+                matches = 0
+                matched_columns = []
+                for i in range(len(on)):
+                    if bintang.match(lrow[on[i][0]]
+                                     ,rrow[on[i][1]]
+                                     ):
+                        matches += 1
+                        matched_columns.append((on[i][0] 
+                                            ,on[i][1]
+                                            ))
+                if matches >= req_matches:
+                    yield lidx, ridx, matched_columns
+                    if not full:
+                        break  # only return the first match            
 
 
     def to_sql(self, conn: object, 

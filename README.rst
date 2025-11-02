@@ -447,6 +447,29 @@ Return one or more columns from lookup table.
 We can see only John and Jane got the membership because their names exists in both tables.
 
 
+Bintang.Table.cmprows(lkp_table, on, min_keys=None, full=True)
+--------------------------------------------------------------
+
+Compare rows from current table against lkp_table and yield matching row indexes and matched columns.
+blookup function use this function internally to find the matching rows.
+
+:lkp_table: lookup table
+:on: a list of pair columns used for the comparison. If None, will compare all columns that exist in both tables.
+:min_keys: minimum number of matched columns to consider as a match.
+:full: if True, will compare all rows, otherwise will stop at the first match.
+
+
+.. code-block:: python
+
+   # using tables from Example of Usage section above.
+   for lidx, ridx, matched_cols in bt['Person'].cmprows('FishingClub'
+                                        ,on = [('name', 'FirstName'), ('surname', 'LastName')]
+                                        ):
+       print(lidx, ridx, matched_cols)
+   # 1 2 [('name', 'FirstName'), ('surname', 'LastName')]
+   # 2 3 [('name', 'FirstName'), ('surname', 'LastName')]
+
+
 
 Bintang.Table.groupby(columns, drop_none=True, group_count=False, counts=None, sums=None, mins=None, maxs=None, means=None, group_concat=None)
 ----------------------------------------------------------------------------------------------------------------------------------------------

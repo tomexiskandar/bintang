@@ -28,9 +28,10 @@ class From_SQL_Table(Base_Table):
         return tuple([col[0] for col in cursor.description])
 
 
-    def iterrows(self, 
-                 row_type: str='dict', 
-                 rowid: bool=False):
+    def iterrows(self,
+                    columns: list | tuple | None = None,
+                    row_type: str='dict', 
+                    rowid: bool=False):
         """ Iterate through rows of the table.
         Args:
             row_type (str): 'dict' or 'list'. Default is 'dict'.
@@ -43,8 +44,10 @@ class From_SQL_Table(Base_Table):
         """
 
         
-        # define columns          
-        columns = self.get_columns() # assign all available column names
+        # define columns
+        if columns is not None:          
+            columns = self.get_columns() # assign all available column names
+
             
         # execute sql
         cursor = self.conn.cursor()
@@ -70,10 +73,12 @@ class From_SQL_Table(Base_Table):
             if row_type.upper() == 'LIST':
                 for row in rows:
                     yield idx, [dict(zip(columns_fromsql, row))[x] for x in columns_fromsql] 
+                    idx += 1
             else:
                 for row in rows:
                     yield idx, {k: dict(zip(columns_fromsql, row))[k] for k in columns_fromsql}
-            idx += 1
+                    idx += 1
+            
 
 
     def to_csv(self, path, index=False, \

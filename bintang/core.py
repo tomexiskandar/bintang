@@ -27,10 +27,10 @@ def default_stringify(value):
         return str(value)
 
 
-# define get_diff_ratio() to use rapidfuzz or difflib depending on package availability
+# define get_fuzzy_ratio() to use rapidfuzz or difflib depending on package availability
 try:
     from rapidfuzz import fuzz , process, utils
-    def get_diff_ratio(value1, value2, default_process=True):
+    def get_fuzzy_ratio(value1, value2, default_process=True):
         """ get string similarity between two values.
             using rapidfuzz package only
         """
@@ -42,9 +42,9 @@ try:
             return  round(fuzz.ratio(value1, value2), 2)
 except ImportError as e:
     print(e)
-    # define get_diff_ratio to use difflib
+    # define get_fuzzy_ratio to use difflib
     from difflib import SequenceMatcher
-    def get_diff_ratio(value1, value2, default_process=True):
+    def get_fuzzy_ratio(value1, value2, default_process=True):
         """ get string similarity between two values.
             using python difflib's SequenceMatcher only
         """
@@ -97,8 +97,7 @@ def match(value1, value2):
 def get_similar_values(value, similar_values, min_ratio=60.0):
         res = []
         for col in similar_values:
-            ratio = get_diff_ratio(col, value)
-            print(f'col {col} ratio {ratio}')
+            ratio = get_fuzzy_ratio(col, value)
             if ratio >= min_ratio:
                 res.append((col,ratio))
         res_sorted = sorted(res, key=lambda tup: tup[1], reverse=True)

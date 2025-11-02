@@ -7,6 +7,8 @@ from bintang.row import Row
 from bintang.log import log
 import types
 from operator import itemgetter
+from typing import Literal
+from itertools import product
 
 class Memory_Table(Base_Table):
     """Define a Bintang table object
@@ -44,11 +46,6 @@ class Memory_Table(Base_Table):
 
 
     def __len__(self):
-        """ return the length of rows"""
-        # if self.conn is not None:
-        #     cursor = self.conn.cursor()
-        #     res = cursor.execute(f'SELECT COUNT(*) FROM {self.name};')
-        #     return res.fetchone()[0]
         return len(self.__rows)
 
 
@@ -557,7 +554,7 @@ class Memory_Table(Base_Table):
         indexes = [x for x in self.__rows]
         for idx in indexes:
             try:
-                if where(self.get_row(idx)):
+                if where(self.get_row_asdict(idx)):
                     self.delete_row(idx)
             except:
                 pass
@@ -572,11 +569,8 @@ class Memory_Table(Base_Table):
             self.delete_row(index)
 
 
-    def _get_row(self,idx):
-        if idx in self.__rows:
-            return self.__rows[idx]
-        else:
-            raise KeyError ('Cannot find index {}.'.format(idx))
+    def _get_row_ascells(self,idx):
+        return self.__rows[idx]
 
 
     def get_valid_columnname(self, column):
@@ -593,15 +587,25 @@ class Memory_Table(Base_Table):
            
 
     def get_row_asdict(self, idx, columns=None, rowid=False):
-        if idx not in self.__rows:
-            # DEPRECATED raise KeyError ('Cannot find index {}.'.format(idx))
-            return None
+        # if idx not in self.__rows:
+        #     # DEPRECATED raise KeyError ('Cannot find index {}.'.format(idx))
+        #     return None
         if idx in self.__rows:
             if columns is not None:
                 columns = self.validate_columns(columns)
             else:
                 columns = self.get_columns()
-            return self._gen_row_asdict(self.__rows[idx],columns, rowid)
+            columnids = self.get_columnids(self.get_columns())    
+            return self._gen_row_asdict(self.__rows[idx],columnids, rowid)
+
+
+    def _get_row_asdict(self, idx, columnids=None, rowid=False):
+        """ internal function to get row as dict
+            no need to check if idx exists in self.__rows 
+        """
+        if columnids is None:
+            columnids = self.get_columnids()
+        return self._gen_row_asdict(self.__rows[idx],columnids, rowid)        
 
 
     def _get_row_sql(self, idx, columns=None, row_type='dict'):
@@ -620,18 +624,21 @@ class Memory_Table(Base_Table):
                 return self._gen_row_dict_sql(res['cells'], columns)
             
 
-    def _gen_row_asdict(self, row, columns, rowid=False):
+    def _gen_row_asdict(self, row, columnids, rowid=False):
+        """ Generate a row as a dictionary.
+        Args:
+            row: a Row object
+            columns: a list of column names
+            rowid: if True then add rowid_ as the first key in the result dict
+        Returns:
+            a dictionary with column names as keys and cell values as values.
+        """
         res = {}
-        if rowid == True:
-            res['rowid_'] = row.id # add rowid for internal purpose eg. a merged table
-        for column in columns:
-            # get valid column. these two lines defined in def get_valid_columnname()
-            columnid = self.get_columnid(column)   # column in this line passed by user
+        # if rowid == True:
+        #     res['rowid_'] = row.id # add rowid for internal purpose eg. a merged table
+        for columnid in columnids:
             column = self.get_column(columnid) # ensure the same column passed as result.
-            if columnid not in row.cells:
-                res[column] = None
-            else:
-                res[column] = row.cells[columnid].value       
+            res[column] = row.get_value(columnid)     
         return res
 
 
@@ -648,35 +655,38 @@ class Memory_Table(Base_Table):
 
     def iterrows(self, 
                  columns: list=None, 
-                 row_type: str='dict', 
+                 row_type: Literal['dict','list']='dict', 
                  where=None, 
                  rowid: bool=False):
         
-        # need to refactor this funct ion:
-        # the main structure should be based on table type!!!
-
         # validate user's args
         if columns is not None:
             columns = self.validate_columns(columns)
-                  
-
-        if columns is None:
+        else:
             columns = self.get_columns() # assign all available column names
-            
+        columnids = self.get_columnids(columns)    
         if row_type == 'list':
-            columnids = self.get_columnids(columns)
-            for idx, row in self.__rows.items():
-                yield idx, self._gen_row_aslist(row,columnids)
+            if where is not None:
+                for idx, row in self.__rows.items():
+                    if where(self._gen_row_asdict(row,columnids,rowid)):
+                        yield idx, self._gen_row_aslist(row,columnids)
+            else:
+                for idx, row in self.__rows.items():
+                    yield idx, self._gen_row_aslist(row,columnids)
 
         else: # assume row_type is dict
             if where is not None:
                 for idx, row in self.__rows.items():
-                    if where(self._gen_row_asdict(row, columns, rowid)):
-                        yield idx, self._gen_row_asdict(row,columns,rowid)
+                    if where(self._gen_row_asdict(row, columnids, rowid)):
+                        yield idx, self._gen_row_asdict(row,columnids,rowid)
             else:
                 for idx, row in self.__rows.items():
-                    yield idx, self._gen_row_asdict(row,columns,rowid)
+                    yield idx, self._gen_row_asdict(row,columnids,rowid)
       
+    
+    def _iterrows(self):
+        for idx, row in self.__rows.items():
+            yield idx, row
     
     
     def set_data_props(self):
@@ -1166,14 +1176,14 @@ class Memory_Table(Base_Table):
         # validate ret_columns once:
         # otherwise will make lots of call later
         valid_ret_columns = []
-        for item in ret_columns:
-            if isinstance(item,str):
-                item = lkp_table_obj.validate_column(item)
-                valid_ret_columns.append(item)
-            if isinstance(item, tuple):
-                valid_column  = lkp_table_obj.validate_column(item[0])
-                item_ = tuple([valid_column,item[1]])
-                valid_ret_columns.append(item_)
+        for col in ret_columns:
+            if isinstance(col,str):
+                col = lkp_table_obj.validate_column(col)
+                valid_ret_columns.append(col)
+            if isinstance(col, tuple):
+                valid_column  = lkp_table_obj.validate_column(col[0])
+                col_ = tuple([valid_column,col[1]])
+                valid_ret_columns.append(col_)
         # add these valid_ret_column to the left table
         for col in valid_ret_columns:
             if isinstance(col, str):
@@ -1181,34 +1191,29 @@ class Memory_Table(Base_Table):
             if isinstance(col, tuple):
                 self.add_column(col[1]) # use the alias
         # for each matching, update it
-        for lidx, ridx in self.scan(lkp_table, on=on, full=False):
+        for lidx, ridx, _ in self.cmprows(lkp_table, on=on, full=False):
             # update this table lrow for each ret_columns
-            for item in valid_ret_columns:
-                if isinstance(item, str): # if item is a column
-                    # value = lkp_table_obj[ridx][item]
-                    value = lkp_table_obj.get_row_asdict(ridx, columns=[item])[item]
-                    if item in lcolumn_prematch:
+            for col in valid_ret_columns:
+                if isinstance(col, str): # if col is a column
+                    # value = lkp_table_obj[ridx][col]
+                    # value = lkp_table_obj.get_row_asdict(ridx, columns=[col])[col]
+                    # value = lkp_table_obj._get_row_asdict(ridx)[col]
+                    value = lkp_table_obj._get_row_ascells(ridx).get_value(lkp_table_obj.get_columnid(col))
+                    if col in lcolumn_prematch:
                         # update left table with the lkp_table name as prefix
                         # this is to avoid column name conflict
-                        self.update_row(lidx, self.bing[lkp_table].name + '_' + item, value)
+                        self.update_row(lidx, self.bing[lkp_table].name + '_' + col, value)
                     else:
-                        self.update_row(lidx, item, value)
-                if isinstance(item, tuple): # if a tuple (0=column to return from lkp_table, 1=as_column)
-                    value = lkp_table_obj[ridx][item[0]]
-                    self.update_row(lidx, item[1], value)
+                        self.update_row(lidx, col, value)
+                if isinstance(col, tuple): # if a tuple (0=column to return from lkp_table, 1=as_column)
+                    value = lkp_table_obj._get_row(ridx).get_value(lkp_table_obj.get_columnid(col[0]))
+
+
+
+                    self.update_row(lidx, col[1], value)
     
 
-    def scan(self, lkp_table: str, on: list[str] = None, full=True):
-        for lidx, lrow in self.iterrows(columns=(col[0] for col in on), rowid=True):
-            for ridx, rrow in self.bing[lkp_table].iterrows(col[1] for col in on):
-                matches = 0
-                for i in range(len(on)):
-                    if bintang.match(lrow[on[i][0]], rrow[on[i][1]]):
-                        matches += 1 
-                if matches == len(on):
-                    yield lidx, ridx
-                    if not full:
-                        break  # only return the first match
+    # cmprows() moved to base table
 
 
     def _scanfuzzy(self, lkeys, lkp_table_obj, rkeys, min_ratios):
@@ -1238,15 +1243,18 @@ class Memory_Table(Base_Table):
                 yield lidx, list(res_dict.items())
 
 
-    def fuzzy_scan(self, lkp_table, on, full=True):
-        """ will yield two items. a left idx and result (a list of sorted matched right index and ratio tuple)
-        for eg. yield 1, [(4, [80, 90]),(3, [70, 69])]
+    def fuzzy_cmprows(self, lkp_table, on, full=True):
+        """ 
+        will yield two items. a left idx and result (a list of sorted matched right index and ratio tuple)
+        for eg when there are two of pair of columns to match, the yield will be:
+            1, [(4, [80, 90]),(3, [70, 69])]
         where: 1 = the left index, 
-               [(4, [80, 90]),(3, [70, 69])] = the sorted tuple list
+               [(4, [80, 90]),(3, [70, 69])] = result which is a tuple of right index and ratios list.
+        result is sorted based on the ratio from highest to lowest
         """
         lenof_keys = len(on)
         for lidx, lrow in self.iterrows(columns=(c[0] for c in on)):
-            res_dict = {}
+            res_list = []
             for ridx, rrow in self.bing[lkp_table].iterrows(columns=(c[1] for c in on)):
                 matches = 0
                 ratios = []
@@ -1256,17 +1264,16 @@ class Memory_Table(Base_Table):
                         matches += 1 
                         ratios.append(ratio)
                 if matches == lenof_keys:
-                    res_dict[ridx] = ratios
-                    yield lidx, res_dict
+                    res_list.append(tuple((ridx,ratios)))
                     if not full:
                         break
                 
-            # print(res_dict)
-            # if len(res_dict) > 1:
-            #     res_tuples_sorted = sorted(res_dict.items(), key=itemgetter(1), reverse=True)
-            #     yield lidx, res_tuples_sorted
-            # if len(res_dict) == 1:
-            #     yield lidx, list(res_dict.items())
+            if len(res_list) > 1:
+                for i in reversed(range (lenof_keys)):
+                    res_list.sort(key=lambda res: res[1][i], reverse=True)
+                yield lidx, res_list
+            if len(res_list) == 1:
+                yield lidx, res_list
 
 
     def fmatch(self,

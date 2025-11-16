@@ -35,7 +35,7 @@ class Base_Table(ABC):
     It is not intended to be instantiated directly, but rather to be subclassed.
     """
     def __init__(self,name, bing=None):
-        self.bing: bintang.Bintang = bing #
+        self.bing: bintang.Bintang = bing # reference to parent Bintang object
         self.name: str = name
         self.INDEX_COLUMN_NAME: str = 'idx'
         self.PARENT_PREFIX: str = ''
@@ -164,6 +164,19 @@ class Base_Table(ABC):
 
 
     def cmprows(self, lkp_table: str, on: list[str] = None, min_keys=None, full=True):
+        """
+        compare rows in the current table with rows in the lkp_table.
+        Args:
+            lkp_table (str): the name of the table to compare with.
+            on (list[str]): a list of tuples where each tuple contains two column names to compare.
+                            If None, it will compare all columns in both tables.
+            min_keys (int): minimum number of keys to match. Default is 1. Only used if on is not None.
+            full (bool): if True, it will return all matches. If False, it will return only the first match.
+        Yields:
+            tuple: (lidx, ridx, matched_columns) where lidx is the index of the row in the current table,
+                   ridx is the index of the row in the lkp_table, and matched_columns is a list of tuples
+                   where each tuple contains the column names that matched.
+        """
         cartprod = False 
         if on is None:
             lcolumns = self.get_columns()

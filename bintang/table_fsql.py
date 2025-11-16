@@ -31,11 +31,12 @@ class From_SQL_Table(Base_Table):
     def iterrows(self,
                     columns: list | tuple | None = None,
                     row_type: str='dict', 
-                    rowid: bool=False):
+                    rowid: str=None):
         """ Iterate through rows of the table.
         Args:
+            columns: select only specific columns during iteration. Default is None which is to select all columns.
             row_type (str): 'dict' or 'list'. Default is 'dict'.
-            rowid (bool): If True, will return row index as first element in the row. Default is False.
+            rowid (str): a column in the data source that will be used as index. If not an automatic index will be generated.
         Yields:
             tuple: (row_index, row_data) where row_data is a dict or list depending on row_type.
         Notes on implementation:
@@ -70,14 +71,26 @@ class From_SQL_Table(Base_Table):
         while True:
             rows = cursor.fetchmany(300)
             if not rows: break
-            if row_type.upper() == 'LIST':
-                for row in rows:
-                    yield idx, [dict(zip(columns_fromsql, row))[x] for x in columns_fromsql] 
-                    idx += 1
+            if rowid is not None:
+                if row_type.upper() == 'LIST':
+                    for row in rows:
+                        row_dict = {k: dict(zip(columns_fromsql, row))[k] for k in columns_fromsql}
+                        yield row_dict[rowid], row_dict  
+                        idx += 1
+                else:
+                    for row in rows:
+                        row_dict = {k: dict(zip(columns_fromsql, row))[k] for k in columns_fromsql}
+                        yield row_dict[rowid], row_dict 
+                        idx += 1
             else:
-                for row in rows:
-                    yield idx, {k: dict(zip(columns_fromsql, row))[k] for k in columns_fromsql}
-                    idx += 1
+                if row_type.upper() == 'LIST':
+                    for row in rows:
+                        yield idx, [dict(zip(columns_fromsql, row))[x] for x in columns_fromsql] 
+                        idx += 1
+                else:
+                    for row in rows:
+                        yield idx, {k: dict(zip(columns_fromsql, row))[k] for k in columns_fromsql}
+                        idx += 1            
             
 
 

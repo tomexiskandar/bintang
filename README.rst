@@ -154,81 +154,6 @@ Common Functions
 We are going to provide some functions that may be needed most when working with Bintang objects.
 
 
-.. _create_csv_linked_table:
-
-Bintang.create_csv_linked_table(name, filepath, delimiter=',', quotechar='"', header_row=1)
--------------------------------------------------------------------------------------------
-
-Store csv file path and csv attributes when the function gets called. It'll read the data directly from the csv file later only when needed. 
-This function will not create in memory table therefore adding/delete column or records are not allowed.
-This table is suitable for extracting 'big' data from a csv file that is beyond memory capacity and upload it to a SQL database.
-Use read_csv_ function if data manipulation is required.
-
-This function requires pyodbc or psycopg (postgresql specific) connection, therefore you must install the required package.
-Below is an example to install the package from a terminal.
-
-Read csv file and populate its records to table.
-
-:path: a csv file path to read from.
-:delimiter: field seperator, by default it'll accept a comma character.
-:quotechar: a character to quote the data
-:header_row: the row number that contains column name or label.
-
-.. code-block:: python
-
-   from bintang import Bintang
-   bt = Bintang()
-   bt.create_csv_linked_table('Person', '/path/to/file.csv') 
-   ## upload to sql database
-   # ... <define sql connection here> ...
-   bt['Person'].to_sql(conn, 'PersonTableInSQL')
-
-
-.. _create_sql_linked_table:
-
-Bintang.create_sql_linked_table(name, conn, sql_str=None, params=None)
-----------------------------------------------------------------------
-
-Store sql connection and sql table/statement. It'll read the data directly from the sql database later only when needed. 
-This function will not create in memory table therefore adding/delete column or records are not allowed.
-This table is suitable for extracting 'big' data from a DB that is beyond memory capacity and dump it to a flat file like csv.
-Use read_sql_ function if data manipulation is required.
-
-This function requires pyodbc or psycopg (postgresql specific) connection, therefore you must install the required package.
-Below is an example to install the package from a terminal.
-
-
-.. code-block:: console
-
-   C:\project_dir>pip install pyodbc
-   C:\project_dir>pip install psycopg
-
-:name: linked table name to be created
-:conn: pyodbc database connection
-:sql_str: sql query, if none it will select * from table_name, assuming the table name exists in the database.
-:params: sql parameters
-
-.. code-block:: python
-
-   import bintang
-   import pyodbc
-   
-   # connect to sql server
-   conn_str = "DRIVER={ODBC Driver 17 for SQL Server};SERVER=localhost;PORT=1443;DATABASE=test;Trusted_Connection=yes;"
-   conn = pyodbc.connect(conn_str)
-   sql_str = "SELECT * FROM Person WHERE LastName=?"
-   params = ('Dokey')
-
-   bt = bintang.Bintang()
-   bt.create_linked_table('Person', conn, sql_str, params=params)
-
-   for idx, row in bt['Person'].iterrows():
-       print(idx, row)
-       # would print {'ID': 3, 'FirstName': 'Okie', 'LastName': 'Dokey', 'address': '7 Ocean Rd'}
-
-   conn.close()    
-
-
 
 Bintang.read_excel(wb, sheetnames=None)
 ---------------------------------------
@@ -1092,4 +1017,92 @@ To update the row at idx. So only one row will be affected.
 :index: row index
 :column: which column will be updated
 :value: new value
+
+
+
+-----------------
+Special Functions
+-----------------
+
+These functions below create linked tables that read data directly from the source only when needed. 
+Therefore these tables do not hold any data in memory and adding/deleting column or records are not allowed.
+
+.. _create_csv_linked_table:
+
+Bintang.create_csv_linked_table(name, filepath, delimiter=',', quotechar='"', header_row=1)
+-------------------------------------------------------------------------------------------
+
+Store csv file path and csv attributes when the function gets called. It'll read the data directly from the csv file later only when needed. 
+This function will not create in memory table therefore adding/delete column or records are not allowed.
+This table is suitable for extracting 'big' data from a csv file that is beyond memory capacity and upload it to a SQL database.
+Use read_csv_ function if data manipulation is required.
+
+This function requires pyodbc or psycopg (postgresql specific) connection, therefore you must install the required package.
+Below is an example to install the package from a terminal.
+
+Read csv file and populate its records to table.
+
+:name: linked table name to be created
+:filepath: a csv file path to read from.
+:delimiter: field seperator, by default it'll accept a comma character.
+:quotechar: a character to quote the data
+:header_row: the row number that contains column name or label.
+
+.. code-block:: python
+
+   from bintang import Bintang
+   bt = Bintang()
+   bt.create_csv_linked_table('Person', '/path/to/file.csv') 
+   ## upload to sql database
+   # ... <define sql connection here> ...
+   bt['Person'].to_sql(conn, 'PersonTableInSQL')
+
+
+.. _create_sql_linked_table:
+
+Bintang.create_sql_linked_table(name, conn, sql_str=None, params=None)
+----------------------------------------------------------------------
+
+Store sql connection and sql table/statement. It'll read the data directly from the sql database later only when needed. 
+This function will not create in memory table therefore adding/delete column or records are not allowed.
+This table is suitable for extracting 'big' data from a DB that is beyond memory capacity and dump it to a flat file like csv.
+Use read_sql_ function if data manipulation is required.
+
+This function requires pyodbc or psycopg (postgresql specific) connection, therefore you must install the required package.
+Below is an example to install the package from a terminal.
+
+
+.. code-block:: console
+
+   C:\project_dir>pip install pyodbc
+   C:\project_dir>pip install psycopg
+
+:name: linked table name to be created
+:conn: pyodbc database connection
+:sql_str: sql query, if none it will select * from table_name, assuming the table name exists in the database.
+:params: sql parameters
+
+.. code-block:: python
+
+   import bintang
+   import pyodbc
+   
+   # connect to sql server
+   conn_str = "DRIVER={ODBC Driver 17 for SQL Server};SERVER=localhost;PORT=1443;DATABASE=test;Trusted_Connection=yes;"
+   conn = pyodbc.connect(conn_str)
+   sql_str = "SELECT * FROM Person WHERE LastName=?"
+   params = ('Dokey')
+
+   bt = bintang.Bintang()
+   bt.create_linked_table('Person', conn, sql_str, params=params)
+
+   for idx, row in bt['Person'].iterrows():
+       print(idx, row)
+       # would print
+       # 1 {'ID': 3, 'FirstName': 'Okie', 'LastName': 'Dokey', 'address': '7 Ocean Rd'}
+       # ...
+       # if you want to return your own index/rownum, pass that column to iterrows' rowid parameter, for eg. rowid='yourRownumCol'
+       # please note that this will only work for sql data source.
+
+   conn.close()    
 

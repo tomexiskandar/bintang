@@ -419,6 +419,39 @@ class Base_Table(ABC):
             params.append(param)
         return ",".join(params)
 
+        
+    def update(self, column, value, where=None):
+        if isinstance(value, types.FunctionType):
+            # value passed as function
+            for idx, row in self.iterrows():
+                if where is None:
+                    try:
+                        val = value(row) # function called
+                        self.update_row(idx, column, val)
+                    except Exception as e:
+                        #log.warning(e)
+                        pass    
+                else:    
+                    try:
+                        if where(row):
+                            val = value(row) # function called
+                            self.update_row(idx, column, val) 
+                    except Exception as e:
+                        #log.warning(e)
+                        pass 
+        else:
+            # value passed as non function eg. an int or str
+            for idx, row in self.iterrows():
+                if where is None:
+                    self.update_row(idx, column, value)
+                else:    
+                    try:
+                        if where(row): # function called 
+                            self.update_row(idx, column, value) 
+                    except Exception as e:
+                        # print(e)
+                        pass 
+
 
     def gen_sql_stmt_merge_dev(self
                            ,trg_table

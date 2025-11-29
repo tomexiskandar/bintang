@@ -977,41 +977,6 @@ class Memory_Table(Base_Table):
                 print(row)
                 pass
         return False    
-        
-        
-    def update(self, column, value, where=None):
-        if isinstance(value, types.FunctionType):
-            # value passed as function
-            for idx, row in self.iterrows():
-                if where is None:
-                    try:
-                        val = value(row) # function called
-                        self.update_row(idx, column, val)
-                    except Exception as e:
-                        #log.warning(e)
-                        pass    
-                else:    
-                    try:
-                        if where(row):
-                            val = value(row) # function called
-                            self.update_row(idx, column, val) 
-                    except Exception as e:
-                        #log.warning(e)
-                        pass 
-        else:
-            # value passed as non function eg. an int or str
-            for idx, row in self.iterrows():
-                if where is None:
-                    self.update_row(idx, column, value)
-                else:    
-                    try:
-                        if where(row): # function called 
-                            self.update_row(idx, column, value) 
-                    except Exception as e:
-                        # print(e)
-                        pass 
-
-
 
     
     def get_index_lambda(self,expr):

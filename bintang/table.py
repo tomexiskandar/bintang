@@ -12,6 +12,7 @@ from itertools import product
 from abc import ABC, abstractmethod
 from bintang.log import log
 import bintang
+import types
 
 MAX_ROW_SQL_INSERT = 300
 

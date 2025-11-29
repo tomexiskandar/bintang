@@ -254,17 +254,27 @@ class Base_Table(ABC):
             sql_template = 'INSERT INTO "{}" ({}) VALUES'
             str_stmt = sql_template.format(table,",".join(['"{}"'.format(x) for x in colmap]))
         
-        sql_cols_withtype = self.set_sql_datatype(dest_columns, conn, schema, table)
-        sql_cols_withliteral = None if sql_cols_withtype is None else self.set_sql_literal(sql_cols_withtype, conn)
+        # check if getting type info is supported, if yes then get sql data type and literal
+        res = self.get_sql_typeinfo_table(conn)
+        if res is not None:
+            sql_cols_withtype = self.set_sql_datatype(dest_columns, conn, schema, table)
+            sql_cols_withliteral = self.set_sql_literal(sql_cols_withtype, conn)
+        else:
+            sql_cols_withliteral = None
+
         cursor = conn.cursor()
         temp_rows = []  
         rows_affected = 0 # to hold total record affected
         for idx, values in self.iterrows(src_cols, row_type='list'):
-            sql_record = self.gen_sql_literal_record(values, sql_cols_withliteral)
+            if sql_cols_withliteral is not None:    
+                sql_record = self.gen_sql_record_with_literal(values, sql_cols_withliteral)
+            else:   
+                sql_record = self.gen_sql_record_without_literal(values)
             temp_rows.append(sql_record)
             if len(temp_rows) == max_rows:
                 stmt = str_stmt + ' {}'.format(",".join(temp_rows))
                 try:
+                    log.debug(stmt)
                     cursor.execute(stmt)
                     rows_affected += cursor.rowcount
                 except Exception as e:
@@ -274,6 +284,7 @@ class Base_Table(ABC):
         if len(temp_rows) > 0:
             stmt = str_stmt + ' {}'.format(",".join(temp_rows))
             try:
+                log.debug(stmt)
                 cursor.execute(stmt)
                 rows_affected += cursor.rowcount
             except Exception as e:
@@ -282,44 +293,53 @@ class Base_Table(ABC):
         return rows_affected           
 
 
-    def gen_sql_literal_record(self, values, sql_cols_withliteral=None):
+    def gen_sql_record_with_literal(self, values, sql_cols_withliteral):
         sql_record = []
-        if sql_cols_withliteral:
-            sql_columns = [x for x in sql_cols_withliteral.keys()]
-        for i, value in enumerate(values):
-            if sql_cols_withliteral:
-                col = sql_columns[i]
-                literals = sql_cols_withliteral[col]
-                sql_value = self.gen_sql_literal_value(value, literals)
-            else:
-                sql_value = self.gen_sql_literal_value(value)
+        for (col, value) in zip(sql_cols_withliteral.keys(), values):
+            literals = sql_cols_withliteral[col]
+            sql_value = self.gen_sql_value_with_literal(value, literals)
             sql_record.append(sql_value)
         return "({})".format(','.join(sql_record))
+
+
+    def gen_sql_record_without_literal(self, values):
+        sql_record = []
+        for value in values:
+            sql_value = self.gen_sql_value_without_literal(value)
+            sql_record.append(sql_value)
+        return "({})".format(','.join(sql_record))    
         
 
-    def gen_sql_literal_value(self, value, literals=None):
+    def gen_sql_value_with_literal(self, value, literals):
         if value == "" or value is None:
             return "NULL"
         if isinstance(value, str):
             value = value.replace("'","''")
-        if literals:    
-            return "{}{}{}".format('' if literals[0] is None else literals[0], value, '' if literals[1] is None else literals[1])
+        return f"{'' if literals[0] is None else literals[0]}{value}{'' if literals[1] is None else literals[1]}"
+
+
+    def gen_sql_value_without_literal(self, value):
+        if value == "" or value is None:
+            return "NULL"
+        if isinstance(value, str):
+            value = value.replace("'","''")
+        
+        if type(value) in [int, float, bool]:
+            return str(value) # so we can just join them later
         else:
-            if type(value) in [int, float, bool]:
-                return str(value) # so we can just join them later
-            else:
-                return f"'{value}'"
-            # return "{}{}{}".format('' if literals[0] is None else literals[0], value, '' if literals[1] is None else literals[1])
-    
+            return f"'{value}'"
+
 
     def get_sql_typeinfo_table(self, conn):
         cursor = conn.cursor()
         sql_type_info_tuple = cursor.getTypeInfo(sqlType = None)
         columns_ = [column[0] for column in cursor.description]
-        tobj = Memory_Table('sql_typeinfo')
+        sql_typeinfo = {}
         for row in sql_type_info_tuple:
-            tobj.insert(row, columns_)
-        return tobj
+            row_dict = dict(zip(columns_, row))
+            type_name = row_dict['type_name']     
+            sql_typeinfo[type_name] = row_dict
+        return sql_typeinfo
     
 
     def set_sql_datatype(self, dest_columns, conn, schema, table):
@@ -327,29 +347,32 @@ class Base_Table(ABC):
         try:
             sql_columns = cursor.columns(schema=schema, table=table)
             columns_ = [column[0] for column in cursor.description]
-            tobj = Memory_Table('sql_columns_')
-            for row in sql_columns: #cursor.columns(schema=schema, table=table):
-                tobj.insert(row, columns_)
+            col_dict = {}
+            for row in sql_columns: 
+                row_dict = dict(zip(columns_, row))
+                column_name = row_dict['column_name']
+                col_dict[row_dict['column_name']] = row_dict
             sql_columns_withtype = {}    
             for col in dest_columns:
-                _type = tobj.get_value('type_name', where = lambda row: row['column_name']==col)
-                sql_columns_withtype[col] = _type
+                sql_columns_withtype[col] = col_dict[col]['type_name']    
             return sql_columns_withtype
-        except: # oppss.. no support then fill up None
+        except Exception as e: 
+            log.error(e)
             return None  
     
 
     def set_sql_literal(self, sql_cols_withtype, conn):
         try:
-            sql_typeinfo_tab = self.get_sql_typeinfo_table(conn)
+            sql_typeinfo_tab = self.get_sql_typeinfo_table(conn)           
             sql_cols_withliteral = {}
             for k, v in sql_cols_withtype.items():
-                prefix = sql_typeinfo_tab.get_value('literal_prefix',where=lambda row: row['type_name']==v)
-                suffix = sql_typeinfo_tab.get_value('literal_suffix',where=lambda row: row['type_name']==v)
+                prefix = sql_typeinfo_tab[v]['literal_prefix']
+                suffix = sql_typeinfo_tab[v]['literal_suffix']
                 literals = (prefix,suffix)
                 sql_cols_withliteral[k] = literals
             return sql_cols_withliteral    
-        except: # opps... no support
+        except Exception as e: # opps... no support
+            log.error(e)
             literals = (None, None)
             return {col:literals for col in sql_cols_withtype.keys()}
         

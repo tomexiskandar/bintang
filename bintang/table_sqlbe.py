@@ -11,7 +11,7 @@ class SQL_Backend_Table(Base_Table):
         super().__init__(name, bing=bing)
         self.conn = conn  # for backend use
         self.conn.row_factory = sqlite3.Row
-        self.create_sql_table()
+        self._create_sql_table()
 
 
     def __len__(self):
@@ -21,18 +21,18 @@ class SQL_Backend_Table(Base_Table):
         return res.fetchone()[0]      
 
 
-    def create_sql_table(self):
+    def _create_sql_table(self):
         cur = self.conn.cursor()
         cur.execute("SELECT EXISTS (SELECT 1 FROM sqlite_master WHERE type='table' AND name=:tablename)", {"tablename":self.name})
         ret = cur.fetchone()[0]
         if  ret == 0:
-            cur.execute("CREATE TABLE '{}' (idx INTEGER PRIMARY KEY NOT NULL, cells JSON)".format(self.name))
-            cur.execute("CREATE TABLE '__columns__' (id INTEGER PRIMARY KEY NOT NULL, name TEXT COLLATE NOCASE, ordinal_position INTEGER, data_type TEXT, column_size INTEGER, decimal_digits INTEGER, data_props JSON)")
+            cur.execute(f"CREATE TABLE '{self.name}' (idx INTEGER PRIMARY KEY NOT NULL, cells JSON)")
+            cur.execute(f"CREATE TABLE '{self.name}__columns__' (id INTEGER PRIMARY KEY NOT NULL, name TEXT COLLATE NOCASE, ordinal_position INTEGER, data_type TEXT, column_size INTEGER, decimal_digits INTEGER, data_props JSON)")
         cur.close()
 
     
     def _get_columnid_sql(self, column):
-        sql = 'SELECT id FROM __columns__ where name = ?'
+        sql = f"SELECT id FROM {self.name}__columns__ where name = ?"
         cursor = self.conn.cursor()
         res = cursor.execute(sql,(column,))
         ret = res.fetchone()
@@ -44,7 +44,7 @@ class SQL_Backend_Table(Base_Table):
     
     def _get_last_assigned_ord_pos(self) -> int:
         cursor = self.conn.cursor()
-        sql = 'SELECT MAX(ordinal_position) AS MAXOF_ORD_POS FROM __columns__;'
+        sql = f"SELECT MAX(ordinal_position) AS MAXOF_ORD_POS FROM {self.name}__columns__;"
         res = cursor.execute(sql)
         ret = res.fetchone()
         if ret:
@@ -61,7 +61,7 @@ class SQL_Backend_Table(Base_Table):
         columnid = self._get_columnid_sql(name)
         ord_pos = self._get_last_assigned_ord_pos() + 1
         if columnid is None:
-            sql = "INSERT INTO __columns__ (name, ordinal_position, data_type, column_size) VALUES (?,?,?,?)"
+            sql = f"INSERT INTO {self.name}__columns__ (name, ordinal_position, data_type, column_size) VALUES (?,?,?,?)"
             params = [name, ord_pos, data_type, column_size]
             cursor = self.conn.cursor()
             cursor.execute(sql, params)
@@ -88,22 +88,18 @@ class SQL_Backend_Table(Base_Table):
     def _add_row_sql(self, row, index=None):
         cur = self.conn.cursor()
         sql = "INSERT INTO '{}' (cells) VALUES (?)".format(self.name)
-        log.debug(sql)
-        log.debug(row)
-        cur.execute(sql, [row])
-
-    
-    def _get_columns_sql(self) -> list:
-        cursor = self.conn.cursor()
-        sql = 'SELECT name FROM __columns__ order by ordinal_position;'
-        sorted_columns = []
-        for row in cursor.execute(sql):
-            sorted_columns.append(row['name'])
-        return sorted_columns 
+        # log.debug(sql)
+        # log.debug(row)
+        cur.execute(sql, [row]) 
 
 
     def get_columns(self):
-        return self._get_columns_sql()
+        cursor = self.conn.cursor()
+        sql = f"SELECT name FROM {self.name}__columns__ order by ordinal_position;"
+        sorted_columns = []
+        for row in cursor.execute(sql):
+            sorted_columns.append(row['name'])
+        return sorted_columns
 
 
     def _order_columns_sql(self, columns):
@@ -122,15 +118,15 @@ class SQL_Backend_Table(Base_Table):
         if columnid is not None:
             cursor = self.conn.cursor()
             if data_type is not None:
-                sql = 'UPDATE __columns__ SET data_type=? WHERE id=?;'
+                sql = f"UPDATE {self.name}__columns__ SET data_type=? WHERE id=?;"
                 params = [data_type, columnid]
                 cursor.execute(sql,params)
             if column_size is not None:
-                sql = 'UPDATE __columns__ SET column_size=? WHERE id=?;'
+                sql = 'UPDATE {self.name}__columns__ SET column_size=? WHERE id=?;'
                 params = [column_size, columnid]
                 cursor.execute(sql,params)
             if ordinal_position is not None:
-                sql = 'UPDATE __columns__ SET ordinal_position=? WHERE id=?;'
+                sql = 'UPDATE {self.name}__columns__ SET ordinal_position=? WHERE id=?;'
                 params = [ordinal_position, columnid]
                 cursor.execute(sql,params)           
 
@@ -170,7 +166,7 @@ class SQL_Backend_Table(Base_Table):
         # get columnnames from db and return as dict of columnid : columnname
         col_dict = {}
         cur = self.conn.cursor()
-        sql = "SELECT id, name FROM __columns__ order by ordinal_position;"
+        sql = f"SELECT id, name FROM {self.name}__columns__ order by ordinal_position;"
         for row in cur.execute(sql):
             col_dict[row['name']] = row['id'] 
         return col_dict
@@ -277,7 +273,7 @@ class SQL_Backend_Table(Base_Table):
             warnings.warn(f'Warning! {fn}() trying to update a non existed row (ie. idx {idx}).')
 
 
-    def update_row_sql(self, idx, column, value):
+    def update_row(self, idx, column, value):
         """ using json_set so only update for a specific key"""
         cursor = self.conn.cursor() 
         columnid = self._get_columnid_sql(column)

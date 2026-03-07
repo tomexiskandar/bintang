@@ -1,4 +1,12 @@
 import copy
+from dataclasses import dataclass
+import datetime
+from dateutil import parser
+
+@dataclass
+class ValueRange:
+    lo: int
+    hi: int
 
 class Cell(object):
     """Define a cell object

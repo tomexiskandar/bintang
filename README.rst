@@ -62,25 +62,25 @@ Examples of Usage
    # }  
 
 
-Use insert function to populate a table. The parameters are record and columns.
+Use insert function to populate a table. The parameters are dict/columns and values.
 
 .. code-block:: python
 
    # Create a couple of tables and use insert function to insert data.
    bt.create_table('Person') 
 
-   bt['Person'].insert([1,'John','Smith','1 Station St'], ['id','name','surname','address'])
-   bt['Person'].insert([2,'Jane','Brown','Digging','8 Parade Rd'], ['id','name','surname','hobby','address'])
-   bt['Person'].insert([3,'Okie','Dokie','7 Ocean Rd'], ['id','name','surname','Address'])
+   bt['Person'].insert({'id':1,'name':'John','surname':'Smith','address':'1 Station St'})
+   bt['Person'].insert(['id','name','surname','hobby','address'],[2,'Jane','Brown','Digging','8 Parade Rd'])
+   bt['Person'].insert(['id','name','surname','Address'], [3,'Okie','Dokie', '7 Ocean Rd'])
    bt['Person'].insert((4,'Maria','Digging','7 Heaven Ave'), ('id','name','hobby','Address'))
    bt['Person'].insert((5,'Bing','Digging',None), ('id','name','hobby','Address'))
 
    bt.create_table("FishingClub")
-   bt['FishingClub'].insert(['Ajes','Freeman','Active'], ['FirstName','LastName','Membership'])
-   bt['FishingClub'].insert(['John','Smith','Active'], ['FirstName','LastName','Membership'])
-   bt['FishingClub'].insert(['Jane','Brown','Active'], ['FirstName','LastName','Membership'])
-   bt['FishingClub'].insert(['Nutmeg','Spaniel','Active'], ['FirstName','LastName','Membership'])
-   bt['FishingClub'].insert(['Zekey','Pokey','Active'], ['FirstName','LastName','Membership'])
+   bt['FishingClub'].insert({'FirstName':'Ajes','LastName':'Freeman','Membership':'Active'})
+   bt['FishingClub'].insert({'FirstName':'John','LastName':'Smith','Membership':'Active'})
+   bt['FishingClub'].insert({'FirstName':'Jane','LastName':'Brown','Membership':'Active'})
+   bt['FishingClub'].insert({'FirstName':'Nutmeg','LastName':'Spaniel','Membership':'Active'})
+   bt['FishingClub'].insert({'FirstName':'Zekey','LastName':'Pokey','Membership':'Active'})
 
 Loop your data using iterrows function. This will loop through all the rows one by one in a Python dict.
 
@@ -484,32 +484,32 @@ Return a new table from an inner join operation.
 
 
 
-Bintang.Table.insert(record, columns=None)
-------------------------------------------
+Bintang.Table.insert(dict_or_columns, values=None)
+--------------------------------------------------
 Insert a record into a table.
 
-:record: a list/tuple of data. Or a dict where key=column, value=record
-:columns: a list/tuple of columns (in the same order as in the record)
+:dict_or_columns: dict or  list/tuple of column. 
+:values: if the dict_or_columns is a list/tuple of column, then values is a list/tuple of values (in the same order as in the columns)
 
 .. code-block:: python
 
    bt.create_table('Person') 
    p = bt.get_table('Person') # get table object for Person
    # insert data directly from table object instead throug bt object.
-   p.insert([1,'John','Smith','1 Station St'], ['id','name','surname','address'])
-   p.insert([2,'Jane','Brown','Digging','8 Parade Rd'], ['id','name','surname','hobby','address'])
-   p.insert([3,'Okie','Dokie','7 Ocean Rd'], ['id','name','surname','Address'])
-   p.insert((4,'Maria','Digging','7 Heaven Ave'), ('id','name','hobby','Address'))
-   p.insert((5,'Bing','Digging',None), ('id','name','hobby','Address'))
+   p.insert({'id':1,'name':'John','surname':'Smith','address':'1 Station St'})
+   p.insert({'id':2,'name':'Jane','surname':'Brown','hobby':'Digging','address':'8 Parade Rd'})
+   p.insert({'id':3,'name':'Okie','surname':'Dokie','address':'7 Ocean Rd'})
+   p.insert({'id':4,'name':'Maria','surname':'Digging','address':'7 Heaven Ave'})
+   p.insert({'id':5,'name':'Bing','surname':'Digging', 'address':None})
 
    bt.create_table('FishingClub')
    # lets make a list of columns so we can pass it to insert.
    columns = ['FirstName','LastName','Membership']
-   bt['FishingClub'].insert(['Ajes','Freeman','Active'], columns)
-   bt['FishingClub'].insert(['John','Smith','Active'], columns)
-   bt['FishingClub'].insert(['John','Brown','Active'], columns)
-   bt['FishingClub'].insert(['Okie','Dokie','Active'], columns)
-   bt['FishingClub'].insert(['Zekey','Pokey','Active'], columns)
+   bt['FishingClub'].insert({'FirstName':'Ajes','LastName':'Freeman','Membership':'Active'})
+   bt['FishingClub'].insert({'FirstName':'John','LastName':'Smith','Membership':'Active'})
+   bt['FishingClub'].insert({'FirstName':'John','LastName':'Brown','Membership':'Active'})
+   bt['FishingClub'].insert({'FirstName':'Okie','LastName':'Dokie','Membership':'Active'})
+   bt['FishingClub'].insert({'FirstName':'Zekey','LastName':'Pokey','Membership':'Active'})
 
 
    bt.create_table("Product")
@@ -755,11 +755,11 @@ Below is an example to install the package from a terminal.
    bt = bintang.Bintang()
    bt.create_table('Person')
    person = bt.get_table('Person')
-   person.insert([1,'John','Smith','1 Station St'], ['id','name','surname','address'])
-   person.insert([2,'Jane','Brown','Digging','8 Parade Rd'], ['id','name','surname','address'])
-   person.insert([3,'Okie','Dokey','7 Ocean Rd'], ['id','name','surname','address'])
-   person.insert((4,'Maria','Digging','7 Heaven Ave'), ('id','name','hobby','Address'))
-   person.insert((5,'Bing','Digging',None), ('id','name','hobby','Address'))
+   person.insert({'id':1,'name':'John','surname':'Smith','address':'1 Station St'})
+   person.insert({'id':2,'name':'Jane','surname':'Brown','hobby':'Digging','address':'8 Parade Rd'})
+   person.insert({'id':3,'name':'Okie','surname':'Dokie','address':'7 Ocean Rd'})
+   person.insert({'id':4,'name':'Maria','surname':'Digging','address':'7 Heaven Ave'})
+   person.insert({'id':5,'name':'Bing','surname':'Digging', 'address':None})
     
    # let's map column ID, FirstName, LastName, Address in database to bintang's Person table.
    columns = {'ID':'id', 'FirstName':'name', 'LastName':'surname', 'Address':'address'}
@@ -863,13 +863,32 @@ To rename Bintang object name can be done through normal assignment.
 
 
 
-Bintang.Table.add_column(name)
-------------------------------
+Bintang.Table.add_column(name, data_type=None, column_size=None, min_value=None, max_value=None, min_length=None, max_length=None, required=False)
+--------------------------------------------------------------------------------------------------------------------------------------------------
 
 Add a new column to table. 
-Note that intang can also create columns during record insertion (dynamic schema effect).
+Note that Bintang can also create columns during record insertion (dynamic schema effect).
 
 :column: a string of column name
+:data_type: python data type eg. str, int, float
+:column_size: string length if data_type is a str
+:min_value: minimum value if data_type is a number
+:max_value: maximum value if data_type is a number
+:min_length: minimum length if data_type is a str
+:max_length: maximum length if data_type is a str
+:required: boolean value to indicate if the column is required (default is False)
+
+data_type and column_size  parameters are used for generating sql table and not used for presenting the data at the moment.
+min_value, max_value, min_length, max_length and required parameters are used for validating the data when validation function is called. See Bintang.Table.validate() for more details.
+
+
+
+Bintang.Table.add_or_update_column(name, data_type=None, column_size=None, min_value=None, max_value=None, min_length=None, max_length=None, required=False)
+------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Add a new column to table or update the column if it already exists.
+Note that Bintang can also create columns during record insertion (dynamic schema effect).
+see add_column() for the meaning of the parameters.
 
 
 
@@ -899,11 +918,19 @@ To delete the row at index.
 
 
 Bintang.Table.drop_column(name)
----------------------------------
+-------------------------------
 
 Drop a column from a table.
 
 :column: a string of column name
+
+
+
+Bintang.Table.get_all_indexes()
+-------------------------------
+
+Return a list of all row indexes in the table.
+
 
 
 Bintang.Table.get_columns()
@@ -995,8 +1022,8 @@ To update row(s) in the table
 
 
 
-Bintang.Table.update_column(name, data_type=None, column_size=None, ordinal_position=None)
-------------------------------------------------------------------------------------------
+Bintang.Table.update_column(name, data_type=None, column_size=None, ordinal_position=None, min_value=None, max_value=None, min_length=None, max_length=None, required=False)
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 To update column's attributes, eg. data_type, column_size and ordinal_position.
 
@@ -1004,8 +1031,14 @@ To update column's attributes, eg. data_type, column_size and ordinal_position.
 :data_type: python data type eg. str, int, float
 :column_size: string length if data_type is a str
 :ordinal_position: integer for column order.
+:min_value: minimum value if data_type is a number
+:max_value: maximum value if data_type is a number
+:min_length: minimum length if data_type is a str
+:max_length: maximum length if data_type is a str
+:required: boolean value to indicate if the column is required (default is False)
 
 Note: At the moment data_type and column_size are used for generating sql table and not used for presenting the data.
+min_value, max_value, min_length, max_length and required parameters are used for validating the data when validation function is called. See Bintang.Table.validate() for more details.
 
 
 
@@ -1019,6 +1052,45 @@ To update the row at idx. So only one row will be affected.
 :value: new value
 
 
+
+Bintang.Table.validate(into_invalid_table = None)
+-------------------------------------------------
+
+To validate table according to the provided column's properties.
+This function can only validate data type of int, float, bool, str, None, datetime.date and datetime.datime.
+
+:into_invalid_table: if provided then invalid table will be created with error messages
+
+.. code-block:: python
+
+   import bintang
+   bt = bintang.Bintang()
+   bt.create_table('Product')
+   p = bt['Product']
+   p.add_column('id', data_type='int', min_value=1, required=True)
+   p.add_column('name', data_type='str', min_length=1, max_length=20)
+   p.add_column('price', data_type='float', min_value=0)
+   p.add_column('order_date', data_type='date', max_value=datetime.date(2025,12,31))
+
+   a = ['1','2','3']
+   p.insert({'id':1, 'name':'Hook','price':'1.60', 'order_date':'2025-07-01'})
+   p.insert({'id':'', 'name':'Sinker','price':1.20}) 
+   p.insert({'id':'3', 'name':'Reels  ','price':15.50}) 
+   p.insert({'id':4, 'name':None, 'price':20, 'order_date': '2026-07-01'})
+   p.insert({'id':'5t', 'name':'Bait','price':20})
+   p.insert({'id':6, 'name':'Bait has very long name','price':5.50})
+
+   p.validate('Product_Bad_Data')
+
+   print('\nthe rows after validation')
+   for idx, row in p.iterrows():
+      print(idx, row)
+
+   print('\ninvalid rows from table Product_Bad_Data')   
+   for idx, row in bt['Product_Bad_Data'].iterrows():
+      print(idx, row)
+
+  
 
 -----------------
 Special Functions
@@ -1105,4 +1177,3 @@ Below is an example to install the package from a terminal.
        # please note that this will only work for sql data source.
 
    conn.close()    
-

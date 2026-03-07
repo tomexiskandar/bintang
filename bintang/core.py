@@ -384,7 +384,7 @@ class Bintang():
             cursor.execute(sql_str)
         columns = [col[0] for col in cursor.description]
         for row in cursor.fetchall():
-            self.insert(tablename, row, columns)
+            self.insert(tablename, columns, row)
 
 
     def _add_lcell(self, lidx, ltable, outrow, out_table, out_lcolumns, rowid):

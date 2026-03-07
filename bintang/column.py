@@ -2,19 +2,26 @@ import unicodedata
 class Column:
     """class to define column object 
     """
-    __slots__ = ('id','name','ordinal_position','data_type','column_size','decimal_digits','data_props')
+    __slots__ = ('id','name','data_type','required','min_value','max_value','min_length','max_length','ordinal_position','column_size','decimal_digits','data_props')
     def __init__(self,name):
         self.id = None
         self.name = name
+        self.data_type = None  # for validation
+        self.required = False # for validation
+        self.min_value = None # for validation for int and float
+        self.max_value = None # for validation for int and float
+        self.min_length = None # for validation for str
+        self.max_length = None # for validation for str
         self.ordinal_position = -1
-        #self.data_types = [] # get this on request. its common data type more than one (inconsistent data)
-        self.data_type = None
         self.column_size = 0 # the max. get this on request
         self.decimal_digits = 0 # get this on request
         self.data_props = {}
+        #self.data_types = [] # get this on request. its common data type more than one (inconsistent data)
+        
+        
     
     def __repr__(self):
-        return self.name
+        return f'id:{self.id}, name: {self.name}, data_type: {self.data_type}, required: {self.required}, min_value: {self.min_value}, max_value: {self.max_value}, min_length: {self.min_length}, max_length: {self.max_length}'
 
     def get_name_uppercased(self):
         return self.name.upper()

@@ -7,8 +7,16 @@ from bintang.row import Row
 from bintang.log import log
 import types
 from operator import itemgetter
-from typing import Literal
+from typing import Literal, Annotated, Any, get_origin
 from itertools import product
+from dataclasses import dataclass
+import datetime
+from dateutil import parser
+
+@dataclass
+class ValueRange:
+    lo: int
+    hi: int
 
 class Memory_Table(Base_Table):
     """Define a Bintang table object
@@ -23,6 +31,13 @@ class Memory_Table(Base_Table):
         self.__last_assigned_columnid= 9 #
         self.__last_assigned_rowid = 0 # for use when row created
         self.__last_assigned_idx = 0 # for use when add idx
+        self.validate_funcs = {
+            'int': self.validate_integer,
+            'float': self.validate_float,
+            'str': self.validate_string,
+            'date': self.validate_date,
+            'datetime': self.validate_datetime
+            }
         
     def __getitem__(self, idx): # subscriptable version of self.get_row_asdict()
         #return self.__rows[idx] # bad design. a raw row isn't that useful at client code
@@ -149,9 +164,7 @@ class Memory_Table(Base_Table):
         return create_sqltable_templ 
     
 
-    def add_column(self, name, data_type=None, column_size=None):
-        # if self.type == 'MEMORY':
-
+    def add_column(self, name, data_type=None, column_size=None, min_value=None, max_value=None, min_length=None, max_length=None, required=False):
         # check if the passed name already exists
         columnid = self.get_columnid(name)
         if columnid is None:
@@ -160,6 +173,16 @@ class Memory_Table(Base_Table):
                 cobj.data_type = data_type
             if column_size is not None:
                 cobj.column_size = column_size
+            if min_value is not None:
+                cobj.min_value = min_value
+            if max_value is not None:
+                cobj.max_value = max_value
+            if min_length is not None:
+                cobj.min_length = min_length
+            if max_length is not None:
+                cobj.max_length = max_length
+            if required is not None:
+                cobj.required = required
             cobj.id = self.__last_assigned_columnid + 1
             cobj.ordinal_position = self.__last_assigned_columnid + 1
             self.__columns[cobj.id] = cobj
@@ -167,11 +190,17 @@ class Memory_Table(Base_Table):
         else:
             log.debug(f'Warning! trying to add existing column "{name}".')
         
-        # else:
-        #     log.debug(f'Warning! add_columns() only alowed for Memory table.')
+
+    def add_or_update_column(self, name, data_type=None, column_size=None, min_value=None, max_value=None, min_length=None, max_length=None, required=False):
+        # check if the passed name already exists
+        columnid = self.get_columnid(name)
+        if columnid is None:
+            self.add_column(name, data_type, column_size, min_value, max_value, min_length, max_length, required)
+        else:
+            self.update_column(name, data_type, column_size, None, min_value, max_value, min_length, max_length, required)
 
 
-    def update_column(self,name, data_type=None, column_size=None, ordinal_position=None):
+    def update_column(self,name, data_type=None, column_size=None, ordinal_position=None, min_value=None, max_value=None, min_length=None, max_length=None, required=False):
         # check if the passed name already exists
         columnid = self.get_columnid(name)
         if columnid is not None:
@@ -181,7 +210,18 @@ class Memory_Table(Base_Table):
                 self.__columns[columnid].column_size = column_size
             if ordinal_position is not None:
                 self.__columns[columnid].ordinal_position = ordinal_position
-          
+            if min_value is not None:
+                self.__columns[columnid].min_value = min_value
+            if max_value is not None:
+                self.__columns[columnid].max_value = max_value
+            if min_length is not None:
+                self.__columns[columnid].min_length = min_length
+            if max_length is not None:
+                self.__columns[columnid].max_length = max_length
+            if required is not None:
+                self.__columns[columnid].required = required
+
+                
 
     def get_columnid(self,column):
         # if self.conn is None:
@@ -220,33 +260,14 @@ class Memory_Table(Base_Table):
         #if self.conn is None:
             #provide warning if the passed column does not exist
         if columnid is None:
-            log.warning("warning... trying to drop a non-existence column '{}'".format(name))
+            log.warning("warning... trying to drop a non-existence column '{}'".format(column))
             return False
         # delete the cell from cell. Let's revisit this, Q: do we need to delete the data coz it's not linked to existing column since the the colum dropped.
-        for row in self.__rows.values():
-            row.cells.pop(columnid,None)
+        #for row in self.__rows.values():
+        #    row.cells.pop(columnid,None)
         # delete the column
         self.__columns.pop(columnid,None)
-        # else:
-        #     columnid = self._get_columnid_sql(column)
-        #     log.debug(columnid)
-            
-        #     sql = 'DELETE FROM __columns__ WHERE id = ?;'
-        #     cursor = self.conn.cursor()
-        #     cursor.execute(sql, (columnid,))
-        #     self.conn.commit()
-
-
-#  sql = 'SELECT id FROM __columns__ where name = ?'
-#         cursor = self.conn.cursor()
-#         res = cursor.execute(sql,(column,))
-#         ret = res.fetchone()
-#         if ret:
-#             return ret['id']
-#         else:
-#             return None
         
-
 
     def get_column(self,columnid):
         return self.__columns[columnid].name
@@ -309,6 +330,10 @@ class Memory_Table(Base_Table):
         columnid = self.get_columnid(column)
         return self.__columns[columnid]
 
+
+    def get_column_object_byid(self,columnid):
+        return self.__columns[columnid]    
+
  
     def validate_column(self, column):
         """return column as the one stored in table.columns"""
@@ -319,8 +344,185 @@ class Memory_Table(Base_Table):
             raise ValueError ('could not find column {}. Did you mean {}?'.format(repr(column),' or '.join(similar_cols)))
 
 
+    def validate_integer(self, value: int, cobj) -> tuple[int, bool, str | None]:
+        #print(f"validate_integer called with value: {value} for column '{cobj.name}' with min_value={cobj.min_value} and max_value={cobj.max_value}")
+        type_ = Annotated[int, ValueRange(cobj.min_value, cobj.max_value)]
+        for annotation in type_.__metadata__:
+            if isinstance(annotation, ValueRange):
+                try:
+                    value = int(float(value))  # Convert value to the base type float then integer
+                    if cobj.min_value is not None and cobj.max_value is not None:
+                        if not (cobj.min_value <= value <= cobj.max_value):
+                            return (value, False, f"value is out of range [{cobj.min_value}, {cobj.max_value}]")
+                    elif cobj.min_value is not None:
+                        if not (value >= cobj.min_value):
+                            return (value, False, f"value is below the minimum allowed value {cobj.min_value}")
+                    elif cobj.max_value is not None:
+                        if not (value <= cobj.max_value):
+                            return (value, False, f"value is above the maximum allowed value {cobj.max_value}")
+                    return (value, True, None) # return the converted value, validation result, and error message
+                except (TypeError, IndexError, ValueError) as e:
+                    return (value, False, f"ValueError: {e}")
+    
+    
+    def validate_float(self, value: float, cobj) -> tuple[float,bool, str | None]:
+        #print(f"validate_float called with value: {value} for column '{cobj.name}' with min_value={cobj.min_value} and max_value={cobj.max_value}")
+        type_ = Annotated[float, ValueRange(cobj.min_value, cobj.max_value)]
+        for annotation in type_.__metadata__:
+            if isinstance(annotation, ValueRange):
+                errors = []
+                try:
+                    value = float(value)  # Convert value to the base type float
+                    if cobj.min_value is not None and cobj.max_value is not None:
+                        if not (cobj.min_value <= value <= cobj.max_value):
+                            return (value, False, f"value is out of range [{cobj.min_value}, {cobj.max_value}]")
+                    elif cobj.min_value is not None:
+                        if not (value >= cobj.min_value):
+                            return (value, False, f"value is below the minimum allowed value {cobj.min_value}") 
+                    elif cobj.max_value is not None:
+                        if not (value <= cobj.max_value):
+                            return (value, False, f"value is above the maximum allowed value {cobj.max_value}")
+                    return (value, True, None) # return the converted value, validation result, and error message
+                except (TypeError, IndexError, ValueError) as e:
+                    return (value, False, f"ValueError: {e}")
+
+
+    def validate_string(self, value: str, cobj) -> tuple[str, bool, str | None]:
+        #print(f"validate_string called with value: '{value}' for column '{cobj.name}' with min_length={cobj.min_length} and max_length={cobj.max_length}")
+        type_ = Annotated[str, ValueRange(cobj.min_length, cobj.max_length)]
+        for annotation in type_.__metadata__:
+            if isinstance(annotation, ValueRange):
+                try:                    
+                    value = str(value).strip()
+                    if cobj.min_length is not None and cobj.max_length is not None:
+                        if not (annotation.lo <= len(value) <= annotation.hi):
+                            return (value, False, f"value has length {len(value)} which is out of allowed range [{annotation.lo}, {annotation.hi}]")
+                    elif cobj.min_length is not None: 
+                        if not (len(value) >= annotation.lo):
+                            return (value, False, f"value has length {len(value)} which is below the minimum allowed length {annotation.lo}")
+                    elif cobj.max_length is not None:
+                        if not (len(value) <= annotation.hi):
+                            return (value, False, f"value has length {len(value)} which is above the maximum allowed length {annotation.hi}")               
+                    return (value, True, None) # return the converted value, validation result, and error message
+                except (TypeError, IndexError, ValueError) as e:
+                    return (value, False, f"column '{cobj.name}' has ValueError: {e}")
+    
+
+    def validate_date(self, value: datetime.date, cobj) -> tuple[datetime.date, bool, str | None]:
+        #print('validate_date called with value:', value)
+        type_ = Annotated[datetime.date, ValueRange(cobj.min_value, cobj.max_value)]
+        for annotation in type_.__metadata__:
+            if isinstance(annotation, ValueRange):
+                try: 
+                    value = parser.parse(str(value)).date()  # Use dateutil.parser to parse the value into a date
+                    if cobj.min_value is not None and cobj.max_value is not None:
+                        if not (annotation.lo <= value <= annotation.hi):
+                            return (value, False, f"value is out of range [{annotation.lo}, {annotation.hi}]")
+                    elif cobj.min_value is not None:
+                        if not (value >= annotation.lo):
+                            return (value, False, f"value is below the minimum allowed value {annotation.lo}")
+                    elif cobj.max_value is not None:
+                        if not (value <= annotation.hi):
+                            return (value, False, f"value is above the maximum allowed value {annotation.hi}")
+                    return (value, True, None) # return the converted value, validation result, and error message
+                except (TypeError, IndexError, ValueError) as e:
+                    return (value, False, f"ValueError: {e}")
+    
+
+    def validate_datetime(self, value: datetime.datetime, cobj) -> tuple[datetime.datetime, bool, str | None]:
+        #print('validate_datetime called with value:', value)
+        type_ = Annotated[datetime.datetime, ValueRange(cobj.min_value, cobj.max_value)]
+        for annotation in type_.__metadata__:
+            if isinstance(annotation, ValueRange):
+                try:                    
+                    value = parser.parse(str(value))  # Use dateutil.parser to parse the value into a datetime
+                    if cobj.min_value is not None and cobj.max_value is not None:
+                        if not (annotation.lo <= value <= annotation.hi):
+                            return (value, False, f"value is out of range [{annotation.lo}, {annotation.hi}]")
+                    elif cobj.min_value is not None:
+                        if not (value >= annotation.lo):
+                            return (value, False, f"value is below the minimum allowed value {annotation.lo}")
+                    elif cobj.max_value is not None:
+                        if not (value <= annotation.hi):
+                            return (value, False, f"value is above the maximum allowed value {annotation.hi}") 
+                    return (value, True, None) # return the converted value, validation result, and error message
+                except (TypeError, IndexError, ValueError) as e:
+                    return (value, False, f"ValueError: {e}")
+
+
+    def valrows(self):
+        """ validate every column that has data_type assigned then
+        put the results to a new table with name into.
+        any passing validation will be inserted into the new table and any failed validation will be logged with error message and put into the new table as well.
+        """
+        # get columns that have data type assigned.
+        data_typed_columnids = []
+        for colid in self.get_columnids():
+            if self.__columns[colid].data_type is not None:
+                data_typed_columnids.append(colid)      
+        # iterate through rows and validate each cell value with its column properties
+        # only validate a non None value. if None value then only check if it is requred.
+        for idx, row in self._iterrows():
+            results = []
+            for colid in data_typed_columnids:
+                cobj = self.__columns[colid]
+                value = None
+                if colid in row.cells:
+                    value = row.cells[colid].value 
+                    if isinstance(value, str) and value == '':
+                        value = None 
+                        res = (colid, None, True, None) # force any '' to None
+                if value is None:
+                    if self.__columns[colid].required:
+                        res = (colid, None, False, f"column is required but value is None")
+                    # else: # comment to avoid handling later
+                    #     res = (colid, None, True, None)
+                elif value is not None:
+                    res = (colid,) + self.validate_funcs[cobj.data_type](value, self.__columns[colid])
+                results.append(res)
+            yield idx, tuple(results)
+
+
+    def extract_invalid_msg_(self,results):
+        res_msg = []
+        for res in results:
+            if not res[2]:
+                item= f"column {self.get_column(res[0])} - {res[3]}"
+                res_msg.append(item)      
+        return '; '.join(res_msg)
+
+
+    def validate(self, into_invalid_table = None):
+        """ validate the table and ouput valid and invalid table 
+        """
+        # iterate through rows and validate each cell value with its column properties
+        # then any passing validation will be inserted into the new table and any failed validation will be logged with error message and put into the new table as well.
+        invalids = [] # to track invalid rows
+        if into_invalid_table:
+            invalid_tobj = self.bing.create_table(into_invalid_table)
+        for idx, results in self.valrows():
+            # print(idx,  results)
+            if all(x[2] for x in results): # if valid update existing row and insert into valid_tobj
+                row = self.__rows[idx]
+                # update row for each valid column in the results
+                for res in results:
+                    print(res)
+                    self.__rows[idx].cells[res[0]].value = res[1]
+            else:
+                invalids.append(idx)
+                if into_invalid_table:
+                    invalid_records = self.get_row_asdict(idx)
+                    invalid_records['invalid_idx'] = idx
+                    invalid_records['error_msg'] = self.extract_invalid_msg_(results)
+                    invalid_tobj.insert(invalid_records, index=idx)
+
+        # delete invalid row out existing table
+        for idx in invalids:
+            del self.__rows[idx]
+
+
     def copy_index(self, column='idx',at_start=False):
-        for idx in self.__rows:
+        for idx in self.__rows: 
             if isinstance(idx, tuple): # if index generated from a groupby
                 self.update_row(idx, column, str(idx))
             else:
@@ -345,7 +547,12 @@ class Memory_Table(Base_Table):
             # if type(row[condition_columnname])==str:pass
             if row[condition_column] == condition_value:
                 indexes.append(idx)
-        return indexes    
+        return indexes
+
+
+    def get_all_indexes(self):
+        """will return a list of all indexes"""
+        return tuple(self.__rows.keys())
 
 
     def get_value(self, column, where = None):
@@ -399,25 +606,23 @@ class Memory_Table(Base_Table):
         return row
 
 
-    def insert(self, record, columns=None, index=None):
+    def insert(self, dict_or_columns, values=None, index=None):
         """ restrict arguments for record insertion for this function as the followings:
         1. a dictionary pass to record param
         2. list values pass to record param and list columns pass to column param.
         """
-        if isinstance(record, dict):
+        if isinstance(dict_or_columns, dict):
             row = self.make_row()
-            # if self.conn is None:
-            for idx, (col, val) in enumerate(record.items()):
+            for idx, (col, val) in enumerate(dict_or_columns.items()):
                 cell = self.make_cell(col,val)
                 row.add_cell(cell) # add to row
             self.add_row(row, index)   
             
                                                   
-        elif isinstance(columns,list) or isinstance(columns,tuple) or isinstance(record,list) or isinstance(record,tuple):
+        elif isinstance(dict_or_columns,list) or isinstance(dict_or_columns,tuple) or isinstance(values,list) or isinstance(values,tuple):
             row = self.make_row()
-            # if self.conn is None:
-            for idx, col in enumerate(columns):
-                cell = self.make_cell(col,record[idx])
+            for idx, col in enumerate(dict_or_columns):
+                cell = self.make_cell(col,values[idx])
                 row.add_cell(cell) # add to rows
             self.add_row(row, index) 
         else:
@@ -529,17 +734,7 @@ class Memory_Table(Base_Table):
                 columnid = self.get_columnid(column) # reassign the columnid
         if columnid is None:
             raise ValueError("Cannot make cell due to None column name.")    
-        return Cell(columnid,value)    
-
-
-    def __deprecated_add_row(self,row):
-        rows_idx = len(self.__rows) # can cause re-assign a deleted row
-        self.__rows[rows_idx] = row
-
-    def __deprecated_add_row_OLD(self, row):
-        rows_idx = self.__last_assigned_idx + 1
-        self.__last_assigned_idx += 1
-        self.__rows[rows_idx] = row
+        return Cell(columnid,value)
 
 
     def add_row(self, row, index=None):
@@ -587,9 +782,6 @@ class Memory_Table(Base_Table):
            
 
     def get_row_asdict(self, idx, columns=None, rowid=False):
-        # if idx not in self.__rows:
-        #     # DEPRECATED raise KeyError ('Cannot find index {}.'.format(idx))
-        #     return None
         if idx in self.__rows:
             if columns is not None:
                 columns = self.validate_columns(columns)
@@ -653,6 +845,15 @@ class Memory_Table(Base_Table):
         return row.get_values(columnids)
 
 
+    def _normalise_row(self, row, columnids, rowid=False):
+        # we'll add a new cell as None if never existed when reading the source
+        for cid in columnids:
+            if cid not in row.cells:
+                cell = Cell(cid,None)  # a none cell or never existed for the row at the source
+                row.add_cell(cell)
+        return row  
+
+
     def iterrows(self, 
                  columns: list=None, 
                  row_type: Literal['dict','list']='dict', 
@@ -673,6 +874,10 @@ class Memory_Table(Base_Table):
             else:
                 for idx, row in self.__rows.items():
                     yield idx, self._gen_row_aslist(row,columnids)
+        elif row_type == 'object':
+            for idx, row in self.__rows.items():
+                yield idx, self._normalise_row(row, columnids)
+
 
         else: # assume row_type is dict
             if where is not None:
@@ -871,90 +1076,6 @@ class Memory_Table(Base_Table):
         print('({} rows)'.format(len(self)))    
 
     
-    def __deprecated_columnnames_valid(self, columns):
-        existing_columnnames = self._get_columnnames_lced()
-        for column in columns:
-            if column.lower() not in existing_columnnames:
-                raise ValueError("Cannot find column name {}.".format(column))
-        return True
-
-
-    def __deprecated_replace_insensitively(self, old, repl, text):
-        return re.sub('(?i)'+re.escape(old), lambda m: repl, text)
-
-    def __deprecated_validate_stmt(self, stmt):
-        invalid_keywords = ['import ']
-        for ik in invalid_keywords:
-            if ik in stmt:
-                raise ValueError("Found invalid keyword {} in the statement!".format(repr(ik)))
-
-
-    def __deprecated_set_cellvalue_stmt(self, row, stmt):
-        columns = re.findall('`(.*?)`',stmt) # extract column names from within a small tilde pair ``
-        for column in columns:
-            stmt = stmt.replace('`' + column + '`',repr(row[column]))
-        return stmt
-
-
-    def __deprecated_exec_stmt(self, stmt):
-        # log.debug('-' * 10)
-        # log.debug(stmt)
-        res = {'retval':False}
-        # res["__retval"] = None
-        try:
-            exec(stmt, globals(), res)
-        except Exception as e:
-            res["error"] = e
-        finally:
-            return res
-
-
-    def __deprecated_get_index_exec(self, stmt):
-        """return the fist index that matches the condition."""
-        columnname_case_insensitive = False
-        if columnname_case_insensitive == True:
-            columnnames_in_stmt = re.findall('`(.*?)`',stmt) # extract column names from within a small tilde pair ``
-            self.columnnames_valid(columnnames_in_stmt)  # validate column name from the stmt
-            columnnames_in_stmt = [self.get_valid_columnname(x) for x in columnnames_in_stmt]
-            for column in columnnames_in_stmt:
-                valid_columnname = self.get_valid_columnname(column)
-                stmt = self.replace_insensitively(column, valid_columnname, stmt)
-        # scan the rows to search the index
-        indexes = []
-        for idx, row in self.iterrows():
-            stmt_set = self.set_cellvalue_stmt(row, stmt)
-            self.validate_stmt(stmt_set)
-            ret = self.exec_stmt(stmt_set)
-            if ret['retval'] == True:
-                return idx
-        
-
-    def __deprecated_get_indexes_exec(self, stmt):
-        """return a list of indexes that match the condition."""
-        columnname_case_insensitive = False
-        if columnname_case_insensitive == True:
-            columnnames_in_stmt = re.findall('`(.*?)`',stmt) # extract column names from within a small tilde pair ``
-            self.columnnames_valid(columnnames_in_stmt)  # validate column name from the stmt
-            columnnames_in_stmt = [self.get_valid_columnname(x) for x in columnnames_in_stmt]
-            for column in columnnames_in_stmt:
-                valid_columnname = self.get_valid_columnname(column)
-                stmt = self.replace_insensitively(column, valid_columnname, stmt)
-        # scan the rows to search the index
-        indexes = []
-        for idx, row in self.iterrows():
-            stmt_set = self.set_cellvalue_stmt(row, stmt)
-            self.validate_stmt(stmt_set)
-            ret = self.exec_stmt(stmt_set)
-            if ret['retval'] == True:
-                indexes.append(idx)
-        return indexes
-
-
-    def __deprecated_delete_rows_by_stmt(self, stmt):
-        indexes = self.get_index_exec(stmt)
-        self.delete_rows(indexes)
-
-
     def update_row(self,idx,column,value):
         if idx in self.__rows:
             self.__rows[idx].add_cell(self.make_cell(column,value))
@@ -1273,7 +1394,7 @@ class Memory_Table(Base_Table):
         for lidx, res in self._scanfuzzy(lkeys, lkp_table_obj, rkeys, min_ratios):
             print('lidx:',lidx,'res:',res)
             for rank, match_row in enumerate(res, start = 1):
-                matches_tobj.insert([lidx, match_row[0], match_row[1], rank], ['lidx', 'ridx', 'ratio', 'rank'])
+                matches_tobj.insert(['lidx', 'ridx', 'ratio', 'rank'], [lidx, match_row[0], match_row[1], rank])
         return        
 
 
@@ -1322,7 +1443,7 @@ class Memory_Table(Base_Table):
             print('lidx:',lidx,'res:',res)
             # if ret_matches:
             #     for rank, match_row in enumerate(res, start = 1):
-            #         matches_tobj.insert([lidx, match_row[0], match_row[1], rank], ['lidx', 'ridx', 'ratio', 'rank'])
+            #         matches_tobj.insert(['lidx', 'ridx', 'ratio', 'rank'], [lidx, match_row[0], match_row[1], rank])
             # update this table lrow for each ret_columns
             for item in valid_ret_columns:
                 if isinstance(item, str): # if item is a column
@@ -1361,7 +1482,7 @@ class Memory_Table(Base_Table):
             index = tuple([bintang.core._normalize_caseless(col) if isinstance(col, str) else col for col in index_records])
             if not group_tobj.index_exists(index):
                 # add record for the first time
-                group_tobj.insert(index_records, columns=valid_cols, index=index)
+                group_tobj.insert(valid_cols, index_records, index=index)
                 if group_count:
                     group_tobj.update_row(index, group_count_column, 1)
                 if group_concat:
@@ -1566,7 +1687,7 @@ class Memory_Table(Base_Table):
             for rownum, row in enumerate(reader, start=1):
                 if rownum > header_row: # assume records after header
                     if len(columns) == len(row):
-                        self.insert(row, columns)
+                        self.insert(columns, row)
                     else:
                         raise IndexError ('length of column and row is not the same at rownum {}. Possible issues were incorrect quoting or missing value.'.format(rownum))
 
@@ -1620,7 +1741,7 @@ class Memory_Table(Base_Table):
                 #     log.debug(f'{values} at rownum 370.')
                 #     log.debug(any(values))
                 if any(values):
-                    self.insert(values, columns)
+                    self.insert(columns, values)
 
 
     def read_sql(self, conn, sql_str=None, params=None ):
@@ -1635,12 +1756,12 @@ class Memory_Table(Base_Table):
         for col in columns:
             self.add_column(col)
         # for row in cursor.fetchall():
-        #     self.insert(row, columns) 
+        #     self.insert(columns, row) 
         while True:
             rows = cursor.fetchmany(300)
             if not rows: break
             for row in rows:
-                self.insert(row, columns)                  
+                self.insert(columns, row)                  
 
 
     def reindex(self):
@@ -1728,7 +1849,7 @@ class Memory_Table(Base_Table):
         return res    
             
 
-    def to_excel(self, wb, path, columns=None, index=False, sheet_title=None):
+    def to_excel_moved_tobase(self, wb, path, columns=None, index=False, sheet_title=None):
         wb_type = bintang.get_wb_type_towrite(wb)
         sheet_title = self.name if sheet_title is None else sheet_title
         if wb_type == 'openpyxl':

@@ -41,6 +41,7 @@ class Base_Table(ABC):
         self.INDEX_COLUMN_NAME: str = 'idx'
         self.PARENT_PREFIX: str = ''
         self.type_map: dict = type_map # assign type_map to self.type_map
+        #self.pytype: dict = pytype # assign pytype to self.pytype
 
     
     @abstractmethod
@@ -207,6 +208,56 @@ class Base_Table(ABC):
                         break  # only return the first match            
 
 
+    def to_excel(self, wb, path, columns=None, index=False, sheet_title=None):
+        wb_type = bintang.get_wb_type_towrite(wb)
+        sheet_title = self.name if sheet_title is None else sheet_title
+        if wb_type == 'openpyxl':
+            ws = wb.active
+            ws.title = sheet_title
+        else: # assume xlwt as user want to save as xls
+            ws = wb.add_sheet(sheet_title)
+
+        # add header
+        columns_towrite = []
+        if columns is None:
+            columns_towrite = self.get_columns()
+        else:
+            columns_towrite = [col for col in columns]
+        # log.debug('index: {}'.format(index))
+        if index:
+            if index:                          # if column index wanted
+                idx_column = self.INDEX_COLUMN_NAME
+                if isinstance(index, str):     # if user wanted own index column name
+                    idx_column = index      
+                columns_towrite.insert(0,idx_column)
+            if index != True:
+                columns_towrite.insert(0,str(index))        
+        # add headers' row
+        if wb_type == 'openpyxl':
+            ws.append(columns_towrite)
+        else: # assume xlwt
+            for i, col in enumerate(columns_towrite):
+                ws.write(0, i, col)
+        # add data row
+        for idx, row in self.iterrows(columns, row_type='list'):
+            if index:
+                row.insert(0,idx)
+            if wb_type == 'openpyxl':
+                ws.append(row)
+            else: # assume xlwt
+                for cidx, value in enumerate(row): # enumerate column value
+                    ws.write(idx, cidx, value)     # write value for each column
+
+        # if index:
+        #     for idx, row in self.iterrows(columns, row_type='list'):
+        #         row.insert(0,idx)
+        #         ws.append(row)
+        # if not index:
+        #     for idx, row in self.iterrows(columns, row_type='list'):
+        #         ws.append(row)          
+        wb.save(path)
+    
+    
     def to_sql(self, conn: object, 
                table: str, 
                columns: list[str]=None,
@@ -421,7 +472,7 @@ class Base_Table(ABC):
                 log.error(e)
                 log.error(prep_stmt)
                 log.error(temp_rows)
-            return rows_affected
+        return rows_affected
 
 
     def gen_prep_stmt(self, table, dest_columns, numof_col, mrpb, conn_name='pyodbc', schema=None):
@@ -609,6 +660,7 @@ type_map = {
         }   
     }            
 }
+
 
 
 

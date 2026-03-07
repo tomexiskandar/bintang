@@ -24,6 +24,7 @@ class From_SQL_Table(Base_Table):
         if self.params is not None:
             cursor.execute(self.sql_str, self.params)
         else:
+            print(self.sql_str)
             cursor.execute(self.sql_str)
         return tuple([col[0] for col in cursor.description])
 

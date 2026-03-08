@@ -399,7 +399,7 @@ blookup function use this function internally to find the matching rows.
 
 
 
-fuzzy_cmprows(self, ):
+
 Bintang.Table.fuzzy_cmprows(lkp_table, on: list[tuple]=None, min_ratio=0.70, min_matches=1, find_all=True)
 ----------------------------------------------------------------------------------------------------------
 

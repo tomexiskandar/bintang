@@ -372,95 +372,6 @@ Return one or more columns from lookup table.
 We can see only John and Jane got the membership because their names exists in both tables.
 
 
-Bintang.Table.cmprows(lkp_table, on=None, min_matches=1, find_all=True)
---------------------------------------------------------------------------
-
-Compare rows from current table against lkp_table and yield matching result (if any).
-blookup function use this function internally to find the matching rows.
-
-:lkp_table: lookup table aka 'right side' table
-:on: a list of pair columns used for the comparison. If None, will compare all columns that exist in both tables.
-:min_matches: minimum number of matched columns to consider as a match. You should use this when on is not specified.
-:find_all: if True, will compare all rows, otherwise will stop at the first match.
-
-
-.. code-block:: python
-
-   # using tables from Example of Usage section above.
-   for lidx, results in bt['Person'].cmprows('FishingClub'
-                                        ,on = [('name', 'FirstName'), ('surname', 'LastName')]
-                                        ,find_all = False
-                                        ):
-       # do something with results
-       print(lidx, results)
-   
-   # 1 [(2, ((11, 11), (12, 12)))] # 1 =lidx, 2 = idx from the lookup table which row matches the condition specified by the 'on'
-   # 2 [(3, ((11, 11), (12, 12)))] # 11,11 and 12,12 the coresponding column ids for columns specified by 'on'
-
-
-
-
-Bintang.Table.fuzzy_cmprows(lkp_table, on: list[tuple]=None, min_ratio=0.70, min_matches=1, find_all=True)
-----------------------------------------------------------------------------------------------------------
-
-compare row by using fuzzy matching from current table against lkp_table and yield matching result (if any).
-It's powered by Python's class difflib.SequenceMatcher, or https://github.com/rapidfuzz/RapidFuzz if it's installed.
-
-:lkp_table: lookup table aka 'right side' table
-:on: a list of pair columns used for the comparison. If None, will compare all columns that exist in both tables.
-:min_ratios: minimum ratio for matching. You should use this wehn on is not specified
-:min_matches: minimum number of matched columns to consider as a match. You should use this when on is not specified.
-:find_all: if True, will compare all rows, otherwise will stop at the first match.
-
-
-.. code-block:: python
-
-   import bintang
-   bt = bintang.Bintang()
-   bt.create_table("Person")
-   bt.get_table("Person")
-   bt['Person'].insert(['id','name','surname','address'], [1,'John','Smith','1 Station St'])
-   bt['Person'].insert(['id','name','surname','hobby','address'], [2,'Jane','Brown','Digging','8 Parade Rd'])
-   bt['Person'].insert(['id','name','surname','Address'], [3,'Okie','Dokie','7 Ocean Rd'])
-   bt['Person'].insert(('id','name','hobby','Address'), (4,'Maria','Digging','7 Heaven Ave'))
-
-   bt.create_table("FishingClub")
-   bt['FishingClub'].insert(['id', 'FirstName','LastName','Membership'], [1, 'Ajes','Freeman','Active'])
-   bt['FishingClub'].insert(['id', 'FirstName','LastName','Membership'], [2, 'Jhon','Smith','Active'])
-   bt['FishingClub'].insert(['id', 'FirstName','LastName','Membership'], [3, 'Jane','brown','Active'])
-   bt['FishingClub'].insert(['id', 'FirstName','LastName','Membership'], [4, 'Jen','Bron','Active'])
-   bt['FishingClub'].insert(['id', 'FirstName','LastName','Membership'], [5, 'Nutmeg','Spaniel','Active'])
-
-   print('\nfuzzy compare rows using specific columns')
-   for lidx, results in bt['Person'].fuzzy_cmprows(
-                     'FishingClub'
-                     ,on=[
-                           ('name', 'FirstName', 0.5)
-                           ,('surname', 'LastName', 0.5)
-                           ]
-                     , find_all=True
-                     ):
-      # do something
-      print(lidx, results)
-
-   # 1 [(2, ((11, 11, 0.75), (12, 12, 1.0)))]
-   # 2 [(3, ((11, 11, 1.0), (12, 12, 1.0))), (4, ((11, 11, 0.5714), (12, 12, 0.8889)))]
-
-   print('\nfuzzy compare rows using all columns')
-   for lidx, results in bt['Person'].fuzzy_cmprows(
-                     'FishingClub'
-                     ,min_ratio = 0.5
-                     ,find_all = True
-                     ):
-      # do something
-      print(lidx, results)
-
-   # 1 [(2, ((11, 11, 0.75), (12, 12, 1.0))), (4, ((11, 11, 0.5714), (11, 12, 0.5))), (1, ((10, 10, 1.0),)), (3, ((11, 11, 0.5),))]
-   # 2 [(3, ((11, 11, 1.0), (12, 12, 1.0))), (2, ((10, 10, 1.0), (11, 11, 0.5))), (4, ((11, 11, 0.5714), (12, 12, 0.8889))), (5, ((11, 12, 0.5455),)), (1, ((11, 11, 0.5),))]
-   # 3 [(3, ((10, 10, 1.0),))]
-   # 4 [(4, ((10, 10, 1.0),))]   
-
-
 
 Bintang.Table.groupby(columns, drop_none=True, group_count=False, counts=None, sums=None, mins=None, maxs=None, means=None, group_concat=None)
 ----------------------------------------------------------------------------------------------------------------------------------------------
@@ -838,6 +749,66 @@ Below is an example to install the package from a terminal.
    conn.close()
 
 
+
+Bintang.Table.validate(into_invalid_table = None)
+-------------------------------------------------
+
+To validate table according to the provided column's properties.
+This function can only validate data type of int, float, bool, str, None, datetime.date and datetime.datime.
+
+:into_invalid_table: if provided then invalid table will be created with error messages
+
+.. code-block:: python
+
+   import bintang
+   bt = bintang.Bintang()
+   bt.create_table('Product')
+   p = bt['Product']
+   p.add_column('id', data_type='int', min_value=1, required=True)
+   p.add_column('name', data_type='str', min_length=1, max_length=20)
+   p.add_column('price', data_type='float', min_value=0)
+   p.add_column('order_date', data_type='date', max_value=datetime.date(2025,12,31))
+
+   p.insert({'id':1, 'name':'Hook','price':'1.60', 'order_date':'2025-07-01'})
+   p.insert({'id':'', 'name':'Sinker','price':1.20}) 
+   p.insert({'id':'3', 'name':'Reels  ','price':15.50}) 
+   p.insert({'id':4, 'name':None, 'price':20, 'order_date': '2026-07-01'})
+   p.insert({'id':'5t', 'name':'Bait','price':20})
+   p.insert({'id':6, 'name':'Bait has very long name','price':5.50})
+
+   # the backend process
+   for idx, results in p.valrows():
+      print(idx, results)
+   # 1 ((10, 1, True, None), (11, 'Hook', True, None), (12, 1.6, True, None), (13, datetime.date(2025, 7, 1), True, None))
+   # 2 ((10, None, False, 'column is required but value is None'), (11, 'Sinker', True, None), (12, 1.2, True, None), (12, 1.2, True, None))
+   # 3 ((10, 3, True, None), (11, 'Reels', True, None), (12, 15.5, True, None), (12, 15.5, True, None))
+   # 4 ((10, 4, True, None), (10, 4, True, None), (12, 20.0, True, None), (13, datetime.date(2026, 7, 1), False, 'value is above the maximum allowed value 2025-12-31'))
+   # 5 ((10, '5t', False, "ValueError: could not convert string to float: '5t'"), (11, 'Bait', True, None), (12, 20.0, True, None), (12, 20.0, True, None))
+   # 6 ((10, 6, True, None), (11, 'Bait has very long name', False, 'value has length 23 which is out of allowed range [1, 20]'), (12, 5.5, True, None), (12, 5.5, True, None))
+   # 7 ((10, 7, True, None), (11, 'thread', True, None), (11, 'thread', True, None), (11, 'thread', True, None))
+
+   # run the high level function
+   p.validate('Product_Bad_Data')
+
+   print('\nthe rows after validation')
+   for idx, row in p.iterrows():
+      print(idx, row)
+
+   # 1 {'id': 1, 'name': 'Hook', 'price': 1.6, 'order_date': datetime.date(2025, 7, 1)}
+   # 3 {'id': 3, 'name': 'Reels', 'price': 15.5, 'order_date': None}   
+
+   print('\ninvalid rows from table Product_Bad_Data')   
+   for idx, row in bt['Product_Bad_Data'].iterrows():
+      print(idx, row)
+
+   # 2 {'id': '', 'name': 'Sinker', 'price': 1.2, 'order_date': None, 'invalid_idx': 2, 'error_msg': 'column id - column is required but value is None'}
+   # 4 {'id': 4, 'name': None, 'price': 20, 'order_date': '2026-07-01', 'invalid_idx': 4, 'error_msg': 'column order_date - value is above the maximum allowed value 2025-12-31'}
+   # 5 {'id': '5t', 'name': 'Bait', 'price': 20, 'order_date': None, 'invalid_idx': 5, 'error_msg': "column id - ValueError: could not convert string to float: '5t'"}
+   # 6 {'id': 6, 'name': 'Bait has very long name', 'price': 5.5, 'order_date': None, 'invalid_idx': 6, 'error_msg': 'column name - value has length 23 which is out of allowed range [1, 20]   
+
+
+
+
 --------------------------
 Other Functions/attributes
 --------------------------
@@ -955,6 +926,96 @@ Bintang.Table.add_or_update_column(name, data_type=None, column_size=None, min_v
 Add a new column to table or update the column if it already exists.
 Note that Bintang can also create columns during record insertion (dynamic schema effect).
 see add_column() for the meaning of the parameters.
+
+
+
+Bintang.Table.cmprows(lkp_table, on=None, min_matches=1, find_all=True)
+--------------------------------------------------------------------------
+
+Compare rows from current table against lkp_table and yield matching result (if any).
+blookup function use this function internally to find the matching rows.
+
+:lkp_table: lookup table aka 'right side' table
+:on: a list of pair columns used for the comparison. If None, will compare all columns that exist in both tables.
+:min_matches: minimum number of matched columns to consider as a match. You should use this when on is not specified.
+:find_all: if True, will compare all rows, otherwise will stop at the first match.
+
+
+.. code-block:: python
+
+   # using tables from Example of Usage section above.
+   for lidx, results in bt['Person'].cmprows('FishingClub'
+                                        ,on = [('name', 'FirstName'), ('surname', 'LastName')]
+                                        ,find_all = False
+                                        ):
+       # do something with results
+       print(lidx, results)
+   
+   # 1 [(2, ((11, 11), (12, 12)))] # 1 =lidx, 2 = idx from the lookup table which row matches the condition specified by the 'on'
+   # 2 [(3, ((11, 11), (12, 12)))] # 11,11 and 12,12 the coresponding column ids for columns specified by 'on'
+
+
+
+
+Bintang.Table.fuzzy_cmprows(lkp_table, on: list[tuple]=None, min_ratio=0.70, min_matches=1, find_all=True)
+----------------------------------------------------------------------------------------------------------
+
+compare row by using fuzzy matching from current table against lkp_table and yield matching result (if any).
+It's powered by Python's class difflib.SequenceMatcher, or https://github.com/rapidfuzz/RapidFuzz if it's installed.
+
+:lkp_table: lookup table aka 'right side' table
+:on: a list of pair columns used for the comparison. If None, will compare all columns that exist in both tables.
+:min_ratios: minimum ratio for matching. You should use this wehn on is not specified
+:min_matches: minimum number of matched columns to consider as a match. You should use this when on is not specified.
+:find_all: if True, will compare all rows, otherwise will stop at the first match.
+
+
+.. code-block:: python
+
+   import bintang
+   bt = bintang.Bintang()
+   bt.create_table("Person")
+   bt.get_table("Person")
+   bt['Person'].insert(['id','name','surname','address'], [1,'John','Smith','1 Station St'])
+   bt['Person'].insert(['id','name','surname','hobby','address'], [2,'Jane','Brown','Digging','8 Parade Rd'])
+   bt['Person'].insert(['id','name','surname','Address'], [3,'Okie','Dokie','7 Ocean Rd'])
+   bt['Person'].insert(('id','name','hobby','Address'), (4,'Maria','Digging','7 Heaven Ave'))
+
+   bt.create_table("FishingClub")
+   bt['FishingClub'].insert(['id', 'FirstName','LastName','Membership'], [1, 'Ajes','Freeman','Active'])
+   bt['FishingClub'].insert(['id', 'FirstName','LastName','Membership'], [2, 'Jhon','Smith','Active'])
+   bt['FishingClub'].insert(['id', 'FirstName','LastName','Membership'], [3, 'Jane','brown','Active'])
+   bt['FishingClub'].insert(['id', 'FirstName','LastName','Membership'], [4, 'Jen','Bron','Active'])
+   bt['FishingClub'].insert(['id', 'FirstName','LastName','Membership'], [5, 'Nutmeg','Spaniel','Active'])
+
+   print('\nfuzzy compare rows using specific columns')
+   for lidx, results in bt['Person'].fuzzy_cmprows(
+                     'FishingClub'
+                     ,on=[
+                           ('name', 'FirstName', 0.5)
+                           ,('surname', 'LastName', 0.5)
+                           ]
+                     , find_all=True
+                     ):
+      # do something
+      print(lidx, results)
+
+   # 1 [(2, ((11, 11, 0.75), (12, 12, 1.0)))]
+   # 2 [(3, ((11, 11, 1.0), (12, 12, 1.0))), (4, ((11, 11, 0.5714), (12, 12, 0.8889)))]
+
+   print('\nfuzzy compare rows using all columns')
+   for lidx, results in bt['Person'].fuzzy_cmprows(
+                     'FishingClub'
+                     ,min_ratio = 0.5
+                     ,find_all = True
+                     ):
+      # do something
+      print(lidx, results)
+
+   # 1 [(2, ((11, 11, 0.75), (12, 12, 1.0))), (4, ((11, 11, 0.5714), (11, 12, 0.5))), (1, ((10, 10, 1.0),)), (3, ((11, 11, 0.5),))]
+   # 2 [(3, ((11, 11, 1.0), (12, 12, 1.0))), (2, ((10, 10, 1.0), (11, 11, 0.5))), (4, ((11, 11, 0.5714), (12, 12, 0.8889))), (5, ((11, 12, 0.5455),)), (1, ((11, 11, 0.5),))]
+   # 3 [(3, ((10, 10, 1.0),))]
+   # 4 [(4, ((10, 10, 1.0),))]   
 
 
 
@@ -1132,44 +1193,6 @@ To update the row at idx. So only one row will be affected.
 :value: new value
 
 
-
-Bintang.Table.validate(into_invalid_table = None)
--------------------------------------------------
-
-To validate table according to the provided column's properties.
-This function can only validate data type of int, float, bool, str, None, datetime.date and datetime.datime.
-
-:into_invalid_table: if provided then invalid table will be created with error messages
-
-.. code-block:: python
-
-   import bintang
-   bt = bintang.Bintang()
-   bt.create_table('Product')
-   p = bt['Product']
-   p.add_column('id', data_type='int', min_value=1, required=True)
-   p.add_column('name', data_type='str', min_length=1, max_length=20)
-   p.add_column('price', data_type='float', min_value=0)
-   p.add_column('order_date', data_type='date', max_value=datetime.date(2025,12,31))
-
-   p.insert({'id':1, 'name':'Hook','price':'1.60', 'order_date':'2025-07-01'})
-   p.insert({'id':'', 'name':'Sinker','price':1.20}) 
-   p.insert({'id':'3', 'name':'Reels  ','price':15.50}) 
-   p.insert({'id':4, 'name':None, 'price':20, 'order_date': '2026-07-01'})
-   p.insert({'id':'5t', 'name':'Bait','price':20})
-   p.insert({'id':6, 'name':'Bait has very long name','price':5.50})
-
-   p.validate('Product_Bad_Data')
-
-   print('\nthe rows after validation')
-   for idx, row in p.iterrows():
-      print(idx, row)
-
-   print('\ninvalid rows from table Product_Bad_Data')   
-   for idx, row in bt['Product_Bad_Data'].iterrows():
-      print(idx, row)
-
-  
 
 -----------------
 Special Functions

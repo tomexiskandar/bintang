@@ -224,14 +224,9 @@ class Memory_Table(Base_Table):
                 
 
     def get_columnid(self,column):
-        # if self.conn is None:
         for id, cobj in self.__columns.items():
-            # match the column case insensitive
             if cobj.get_name_uppercased() == column.upper():
-                return id
-        # return None
-        # else: # assume conn
-        #     return self._get_columnid_sql(column)      
+                return id      
 
     
     def get_columnids(self,columns=None):
@@ -467,7 +462,7 @@ class Memory_Table(Base_Table):
             for colid in data_typed_columnids:
                 cobj = self.__columns[colid]
                 value = None
-                if colid in row.cells:
+                if colid in row.cells: # check if the cell exists
                     value = row.cells[colid].value 
                     if isinstance(value, str) and value == '':
                         value = None 
@@ -727,13 +722,15 @@ class Memory_Table(Base_Table):
 
 
     def make_cell(self,column,value,new_column=True):
+        if not isinstance(column, str):
+            raise ValueError("column name must be a string type!")
         columnid = self.get_columnid(column)
         if columnid is None: # if columnid is None then assume user wants a new column
             if new_column == True:
                 self.add_column(column)
                 columnid = self.get_columnid(column) # reassign the columnid
-        if columnid is None:
-            raise ValueError("Cannot make cell due to None column name.")    
+        # if columnid is None:
+        #     raise ValueError("Cannot make cell due to None column name.")    
         return Cell(columnid,value)
 
 
@@ -1277,14 +1274,12 @@ class Memory_Table(Base_Table):
             if isinstance(col, tuple):
                 self.add_column(col[1]) # use the alias
         # for each matching, update it
-        for lidx, ridx, _ in self.cmprows(lkp_table, on=on, full=False):
+        for lidx, results in self.cmprows(lkp_table, on=on, find_all=False):
             # update this table lrow for each ret_columns
             for col in valid_ret_columns:
                 if isinstance(col, str): # if col is a column
-                    # value = lkp_table_obj[ridx][col]
-                    # value = lkp_table_obj.get_row_asdict(ridx, columns=[col])[col]
-                    # value = lkp_table_obj._get_row_asdict(ridx)[col]
-                    value = lkp_table_obj._get_row_ascells(ridx).get_value(lkp_table_obj.get_columnid(col))
+                    # extract value at the first value of the first tuple
+                    value = lkp_table_obj._get_row_ascells(results[0][0]).get_value(lkp_table_obj.get_columnid(col))
                     if col in lcolumn_prematch:
                         # update left table with the lkp_table name as prefix
                         # this is to avoid column name conflict
@@ -1292,10 +1287,7 @@ class Memory_Table(Base_Table):
                     else:
                         self.update_row(lidx, col, value)
                 if isinstance(col, tuple): # if a tuple (0=column to return from lkp_table, 1=as_column)
-                    value = lkp_table_obj._get_row(ridx).get_value(lkp_table_obj.get_columnid(col[0]))
-
-
-
+                    value = lkp_table_obj._get_row(results[0][0]).get_value(lkp_table_obj.get_columnid(col[0]))
                     self.update_row(lidx, col[1], value)
     
 
@@ -1315,7 +1307,7 @@ class Memory_Table(Base_Table):
                 matches = 0
                 ratios = []
                 for i in range(lenof_keys):
-                    ratio = bintang.get_diff_ratio(lrow[lkeys[i]], rrow[rkeys[i]])
+                    ratio = bintang.get_fuzzy_ratio(lrow[lkeys[i]], rrow[rkeys[i]])
                     if ratio >= min_ratios[i]:
                         matches += 1 
                         ratios.append(ratio)
@@ -1329,38 +1321,63 @@ class Memory_Table(Base_Table):
                 yield lidx, list(res_dict.items())
 
 
-    def fuzzy_cmprows(self, lkp_table, on, full=True):
+    def fuzzy_cmprows(self, lkp_table, on: list[tuple]=None, min_ratio=0.70, min_matches=1, find_all=True):
         """ 
-        will yield two items. a left idx and result (a list of sorted matched right index and ratio tuple)
-        for eg when there are two of pair of columns to match, the yield will be:
-            1, [(4, [80, 90]),(3, [70, 69])]
-        where: 1 = the left index, 
-               [(4, [80, 90]),(3, [70, 69])] = result which is a tuple of right index and ratios list.
-        result is sorted based on the ratio from highest to lowest
-        """
-        lenof_keys = len(on)
-        for lidx, lrow in self.iterrows(columns=(c[0] for c in on)):
-            res_list = []
-            for ridx, rrow in self.bing[lkp_table].iterrows(columns=(c[1] for c in on)):
-                matches = 0
-                ratios = []
-                for i in range(lenof_keys):
-                    ratio = bintang.get_diff_ratio(lrow[on[i][0]], rrow[on[i][1]])
-                    if ratio >= on[i][2]:
-                        matches += 1 
-                        ratios.append(ratio)
-                if matches == lenof_keys:
-                    res_list.append(tuple((ridx,ratios)))
-                    if not full:
-                        break
-                
-            if len(res_list) > 1:
-                for i in reversed(range (lenof_keys)):
-                    res_list.sort(key=lambda res: res[1][i], reverse=True)
-                yield lidx, res_list
-            if len(res_list) == 1:
-                yield lidx, res_list
+        will yield two items. a left idx and result with the following format and example:
+        lidx, [ridx,(lcol1,rcol1,score1),(lcol2,rcol2,score2),...]
+        1 [(2, ((11, 11, 0.75), (12, 12, 1.0)))]
+        result is sorted based on the sum of ratios from highest to lowest.
 
+        args:
+        lkp_table: the lookup table that we compare against
+        on: a list of matching column tuples that also includes min score. If not provided then all possible columns matching (cartasian product) will be carried out.
+        find_all (bool): if True (default) then check all the lookup data, while  If False then exit on first match
+        """
+        on_ = [] # will hold column id keys instead column name
+        if on:
+            req_matches = len(on)
+            for tup in on:
+                # extract (lcol, rcol, ratio) from the tuple
+                tup_ = (self.get_columnid(tup[0]), self.bing[lkp_table].get_columnid(tup[1]), tup[2])
+                on_.append(tup_)
+        else:
+            req_matches = min_matches
+            
+            lcolumns = self.get_columns()
+            rcolumns = self.bing[lkp_table].get_columns()
+            ratios = [min_ratio] * len(lcolumns)
+            # establish the on
+            on = list(product(lcolumns, rcolumns))
+            for tup in on:
+                # extract (lcol, rcol, ratio) from the tuple
+                tup_ = (self.get_columnid(tup[0]), self.bing[lkp_table].get_columnid(tup[1]), min_ratio)
+                on_.append(tup_)          
+        for lidx, lrow in self._iterrows():
+            results = []
+            for ridx, rrow in self.bing[lkp_table]._iterrows():
+                matches = 0
+                col_results = []
+                for i in range(len(on_)):
+                    if on_[i][0] in lrow.cells and on_[i][1] in rrow.cells: # check if both cells exist
+                        ratio = bintang.get_fuzzy_ratio(str(lrow.cells[on_[i][0]].value), str(rrow.cells[on_[i][1]].value))
+                        if ratio >= on_[i][2]:
+                            matches += 1 
+                            cmp = (on_[i][0], on_[i][1], ratio) # (lcol, rcol, score)
+                            col_results.append(cmp)
+                if matches >= req_matches:
+                    results.append((ridx, tuple(col_results)))
+                    if not find_all:
+                        break
+            if len(results) > 1: # then sort the results
+                results = sorted(
+                                results, 
+                                key=lambda x: sum(colres[2] for colres in x[1]), # x=row_results, colres=col_results
+                                reverse=True
+                            )
+                yield lidx, results
+            elif len(results) == 1:
+                yield lidx, results
+                
 
     def fmatch(self,
                 lkp_table: object,

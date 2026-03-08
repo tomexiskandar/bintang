@@ -48,6 +48,13 @@ class Base_Table(ABC):
     def get_columns(self):
         pass
 
+    @abstractmethod
+    def get_columnid(self):
+        pass
+
+    @abstractmethod
+    def get_columnids(self):
+        pass
 
     @abstractmethod
     def iterrows(self):
@@ -165,49 +172,57 @@ class Base_Table(ABC):
             raise ValueError('Sorry Only sqlite3, pyodbc and psycopg connection accepted!')   
 
 
-    def cmprows(self, lkp_table: str, on: list[str] = None, min_keys=None, full=True):
+    def cmprows(self, lkp_table: str, on: list[tuple] = None, min_matches=1, find_all=True):
+        print('len of on', on)
         """
         compare rows in the current table with rows in the lkp_table.
         Args:
-            lkp_table (str): the name of the table to compare with.
+            lkp_table (str): the name of the table to compare with aka right table, the index called 'ridx'.
             on (list[str]): a list of tuples where each tuple contains two column names to compare.
                             If None, it will compare all columns in both tables.
-            min_keys (int): minimum number of keys to match. Default is 1. Only used if on is not None.
-            full (bool): if True, it will return all matches. If False, it will return only the first match.
+            min_matches (int): number of matches to complete when on is None. Default is 1
+            find_all (bool): if True (default) then check all the lookup data, while  If False then exit on first match
         Yields:
-            tuple: (lidx, ridx, matched_columns) where lidx is the index of the row in the current table,
-                   ridx is the index of the row in the lkp_table, and matched_columns is a list of tuples
-                   where each tuple contains the column names that matched.
+            lidx, [(ridx,(lcol1,rcol1), ((lcol1,rcol1))]
+            1 [(2, ((11, 11), (12, 12)))]
         """
-        cartprod = False 
-        if on is None:
+        if on:
+            req_matches = len(on)
+        else:
             lcolumns = self.get_columns()
             rcolumns = self.bing[lkp_table].get_columns()
             on = list(product(lcolumns,rcolumns))
-            cartprod = True
-        if not cartprod:
-            req_matches = len(on)
-        else:
-            req_matches = min_keys if min_keys is not None else 1
-        for lidx, lrow in self.iterrows(columns=[col[0] for col in on]):
-            for ridx, rrow in self.bing[lkp_table].iterrows(columns=[col[1] for col in on]):
-                # print('rrow', rrow)
+            req_matches = min_matches 
+        on_ = [] # will hold column id keys instead column name
+        for tup in on:
+            tup_ = (self.get_columnid(tup[0]), self.bing[lkp_table].get_columnid(tup[1]))
+            on_.append(tup_) 
+        for lidx, lrow in self._iterrows():
+            results = []
+            for ridx, rrow in self.bing[lkp_table]._iterrows():
                 matches = 0
                 matched_columns = []
-                for i in range(len(on)):
-                    if bintang.match(lrow[on[i][0]]
-                                     ,rrow[on[i][1]]
-                                     ):
-                        matches += 1
-                        matched_columns.append((on[i][0] 
-                                            ,on[i][1]
-                                            ))
+                col_results = []
+                for i in range(len(on_)):
+                    if on_[i][0] in lrow.cells and on_[i][1] in rrow.cells: # check if both cells exist
+                        if bintang.match(lrow.cells[on_[i][0]].value
+                                        ,rrow.cells[on_[i][1]].value
+                                        ):
+                            matches += 1
+                            matched_columns.append((on_[i][0] 
+                                                ,on_[i][1]
+                                                ))
+                            cmp = (on_[i][0], on_[i][1])                    
+                            col_results.append(cmp)
                 if matches >= req_matches:
-                    yield lidx, ridx, matched_columns
-                    if not full:
-                        break  # only return the first match            
-
-
+                    results.append((ridx,tuple(col_results)))
+                    #yield lidx, ridx, tuple(matched_columns)
+                    if not find_all:
+                        break  # only return the first match
+            if results: # yield only when the results is True/not empty
+                yield lidx, results    
+    
+    
     def to_excel(self, wb, path, columns=None, index=False, sheet_title=None):
         wb_type = bintang.get_wb_type_towrite(wb)
         sheet_title = self.name if sheet_title is None else sheet_title

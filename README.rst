@@ -372,27 +372,93 @@ Return one or more columns from lookup table.
 We can see only John and Jane got the membership because their names exists in both tables.
 
 
-Bintang.Table.cmprows(lkp_table, on, min_keys=None, full=True)
---------------------------------------------------------------
+Bintang.Table.cmprows(lkp_table, on=None, min_matches=1, find_all=True)
+--------------------------------------------------------------------------
 
-Compare rows from current table against lkp_table and yield matching row indexes and matched columns.
+Compare rows from current table against lkp_table and yield matching result (if any).
 blookup function use this function internally to find the matching rows.
 
-:lkp_table: lookup table
+:lkp_table: lookup table aka 'right side' table
 :on: a list of pair columns used for the comparison. If None, will compare all columns that exist in both tables.
-:min_keys: minimum number of matched columns to consider as a match.
-:full: if True, will compare all rows, otherwise will stop at the first match.
+:min_matches: minimum number of matched columns to consider as a match. You should use this when on is not specified.
+:find_all: if True, will compare all rows, otherwise will stop at the first match.
 
 
 .. code-block:: python
 
    # using tables from Example of Usage section above.
-   for lidx, ridx, matched_cols in bt['Person'].cmprows('FishingClub'
+   for lidx, results in bt['Person'].cmprows('FishingClub'
                                         ,on = [('name', 'FirstName'), ('surname', 'LastName')]
+                                        ,find_all = False
                                         ):
-       print(lidx, ridx, matched_cols)
-   # 1 2 [('name', 'FirstName'), ('surname', 'LastName')]
-   # 2 3 [('name', 'FirstName'), ('surname', 'LastName')]
+       # do something with results
+       print(lidx, results)
+   
+   # 1 [(2, ((11, 11), (12, 12)))] # 1 =lidx, 2 = idx from the lookup table which row matches the condition specified by the 'on'
+   # 2 [(3, ((11, 11), (12, 12)))] # 11,11 and 12,12 the coresponding column ids for columns specified by 'on'
+
+
+
+fuzzy_cmprows(self, ):
+Bintang.Table.fuzzy_cmprows(lkp_table, on: list[tuple]=None, min_ratio=0.70, min_matches=1, find_all=True)
+----------------------------------------------------------------------------------------------------------
+
+compare row by using fuzzy matching from current table against lkp_table and yield matching result (if any).
+It's powered by Python's class difflib.SequenceMatcher, or https://github.com/rapidfuzz/RapidFuzz if it's installed.
+
+:lkp_table: lookup table aka 'right side' table
+:on: a list of pair columns used for the comparison. If None, will compare all columns that exist in both tables.
+:min_ratios: minimum ratio for matching. You should use this wehn on is not specified
+:min_matches: minimum number of matched columns to consider as a match. You should use this when on is not specified.
+:find_all: if True, will compare all rows, otherwise will stop at the first match.
+
+
+.. code-block:: python
+
+   import bintang
+   bt = bintang.Bintang()
+   bt.create_table("Person")
+   bt.get_table("Person")
+   bt['Person'].insert(['id','name','surname','address'], [1,'John','Smith','1 Station St'])
+   bt['Person'].insert(['id','name','surname','hobby','address'], [2,'Jane','Brown','Digging','8 Parade Rd'])
+   bt['Person'].insert(['id','name','surname','Address'], [3,'Okie','Dokie','7 Ocean Rd'])
+   bt['Person'].insert(('id','name','hobby','Address'), (4,'Maria','Digging','7 Heaven Ave'))
+
+   bt.create_table("FishingClub")
+   bt['FishingClub'].insert(['id', 'FirstName','LastName','Membership'], [1, 'Ajes','Freeman','Active'])
+   bt['FishingClub'].insert(['id', 'FirstName','LastName','Membership'], [2, 'Jhon','Smith','Active'])
+   bt['FishingClub'].insert(['id', 'FirstName','LastName','Membership'], [3, 'Jane','brown','Active'])
+   bt['FishingClub'].insert(['id', 'FirstName','LastName','Membership'], [4, 'Jen','Bron','Active'])
+   bt['FishingClub'].insert(['id', 'FirstName','LastName','Membership'], [5, 'Nutmeg','Spaniel','Active'])
+
+   print('\nfuzzy compare rows using specific columns')
+   for lidx, results in bt['Person'].fuzzy_cmprows(
+                     'FishingClub'
+                     ,on=[
+                           ('name', 'FirstName', 0.5)
+                           ,('surname', 'LastName', 0.5)
+                           ]
+                     , find_all=True
+                     ):
+      # do something
+      print(lidx, results)
+
+   # 1 [(2, ((11, 11, 0.75), (12, 12, 1.0)))]
+   # 2 [(3, ((11, 11, 1.0), (12, 12, 1.0))), (4, ((11, 11, 0.5714), (12, 12, 0.8889)))]
+
+   print('\nfuzzy compare rows using all columns')
+   for lidx, results in bt['Person'].fuzzy_cmprows(
+                     'FishingClub'
+                     ,min_ratio = 0.5
+                     ,find_all = True
+                     ):
+      # do something
+      print(lidx, results)
+
+   # 1 [(2, ((11, 11, 0.75), (12, 12, 1.0))), (4, ((11, 11, 0.5714), (11, 12, 0.5))), (1, ((10, 10, 1.0),)), (3, ((11, 11, 0.5),))]
+   # 2 [(3, ((11, 11, 1.0), (12, 12, 1.0))), (2, ((10, 10, 1.0), (11, 11, 0.5))), (4, ((11, 11, 0.5714), (12, 12, 0.8889))), (5, ((11, 12, 0.5455),)), (1, ((11, 11, 0.5),))]
+   # 3 [(3, ((10, 10, 1.0),))]
+   # 4 [(4, ((10, 10, 1.0),))]   
 
 
 
@@ -933,10 +999,24 @@ Return a list of all row indexes in the table.
 
 
 
+Bintang.Table.get_columnid(column)
+----------------------------------
+
+return column_id
+
+
+
+Bintang.Table.get_columnids(columns=None)
+-----------------------------------------
+
+return a tuple of column_ids. If columns is not provided then all available columns will be returned.
+
+
+
 Bintang.Table.get_columns()
 ---------------------------
 
-Return a list of columns.
+Return a tuple of columns.
 
 
 
@@ -1072,7 +1152,6 @@ This function can only validate data type of int, float, bool, str, None, dateti
    p.add_column('price', data_type='float', min_value=0)
    p.add_column('order_date', data_type='date', max_value=datetime.date(2025,12,31))
 
-   a = ['1','2','3']
    p.insert({'id':1, 'name':'Hook','price':'1.60', 'order_date':'2025-07-01'})
    p.insert({'id':'', 'name':'Sinker','price':1.20}) 
    p.insert({'id':'3', 'name':'Reels  ','price':15.50}) 

@@ -37,9 +37,9 @@ try:
         if value1 is None or value2 is None:
             return 0  
         elif default_process:
-            return  round(fuzz.ratio(value1, value2, processor=utils.default_process), 2)
+            return  round(fuzz.ratio(value1, value2, processor=utils.default_process) /100.0 ,4)
         else:
-            return  round(fuzz.ratio(value1, value2), 2)
+            return  round(fuzz.ratio(value1, value2) /100.0, 4)
 except ImportError as e:
     print(e)
     # define get_fuzzy_ratio to use difflib
@@ -51,9 +51,9 @@ except ImportError as e:
         if default_process == True:
             value1 = default_stringify(value1)
             value2 = default_stringify(value2)
-            return round(SequenceMatcher(None, value1, value2).ratio() * 100, 2)
+            return round(SequenceMatcher(None, value1, value2).ratio(), 4)
         else:
-            return round(SequenceMatcher(None, value1, value2).ratio() * 100, 2)
+            return round(SequenceMatcher(None, value1, value2).ratio(), 4)
 
 
 def match_case(value1, value2):

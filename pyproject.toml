@@ -22,13 +22,20 @@ excel = [
     "pyodbc",     # for to_sql()
 ]
 all = [
-	"psycopg",    # for_sql() that specifically target postgresql database
-	"rapidfuzz",  # for fuzzy_cmprows() to overtake Python's difflib.SequenceMatcher
-	"openpyxl",   # for read_excel() and to_excel() using .xlsx file
-	"xlrd",       # for read_excel() when to read .xls file
-	"xlwt",       # for to_excel() using .xls file
-    "pyodbc",     # for to_sql()
+	"psycopg",    
+	"rapidfuzz",  
+	"openpyxl",   
+	"xlrd",       
+	"xlwt",       
+    "pyodbc",     
+	"pytest",     
+	"packaging",  
 ]
+test = [
+	"pytest",
+	"packaging",
+]
+
 [tool.setuptools.packages.find]
 where = ["src"]  # This tells setuptools to look inside the src folder
 

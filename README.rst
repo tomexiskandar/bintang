@@ -1,3 +1,5 @@
+|PyPI| |BuildStatus|  |License|
+
 .. image:: https://img.shields.io/pypi/v/bintang.svg
     :target: https://pypi.org/project/bintang/
     :alt: PyPI version
@@ -6,6 +8,12 @@
 .. image:: https://github.com/tomexiskandar/bintang/actions/workflows/publish.yml/badge.svg
     :target: https://github.com/tomexiskandar/bintang/actions
     :alt: Build Status
+
+
+.. image:: https://img.shields.io/pypi/l/bintang.svg
+    :target: https://github.com/[Your-Username]/bintang/blob/main/LICENSE
+    :alt: License
+
 
 
 
@@ -1299,3 +1307,14 @@ Below is an example to install the package from a terminal.
        # please note that this will only work for sql data source.
 
    conn.close()    
+
+
+
+Changelog
+---------
+
+v0.2.17 (2026-03-14)
+~~~~~~~~~~~~~~~~~~~~
+* Implemented automated versioning using ``setuptools_scm``.
+* Added GitHub Actions workflow for automated PyPI publishing.
+* Updated README with PyPI and Build Status badges.

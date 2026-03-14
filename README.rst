@@ -1,4 +1,4 @@
-|version| |build| |coverage| |license|
+|version| |build| |coverage|
 
 .. |version| image:: https://img.shields.io/pypi/v/bintang.svg
    :target: https://pypi.org/project/bintang/
@@ -8,9 +8,6 @@
 
 .. |coverage| image:: https://codecov.io/gh/tomexiskandar/bintang/branch/main/graph/badge.svg
    :target: https://codecov.io/gh/tomexiskandar/bintang
-
-.. |license| image:: https://img.shields.io/pypi/l/bintang.svg
-   :target: https://pypi.org/project/bintang/
 
 
 

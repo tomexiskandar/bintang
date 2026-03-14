@@ -3,8 +3,8 @@
     :alt: PyPI version
 
 
-.. image:: https://github.com/[tomexiskandar]/bintang/actions/workflows/publish.yml/badge.svg
-    :target: https://github.com/[tomexiskandar]/bintang/actions
+.. image:: https://github.com/tomexiskandar/bintang/actions/workflows/publish.yml/badge.svg
+    :target: https://github.com/tomexiskandar/bintang/actions
     :alt: Build Status
 
 

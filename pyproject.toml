@@ -33,7 +33,6 @@ all = [
 test = [
 	"pytest",
 	"packaging",
-	"pytest-cov"
 ]
 
 [tool.setuptools.packages.find]
@@ -44,5 +43,4 @@ write_to = "src/bintang/_version.py"
 fallback_version = "0.0.0-dev"
 
 [tool.pytest.ini_options]
-addopts = "--cov=src --cov-report=xml --cov-report=term-missing"
 testpaths = ['tests']

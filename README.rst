@@ -1,12 +1,16 @@
-.. image:: https://img.shields.io/pypi/v/bintang.svg
-    :target: https://pypi.org/project/bintang/
-    :alt: PyPI version
+|version| |build| |coverage| |license|
 
+.. |version| image:: https://img.shields.io/pypi/v/bintang.svg
+   :target: https://pypi.org/project/bintang/
 
-.. image:: https://github.com/tomexiskandar/bintang/actions/workflows/publish.yml/badge.svg
-    :target: https://github.com/tomexiskandar/bintang/actions
-    :alt: Build Status
+.. |build| image:: https://github.com/tomexiskandar/bintang/actions/workflows/main.yml/badge.svg
+   :target: https://github.com/tomexiskandar/bintang/actions
 
+.. |coverage| image:: https://codecov.io/gh/tomexiskandar/bintang/branch/main/graph/badge.svg
+   :target: https://codecov.io/gh/tomexiskandar/bintang
+
+.. |license| image:: https://img.shields.io/pypi/l/bintang.svg
+   :target: https://pypi.org/project/bintang/
 
 
 =======

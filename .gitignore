@@ -24,4 +24,6 @@ zetup_script.py
 ztest.py
 ztodo.txt
 pytest_cache
+src/bintang/_version.py
+z_show_version.py
 

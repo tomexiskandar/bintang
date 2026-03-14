@@ -69,7 +69,7 @@ class Base_Table(ABC):
         return {col.lower(): col  for col in self.get_columns()}
 
     
-    def validate_columns(self, columns):
+    def validate_columns_OLD(self, columns):
         """return columns from those stored in table.columns"""
         validated_cols = []
         unmatched_cols = []
@@ -106,7 +106,7 @@ class Base_Table(ABC):
             return validated_cols 
 
 
-    def _suggest_similar_columns(self, columns, min_ratio=75):
+    def _suggest_similar_columns(self, columns, min_ratio=0.7):
         res = {}
         for col in columns:
             similar_cols = bintang.get_similar_values(col, self.get_columns())

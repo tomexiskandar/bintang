@@ -11,7 +11,6 @@ from typing import Literal, Annotated, Any, get_origin
 from itertools import product
 from dataclasses import dataclass
 import datetime
-from dateutil import parser
 
 @dataclass
 class ValueRange:
@@ -28,7 +27,7 @@ class Memory_Table(Base_Table):
         self.__columns = {}
         self.__rows = {}
         self.__temprows = []
-        self.__last_assigned_columnid= 9 #
+        self.__last_assigned_columnid= 0 #
         self.__last_assigned_rowid = 0 # for use when row created
         self.__last_assigned_idx = 0 # for use when add idx
         self.validate_funcs = {
@@ -55,7 +54,8 @@ class Memory_Table(Base_Table):
         tbl['name'] = self.name
         columns = []
         for k,v in self.__columns.items():
-            columns.append(dict(id=v.id, name=v.name))
+            columns.append(dict(id=v.id, name=v.name, ordinal_position=v.ordinal_position))
+        columns.sort(key=lambda x: x['ordinal_position']) 
         tbl['columns'] = columns
         return json.dumps(tbl, indent=2)
 
@@ -243,24 +243,20 @@ class Memory_Table(Base_Table):
 
             
     def rename_column(self,old_column,new_column):
-        for v in self.__columns.values():
-            if v.name == old_column:
-                v.name = new_column
-                return
-
+        
+        # for v in self.__columns.values():
+        #     if v.name == old_column:
+        #         v.name = new_column
+        #         return
+        old_column = self.validate_column(old_column) # validate user input
+        columnid = self.get_columnid(old_column)
+        if columnid is not None:
+            self.__columns[columnid].name = new_column
+       
         
     def drop_column(self,column):
-        # get columnid
+        column = self.validate_column(column) # validate user input
         columnid = self.get_columnid(column)
-        #if self.conn is None:
-            #provide warning if the passed column does not exist
-        if columnid is None:
-            log.warning("warning... trying to drop a non-existence column '{}'".format(column))
-            return False
-        # delete the cell from cell. Let's revisit this, Q: do we need to delete the data coz it's not linked to existing column since the the colum dropped.
-        #for row in self.__rows.values():
-        #    row.cells.pop(columnid,None)
-        # delete the column
         self.__columns.pop(columnid,None)
         
 
@@ -274,27 +270,21 @@ class Memory_Table(Base_Table):
         for col in self.get_columns():
             if col not in columns_all:
                 columns_all.append(col)
-        for i, col in enumerate(columns_all, 10):
+        for i, col in enumerate(columns_all, 1):
             self.update_column(col, ordinal_position=i)
 
 
-    def _order_columns_sql(self, columns):
-        # determine all columns
-        columns_all = [x for x in columns]
-        for col in self._get_columns_sql():
-            if col not in columns_all:
-                columns_all.append(col)
-        for i, col in enumerate(columns_all, 10):
-            self._update_column_sql(col, ordinal_position=i)        
+    # def _order_columns_sql(self, columns):
+    #     # determine all columns
+    #     columns_all = [x for x in columns]
+    #     for col in self._get_columns_sql():
+    #         if col not in columns_all:
+    #             columns_all.append(col)
+    #     for i, col in enumerate(columns_all, 10):
+    #         self._update_column_sql(col, ordinal_position=i)        
 
 
     def get_columns(self) -> tuple:
-        # if self.type == 'SQLBACKEND':#conn is not None:
-        #     sorted_columns = self._get_columns_sql()
-        # elif self.type == 'FROMSQL':
-        #     sorted_columns = self._get_columns_fromsql()
-        # else:
-            # DEP as not sorted wise return [x.name for x in self.__columns.values()]
         col_objs = [col for col in self.__columns.values()]
         col_objs.sort(key=lambda col: col.ordinal_position)
         sorted_columns = [col.name for col in col_objs]
@@ -336,7 +326,10 @@ class Memory_Table(Base_Table):
             return self._get_columnnames_lced().get(column.lower())
         else:
             similar_cols = bintang.core.get_similar_values(column, self.get_columns())
-            raise ValueError ('could not find column {}. Did you mean {}?'.format(repr(column),' or '.join(similar_cols)))
+            if similar_cols:
+                raise ValueError (f'Could not find column {repr(column)}. Did you mean {similar_cols}?')
+            else:
+                raise ValueError (f'Could not find column {repr(column)}')
 
 
     def validate_integer(self, value: int, cobj) -> tuple[int, bool, str | None]:
@@ -450,6 +443,12 @@ class Memory_Table(Base_Table):
         put the results to a new table with name into.
         any passing validation will be inserted into the new table and any failed validation will be logged with error message and put into the new table as well.
         """
+        try:
+            from dateutil import parser
+        except ImportError as e:
+            print(e)
+            raise ImportError("valrows() require python-dateutil. please install it for eg. pip install python-dateutil")
+
         # get columns that have data type assigned.
         data_typed_columnids = []
         for colid in self.get_columnids():
@@ -1785,7 +1784,7 @@ class Memory_Table(Base_Table):
         # dict is already indexed with python 3.7+
         # this only means we rebuild row id so any deleted idx can be reused
         idxs = list(self.__rows)
-        for i, idx in enumerate(idxs):
+        for i, idx in enumerate(idxs, 1):
             self.__rows[i] = self.__rows[idx] # reassign
             if i != idx:
                 del self.__rows[idx]
@@ -1813,9 +1812,9 @@ class Memory_Table(Base_Table):
         # reset table methods
         self.__rows.clear()     # reset all rows
         self.__columns.clear()  # reset all columns
-        self.__last_assigned_columnid= 9 #
-        self.__last_assigned_rowid = -1 # for use when row created
-        self.__last_assigned_idx = -1 # for use when add
+        self.__last_assigned_columnid= 0 #
+        self.__last_assigned_rowid = 0 # for use when row created
+        self.__last_assigned_idx = 0 # for use when add
         # populate records
         for i in temp_idxs:
             self.insert(temp_tobj.get_row_asdict(i), index=temp_tobj.get_row_asdict(i)[column])

@@ -32,6 +32,8 @@ Here is a list of the functions and its dependencies:
      - openpyxl (xlsx) and xlrd (xls)
    * - to_excel()
      - openpyxl (xlsx) and xlwt (xls)
+   * - valrows(), validate()
+     - python-dateutil
 
 
 
@@ -42,6 +44,11 @@ Installation
 .. code-block:: python
 
    pip install bintang
+
+   # or want to target specific "extras" as defined inside the pyproject.toml, pick one below:
+   # pip install "bintang[database]" # if you want external package pyodbc and psycopg to be installed.
+   # pip install "bintang[excel]" # if you want external packages openpyxl, xlrd and xlwt to be installed.
+   # pip install "bintang[all]" # if you want all external packages to be installed. 
 
 
 Examples of Usage

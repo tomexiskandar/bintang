@@ -34,7 +34,7 @@ where = ["src"]  # This tells setuptools to look inside the src folder
 
 [tool.setuptools_scm]
 write_to = "src/bintang/_version.py"
-0.0.0-dev
+fallback_version = "0.0.0-dev"
 
 [tool.pytest.ini_options]
 testpaths = ['tests']

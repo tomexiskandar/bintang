@@ -1,3 +1,14 @@
+.. image:: https://img.shields.io/pypi/v/bintang.svg
+    :target: https://pypi.org/project/bintang/
+    :alt: PyPI version
+
+
+.. image:: https://github.com/[tomexiskandar]/bintang/actions/workflows/publish.yml/badge.svg
+    :target: https://github.com/[tomexiskandar]/bintang/actions
+    :alt: Build Status
+
+
+
 =======
 Bintang
 =======
@@ -35,7 +46,7 @@ Here is a list of the functions and its dependencies:
    * - valrows(), validate()
      - python-dateutil
    * - fuzzy_cmprows()  
-     - rapidfuzz (faster then the built-in difflib.SequenceMatcher)
+     - rapidfuzz (faster than the built-in difflib.SequenceMatcher)
 
 
 

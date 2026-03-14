@@ -1,4 +1,4 @@
-|version| |build| |coverage|
+|version| |build| 
 
 .. |version| image:: https://img.shields.io/pypi/v/bintang.svg
    :target: https://pypi.org/project/bintang/
@@ -6,8 +6,6 @@
 .. |build| image:: https://github.com/tomexiskandar/bintang/actions/workflows/main.yml/badge.svg
    :target: https://github.com/tomexiskandar/bintang/actions
 
-.. |coverage| image:: https://codecov.io/gh/tomexiskandar/bintang/branch/main/graph/badge.svg
-   :target: https://codecov.io/gh/tomexiskandar/bintang
 
 
 

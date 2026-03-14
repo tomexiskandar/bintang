@@ -26,4 +26,5 @@ ztodo.txt
 pytest_cache
 src/bintang/_version.py
 z_show_version.py
+setup_py_old
 

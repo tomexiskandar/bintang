@@ -34,6 +34,8 @@ Here is a list of the functions and its dependencies:
      - openpyxl (xlsx) and xlwt (xls)
    * - valrows(), validate()
      - python-dateutil
+   * - fuzzy_cmprows()  
+     - rapidfuzz (faster then the built-in difflib.SequenceMatcher)
 
 
 

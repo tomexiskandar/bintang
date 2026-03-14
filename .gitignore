@@ -4,7 +4,6 @@ archive/
 *.egg-info/
 build/
 dist/
-tests
 tests_dev
 temp/
 znotes.txt

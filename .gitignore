@@ -11,4 +11,5 @@ ztodo.txt
 .pytest_cache
 src/bintang/_version.py
 zshow_version.py
+git_sync.py
 

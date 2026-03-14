@@ -8,12 +8,6 @@
     :alt: Build Status
 
 
-.. image:: https://img.shields.io/pypi/l/bintang.svg
-    :target: https://github.com/tomexiskandar/bintang/blob/main/LICENSE
-    :alt: License
-
-
-
 
 =======
 Bintang

@@ -56,11 +56,11 @@ def test_insert_person_table(bt):
 
 
 def void_test_valrows(bt):
-    # try:
-    #     import dateutil
-    # except ImportError as e:
-    #     print(f"Warning: {e}. Required modulde not found. Exiting...")
-    #     return None
+    try:
+        import dateutil
+    except ImportError as e:
+        print(f"Warning: {e}. Required modulde not found. Exiting...")
+        return None
         
     # create product table
     bt.create_table('Product')

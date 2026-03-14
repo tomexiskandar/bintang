@@ -4,8 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "bintang"
-# removed to add dynamic.  version = "0.2.13"
-dynamic = ["version"]
+version = "0.2.20"
 description = "A tiny and temporary db for quick data cleansing and transformation. It is a high-level Python coding and would help any Pythonistas up to speed with ETL work."
 readme = "README.rst"
 
@@ -39,7 +38,6 @@ test = [
 where = ["src"]  # This tells setuptools to look inside the src folder
 
 [tool.setuptools_scm]
-write_to = "src/bintang/_version.py"
 fallback_version = "0.0.0-dev"
 
 [tool.pytest.ini_options]

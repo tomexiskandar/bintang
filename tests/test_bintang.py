@@ -1,10 +1,3 @@
-
-# locate the package
-# import sys, os
-# from pathlib import Path
-# PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-# sys.path.insert(0,os.path.join(PROJECT_ROOT,"bintang"))
-
 from bintang import Bintang
 import pytest
 import datetime
@@ -63,11 +56,11 @@ def test_insert_person_table(bt):
 
 
 def void_test_valrows(bt):
-    try:
-        import dateutil
-    except ImportError as e:
-        print(f"Warning: {e}. Required modulde not found. Exiting...")
-        return None
+    # try:
+    #     import dateutil
+    # except ImportError as e:
+    #     print(f"Warning: {e}. Required modulde not found. Exiting...")
+    #     return None
         
     # create product table
     bt.create_table('Product')

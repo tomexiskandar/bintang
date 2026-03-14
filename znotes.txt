@@ -17,6 +17,6 @@ git commit -m "msg here"
 git push -u origin main
 
 # create a tag
-git tag v0.2.15
+git tag vX.X.X
 # trigger github action
-git push origin v0.2.15
+git push origin vX.XX

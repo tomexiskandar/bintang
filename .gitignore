@@ -7,6 +7,7 @@ dist/
 tests
 tests_dev
 temp/
+znotes.txt
 ztodo.txt
 .pytest_cache
 src/bintang/_version.py

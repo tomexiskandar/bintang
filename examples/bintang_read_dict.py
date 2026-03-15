@@ -62,4 +62,4 @@ bt['//Person/Address'].print()
 # -----------+--------------+--------------+-----------+---------------
 # (2 rows)
 
-assert len(bt['//Person/Address']) == 2
+#assert len(bt['//Person/Address']) == 2

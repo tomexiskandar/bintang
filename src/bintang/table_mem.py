@@ -396,7 +396,7 @@ class Memory_Table(Base_Table):
                     return (value, False, f"column '{cobj.name}' has ValueError: {e}")
     
 
-    def validate_date(self, value: datetime.date, cobj) -> tuple[datetime.date, bool, str | None]:
+    def validate_date(self, value: datetime.date, cobj, parser) -> tuple[datetime.date, bool, str | None]:
         #print('validate_date called with value:', value)
         type_ = Annotated[datetime.date, ValueRange(cobj.min_value, cobj.max_value)]
         for annotation in type_.__metadata__:
@@ -417,7 +417,7 @@ class Memory_Table(Base_Table):
                     return (value, False, f"ValueError: {e}")
     
 
-    def validate_datetime(self, value: datetime.datetime, cobj) -> tuple[datetime.datetime, bool, str | None]:
+    def validate_datetime(self, value: datetime.datetime, cobj, parser) -> tuple[datetime.datetime, bool, str | None]:
         #print('validate_datetime called with value:', value)
         type_ = Annotated[datetime.datetime, ValueRange(cobj.min_value, cobj.max_value)]
         for annotation in type_.__metadata__:
@@ -472,7 +472,10 @@ class Memory_Table(Base_Table):
                     # else: # comment to avoid handling later
                     #     res = (colid, None, True, None)
                 elif value is not None:
-                    res = (colid,) + self.validate_funcs[cobj.data_type](value, self.__columns[colid])
+                    if cobj.data_type in ['date','datetime']:
+                        res = (colid,) + self.validate_funcs[cobj.data_type](value, self.__columns[colid], parser)
+                    else:
+                        res = (colid,) + self.validate_funcs[cobj.data_type](value, self.__columns[colid])
                 results.append(res)
             yield idx, tuple(results)
 

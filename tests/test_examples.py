@@ -4,10 +4,14 @@ import pytest
 import os
 import sys
 
+
 example_scripts = glob.glob(os.path.join("examples", "*.py"))
 
 @pytest.mark.parametrize("script_path", example_scripts)
 def test_example_execution(script_path):
+    """
+    to test each file under example folder
+    """
     # Get the current system environment variables
     env = os.environ.copy()
     

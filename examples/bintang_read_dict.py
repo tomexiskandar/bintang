@@ -61,3 +61,5 @@ bt['//Person/Address'].print()
 #  Address   |            1 |            8 | Parade    | Road
 # -----------+--------------+--------------+-----------+---------------
 # (2 rows)
+
+assert len(bt['//Person/Address']) == 2

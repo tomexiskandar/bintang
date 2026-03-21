@@ -412,6 +412,8 @@ Return grouped rows based upon the value of columns.
 
 .. code-block:: python
 
+   import bintang
+   bt = bintang.Bintang()
    bt.create_table('Product') # this will be our basis table for grouping
    p = bt['Product'] # assign p as the table
    p.insert({'id':1, 'brand': 'Shimano', 'class':'rod', 'name':'Extraction','price':299})
@@ -1135,13 +1137,14 @@ To rename table name, can be done through normal assignment.
 
 
 
-Bintang.Table.print(columns=None, show_data_type=False)
--------------------------------------------------------
+Bintang.Table.print(columns=None, show_data_type=False, topn=10)
+----------------------------------------------------------------
 
 Print rows to terminal in table format. This would be handy if the table can fit into terminal.
 
 :columns: a list of columns to output. If None, will output all columns (default).
 :show_data_type: if True, will output data type.
+:topn: to print out only to the topn then break
 
 .. code-block:: python
 

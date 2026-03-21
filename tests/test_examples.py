@@ -12,6 +12,7 @@ def test_example_execution(script_path):
     """
     to test each file under example folder
     """
+    print(script_path)
     # Get the current system environment variables
     env = os.environ.copy()
     

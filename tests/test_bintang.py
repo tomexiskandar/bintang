@@ -57,3 +57,4 @@ def test_insert_person_table(bt):
 
     p.rename_column('name', 'first_name')
     assert 'name' not in  p.get_columns() # 'name must not be in the columns list
+    assert 'first_name' in p.get_columns() # 'first_name must be in the column list

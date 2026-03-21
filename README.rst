@@ -3,7 +3,7 @@
 .. |version| image:: https://img.shields.io/pypi/v/bintang.svg
    :target: https://pypi.org/project/bintang/
 
-.. |build| image:: https://github.com/tomexiskandar/bintang/actions/workflows/main.yml/badge.svg
+.. |build| image:: https://github.com/tomexiskandar/bintang/actions/workflows/publish.yml/badge.svg
    :target: https://github.com/tomexiskandar/bintang/actions
 
 

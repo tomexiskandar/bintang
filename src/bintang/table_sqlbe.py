@@ -31,13 +31,24 @@ class SQL_Backend_Table(Base_Table):
         cur.close()
 
     
-    def _get_columnid_sql(self, column):
+    def get_columnid(self, column):
         sql = f"SELECT id FROM {self.name}__columns__ where name = ?"
         cursor = self.conn.cursor()
         res = cursor.execute(sql,(column,))
         ret = res.fetchone()
         if ret:
             return ret['id']
+        else:
+            return None
+        
+
+    def get_columnids(self, columns):
+        sql = f"SELECT id FROM {self.name}__columns__ where name IN ({','.join(['?']*len(columns))})"
+        cursor = self.conn.cursor()
+        res = cursor.execute(sql, columns)
+        ret = res.fetchall()
+        if ret:
+            return [r['id'] for r in ret]
         else:
             return None
 
@@ -58,7 +69,7 @@ class SQL_Backend_Table(Base_Table):
     
     def _add_column_sql_(self, name, data_type=None, column_size=None):
         # check if the passed name already exists
-        columnid = self._get_columnid_sql(name)
+        columnid = self.get_columnid(name)
         ord_pos = self._get_last_assigned_ord_pos() + 1
         if columnid is None:
             sql = f"INSERT INTO {self.name}__columns__ (name, ordinal_position, data_type, column_size) VALUES (?,?,?,?)"
@@ -72,11 +83,11 @@ class SQL_Backend_Table(Base_Table):
 
     
     def _make_cell_sql(self,column,value,new_column=True):
-        columnid = self._get_columnid_sql(column)
+        columnid = self.get_columnid(column)
         if columnid is None: # if columnid is None then assume user wants a new column
             if new_column == True:
                 self._add_column_sql_(column)
-                columnid = self._get_columnid_sql(column) # reassign the columnid
+                columnid = self.get_columnid(column) # reassign the columnid
                 # if self.__be is not None:
                 #     self.__be.add_column(self.name, columnid, column)
                 # deprecated moved up columnid = self.get_columnid(column) # reassign the columnid
@@ -114,7 +125,7 @@ class SQL_Backend_Table(Base_Table):
 
     def _update_column_sql(self,name, data_type=None, column_size=None, ordinal_position=None):
         # check if the passed name already exists
-        columnid = self._get_columnid_sql(name)
+        columnid = self.get_columnid(name)
         if columnid is not None:
             cursor = self.conn.cursor()
             if data_type is not None:
@@ -135,31 +146,31 @@ class SQL_Backend_Table(Base_Table):
 
 
 
-    def insert(self, record, columns=None, index=None):
-        """ restrict arguments for record insertion for this function as the followings:
-        1. a dictionary pass to record param
-        2. list values pass to record param and list columns pass to column param.
+    def insert(self, dict_or_columns, values=None, index=None):
+        """ restrict arguments for dict_or_columns insertion for this function as the followings:
+        1. a dictionary pass to dict_or_columns param
+        2. list values pass to dict_or_columns param and list columns pass to column param.
         """
-        if isinstance(record, dict):
+        if isinstance(dict_or_columns, dict):
             #row = self.make_row()
             row = Row(0) # dummy idx
-            for idx, (col, val) in enumerate(record.items()):
+            for idx, (col, val) in enumerate(dict_or_columns.items()):
                 cell = self._make_cell_sql(col, val)
                 row.add_cell(cell) # add to rows
             row = json.dumps({v.columnid: v.value for v in row.cells.values()})
             self._add_row_sql(row, index)
             
                                                   
-        elif isinstance(columns,list) or isinstance(columns,tuple) or isinstance(record,list) or isinstance(record,tuple):
+        elif isinstance(dict_or_columns,list) or isinstance(dict_or_columns,tuple) or isinstance(dict_or_columns,list) or isinstance(dict_or_columns,tuple):
             #row = self.make_row()
             row = Row(0) # dummy idx
-            for idx, col in enumerate(columns):
-                cell = self._make_cell_sql(col,record[idx])
+            for idx, col in enumerate(dict_or_columns):
+                cell = self._make_cell_sql(col,values[idx])
                 row.add_cell(cell) # add to rows
             row = json.dumps({v.columnid: v.value for v in row.cells.values()})
             self._add_row_sql(row, index)
         else:
-            raise ValueError("Arg for record set for dictionary or list/tuple of values with list/tuple of columns.")
+            raise ValueError("Arg for dict_or_columns set for dictionary or list/tuple of values with list/tuple of columns.")
 
     
     def _get_columns_withid_sql(self) -> dict:
@@ -276,7 +287,7 @@ class SQL_Backend_Table(Base_Table):
     def update_row(self, idx, column, value):
         """ using json_set so only update for a specific key"""
         cursor = self.conn.cursor() 
-        columnid = self._get_columnid_sql(column)
+        columnid = self.get_columnid(column)
         sql_update = f"UPDATE {self.name} SET cells = (SELECT json_set({self.name}.cells, '$.{columnid}', ?)) where idx=?;"
         params = [value, idx]
         cursor.execute(sql_update, params)

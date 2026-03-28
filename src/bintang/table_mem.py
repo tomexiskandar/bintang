@@ -3,7 +3,7 @@ import bintang
 from bintang.table import Base_Table
 from bintang.column import Column
 from bintang.cell import Cell
-from bintang.row import Row
+# from bintang.row import Row
 from bintang.log import log
 import types
 from operator import itemgetter
@@ -28,7 +28,7 @@ class Memory_Table(Base_Table):
         self.__rows = {}
         self.__temprows = []
         self.__last_assigned_columnid= 0 #
-        self.__last_assigned_rowid = 0 # for use when row created
+        # self.__last_assigned_rowid = 0 # for use when row created
         self.__last_assigned_idx = 0 # for use when add idx
         self.validate_funcs = {
             'int': self.validate_integer,
@@ -552,33 +552,7 @@ class Memory_Table(Base_Table):
         return tuple(self.__rows.keys())
 
 
-    def get_value(self, column, where = None):
-        """ 
-        return a scalar value.
-        switch different process if user want column pass as string or lambda
-        params:
-        column: either column name or using lambda expression
-        where: always a lambda expression"""
-        if where is not None:
-            if isinstance(column,str):
-                for idx, row in self.iterrows():
-                    if where(row):
-                        return row[column]
-            elif isinstance(column, types.FunctionType):
-                for idx, row in self.iterrows():
-                    if where(row):
-                        return column(row)
-            else:
-                raise 'param column must be either column name or lambda and param where must be a lambda.'
-        else:
-            if isinstance(column,str):
-                for idx, row in self.iterrows():
-                    return row[column]
-            elif isinstance(column, types.FunctionType):
-                for idx, row in self.iterrows():
-                    return column(row)
-            else:
-                raise 'param column must be either column name or lambda and param where must be a lambda.'
+    # moved def get_value() to base table.
 
 
     def index_exists(self, index):
@@ -586,21 +560,9 @@ class Memory_Table(Base_Table):
             return True
         else:
             return False
-        
 
 
-    def make_row(self,id=None, option=None):
-        """make a new row.
-        by default it increments id.
-        """
-        if id is None:
-            row = Row(self.__last_assigned_rowid + 1)
-            self.__last_assigned_rowid += 1 #increment rowid
-        elif id is not None:
-            row = Row(id)
-        # elif id is None and option == 'uuid':
-        #     row = Row(uuid.uuid4())
-        return row
+    #remove def make_row to base table
 
 
     def insert(self, dict_or_columns, values=None, index=None):

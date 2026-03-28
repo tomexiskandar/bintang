@@ -60,3 +60,5 @@ def test_get_and_update_table(bt):
     p.rename_column('name', 'first_name')
     assert 'name' not in  p.get_columns() # 'name must not be in the columns list
     assert 'first_name' in p.get_columns() # 'first_name must be in the column list
+
+    assert p.get_value('first_name', where=lambda row: row['id']==1) == 'John'

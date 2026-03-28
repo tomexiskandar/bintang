@@ -204,14 +204,11 @@ Before using openpyxl or xlrd package, you must install the packages. Below is a
 
 
 
-Bintang.read_dict(dict_obj, tablepaths=None, root='/', path_sep='/')
---------------------------------------------------------------------
-Read dictionary object and create a table or more according to hierarchy paths contained in the object.
+Bintang.read_dict(dict_obj)
+---------------------------
+Read dictionary object and create a table.
 
 :dict_obj: a python dictionary object
-:tablepaths: a list of paths which contains a list of objects (equivalent to records)
-:root: name for root table equivalent to root node in the dictionary
-:path_sep: separator for paths
 
 
 .. code-block:: python
@@ -221,148 +218,25 @@ Read dictionary object and create a table or more according to hierarchy paths c
    import bintang
 
    # example dict object
-   dict_obj = {
-        'Page': 100,
-        'Time': '2033-09-05T00:00:00Z',
-        'Person': [
-            {'id': 1,'name': 'John','surname': 'Smith',
-                'Address': {'number': 1, 'street': 'Station','street_type': 'Street'}
+   dict_obj =  [
+            {
+                'id': 1,'name': 'John','surname': 'Smith'
             },
-            {'id': 2,'name': 'Jane','surname': 'Brown',
-                'Address': {'number': 8,'street': 'Parade','street_type': 'Road'}
-            }
-        ],
-        'PersonDetails': [
-            {'person_id': '1', 'hobby': 'Blogging','is_meat_eater': True
-            },
-            {'person_id': '2','hobby': 'Reading','is_meat_eater': None,
-                'LuckyDays': [13,17,19]
+            {
+                'id': 2,'name': 'Jane','surname': 'Brown'
             }
         ]
-   }
    bt = bintang.Bintang()
    bt.read_dict(dict_obj)
-
-   print(bt) # show bt tables
-   # {
-   #    "name": null,
-   #    "tables": [
-   #       "/",
-   #       "//Person",
-   #       "//Person/Address",
-   #       "//PersonDetails",
-   #       "//PersonDetails/LuckyDays"
-   #    ]
-   # }
-
-   # loop through root table ('/')
-   for idx, row in bt['/'].iterrows():
-       print(idx, row)
-   # 0 {'Page:': 100, 'Time': '2033-09-05T00:00:00Z'}
-
-   # loop through  //Person table.
-   for idx, row in bt['//Person'].iterrows():
-       print(idx, row)
-   # 0 {'Person': 0, 'id': 1, 'name': 'John', 'surname': 'Smith'}
-   # 1 {'Person': 1, 'id': 2, 'name': 'Jane', 'surname': 'Brown'} 
-
-   # print //Person/Address table. Because this table under //Person, then each record will have their own 
-   # reference to //Person table.
-   
-   bt['//Person/Address'].print()
-
-   #                      Table: //Person/Address
-   # -----------+--------------+--------------+-----------+---------------
-   #   Address  |    Person    |    number    |   street  |  street_type
-   # -----------+--------------+--------------+-----------+---------------
-   #  Address   |            0 |            1 | Station   | Street
-   #  Address   |            1 |            8 | Parade    | Road
-   # -----------+--------------+--------------+-----------+---------------
-   # (2 rows)
-
-Please note that since dictionary can contain complex hierarchy paths and still valid (eg. system configuration), then a further transformation is required. A dictionary that consists of a list of record objects can be transformed to Bintang table straight away.
-   
-
-
-Bintang.read_json(json_str, tablepaths=None, root='/', path_sep='/')
---------------------------------------------------------------------
-Read JSON string and create a table or more according to hierarchy paths contained in the object.
-This function merely wraps read_dict() and use json.loads to decode json string argument to dictionary.
-
-:json_str: a json string
-:tablepaths: a list of paths which contains a list of objects (equivalent to records).
-:root: name for root table equivalent to root node in the dictionary
-:path_sep: separator for paths
-
-
-.. code-block:: python
-   
-   # other module import
-   # ...
-   import bintang
-   
-   # example json data
-   json_str = '{"Page:": 100, "Time": "2033-09-05T00:00:00Z", \
-               "Person": [{"id": 1, "name": "John", "surname": "Smith", \
-                            "Address": {"number": 1, "street": "Station", "street_type": "Street"}}, \
-                          {"id": 2, "name": "Jane", "surname": "Brown", \
-                            "Address": {"number": 8, "street": "Parade", "street_type": "Road"}}], \
-               "PersonDetails": [{"person_id": "1", "hobby": "Blogging", "is_meat_eater": true}, \
-                                 {"person_id": "2", "hobby": "Reading", "is_meat_eater": null, \
-                                   "LuckyDays": [13, 17, 19]}]}'
-
-   bt = bintang.Bintang()
-   bt.read_json(json_str)
-
-   print(bt) # show bt tables
-   # see read_dict() above to navigate the tables
-   
-
-Bintang.read_xml()
-------------------
-This is just a placeholder. To read XML data, you may use xml.etree.ElementTree or lxml package or xmltodict to parse the XML data and convert it to a dictionary object, then use read_dict() function to create Bintang tables.
-Here is an example to read XML data and convert it to Bintang tables.
-
-.. code-block:: python
-
-   import bintang
-   import xmltodict
-
-
-   # example xml data that have two tables from its paths.
-   # they are Person (parent table) and Address (child table)
-   xml_str = """<root>
-                  <Person>
-                     <id>1</id>
-                     <name>John</name>
-                     <surname>Smith</surname>
-                     <Address>
-                           <number>1</number>
-                           <street>Station</street>
-                           <street_type>Street</street_type>
-                     </Address>
-                  </Person>
-                  <Person>
-                     <id>2</id>
-                     <name>Jane</name>
-                     <surname>Brown</surname>
-                     <Address>
-                           <number>8</number>
-                           <street>Parade</street>
-                           <street_type>Road</street_type>
-                     </Address>
-                  </Person>
-               </root>"""
-
-   dict_obj = xmltodict.parse(xml_str)
-   bt = bintang.Bintang()
-   bt.read_dict(dict_obj)
-
-   print(bt) # show bt tables
-
-   # print each table
-   for tbl_name in bt.get_tables():
-      bt[tbl_name].print()
+   bt['/'].print()
+   #                     Table: /
+   #--------------+--------------+--------+-----------
+   #      /       |      id      |  name  |  surname
+   #--------------+--------------+--------+-----------
+   #           0  |           1  |  John  |  Smith
+   #           1  |           2  |  Jane  |  Brown
+   #--------------+--------------+--------+-----------
+   #(2 rows)
 
 
 

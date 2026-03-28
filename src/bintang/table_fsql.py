@@ -14,7 +14,15 @@ class From_SQL_Table(Base_Table):
         tbl['name'] = self.name
         columns = self.get_columns()
         tbl['columns'] = columns
-        return json.dumps(tbl, indent=2) 
+        return json.dumps(tbl, indent=2)
+
+
+    def get_columnid(self, column):
+        pass
+
+
+    def get_columnids(self, columns):
+        pass     
     
     
     def get_columns(self) -> tuple:

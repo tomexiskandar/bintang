@@ -20,6 +20,14 @@ class From_CSV_Table(Base_Table):
         return row_count
 
 
+    def get_columnid(self, column):
+        pass
+
+
+    def get_columnids(self, columns):
+        pass    
+
+
     def get_columns(self):
         with open(self.filepath, newline='') as f:
             reader = csv.reader(f, delimiter=self.delimiter, quotechar=self.quotechar)

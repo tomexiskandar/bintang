@@ -42,7 +42,7 @@ try:
         else:
             return  round(fuzz.ratio(value1, value2) /100.0, 4)
 except ImportError as e:
-    print(f'warning! bintang.get_fuzzy_ratio() could not find rapidfuzz, difflib.SequenceMatcher would be used.')
+    log.warning(f'warning! bintang.get_fuzzy_ratio() could not find rapidfuzz, difflib.SequenceMatcher would be used.')
     # define get_fuzzy_ratio to use difflib
     from difflib import SequenceMatcher
     def get_fuzzy_ratio(value1, value2, default_process=True):

@@ -778,6 +778,9 @@ class Memory_Table(Base_Table):
             return self.get_row_aslist(index, columns)
         else:
             return self.get_row_asdict(index, columns, rowid)
+
+    def get_row_(self, index):
+        return  self.__rows[index]       
            
 
     def get_row_asdict(self, idx, columns=None, rowid=False):
@@ -1007,7 +1010,7 @@ class Memory_Table(Base_Table):
 
         
 
-    def print(self, columns=None, show_data_type=False, square=False, topn = 10):
+    def print(self, columns=None, show_data_type=False, square=False, limit = 10):
         # validate columns arg
         if columns: #user want specific columns
             columns_ = self.validate_columns(columns)
@@ -1071,7 +1074,7 @@ class Memory_Table(Base_Table):
                     padded_cells.append((str(val) + '  ').rjust(max_width)) # add double spaces for readable
             #padded_cells_str = '|'.join(padded_cells)
             print(self._gen_print_padded_cells_str(padded_cells,  square=square))
-            if idx == topn: break
+            if idx == limit: break
         print(self._gen_print_line(len(heading_col_str), col_div_pos,  square=square))
         print('({} rows)'.format(len(self)))    
 

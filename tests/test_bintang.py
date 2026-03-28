@@ -51,6 +51,8 @@ def test_insert_person_table(bt):
     for idx, row in p.iterrows():
         assert row == expected_rows[idx -1] # decreased idx to match expected_rows index list.
 
+def test_get_and_update_table(bt):
+    p = bt['Person']
     p.update('age', 10, where=lambda row: row['name']=='Maria')
     assert 'age' in p.get_columns()
     assert p.get_row_asdict(4)['age'] == 10

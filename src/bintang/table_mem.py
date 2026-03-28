@@ -1,6 +1,6 @@
 import json
 import bintang
-from bintang.table import Base_Table
+from bintang.table_base import Base_Table
 from bintang.column import Column
 from bintang.cell import Cell
 # from bintang.row import Row

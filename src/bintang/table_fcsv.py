@@ -1,4 +1,4 @@
-from bintang.table import Base_Table
+from bintang.table_base import Base_Table
 from bintang.log import log
 import csv
 

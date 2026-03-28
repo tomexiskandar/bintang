@@ -3,10 +3,10 @@ import json
 from bintang.log import log
 from bintang.cell import Cell
 from bintang.row import Row
-from bintang.table import Base_Table
+from bintang.table_base import Base_Table
 
 
-class SQL_Backend_Table(Base_Table):
+class Sqlite_Table(Base_Table):
     def __init__(self, name, conn, bing):
         super().__init__(name, bing=bing)
         self.conn = conn  # for backend use

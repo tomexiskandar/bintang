@@ -3,9 +3,9 @@ import os
 import json
 import copy
 import unicodedata
-from bintang.table import Base_Table
+from bintang.table_base import Base_Table
 from bintang.table_mem import Memory_Table, Path_Table
-from bintang.table_sqlbe import SQL_Backend_Table
+from bintang.table_sqlite import Sqlite_Table
 from bintang.table_fsql import From_SQL_Table
 from bintang.table_fcsv import From_CSV_Table
 from bintang import iterdict
@@ -248,7 +248,7 @@ class Bintang():
         return self.get_table(tablename).get_columns()
     
 
-    def add_table(self, table: Union[Memory_Table, Path_Table, SQL_Backend_Table, From_SQL_Table, From_CSV_Table]): 
+    def add_table(self, table: Union[Memory_Table, Path_Table, Sqlite_Table, From_SQL_Table, From_CSV_Table]): 
         tableid = self.get_tableid(table.name)
         if tableid is None:
             tableid = self.__last_assigned_tableid + 1
@@ -568,8 +568,8 @@ class Bintang():
         return out_tobj
     
 
-    def create_sql_backend_table(self, name, conn):
-        tobj = SQL_Backend_Table(name, conn, bing=self) # create a tobj object
+    def create_sqlite_table(self, name, conn):
+        tobj = Sqlite_Table(name, conn, bing=self) # create a tobj object
         self.add_table(tobj)
         return tobj
     

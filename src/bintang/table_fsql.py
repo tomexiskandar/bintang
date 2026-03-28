@@ -1,4 +1,4 @@
-from bintang.table import Base_Table
+from bintang.table_base import Base_Table
 import json
 
 class From_SQL_Table(Base_Table):

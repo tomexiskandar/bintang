@@ -26,18 +26,29 @@ class SQL_Backend_Table(Base_Table):
         cur.execute("SELECT EXISTS (SELECT 1 FROM sqlite_master WHERE type='table' AND name=:tablename)", {"tablename":self.name})
         ret = cur.fetchone()[0]
         if  ret == 0:
-            cur.execute(f"CREATE TABLE '{self.name}' (idx INTEGER PRIMARY KEY NOT NULL, cells JSON)")
+            cur.execute(f"CREATE TABLE '{self.name}' (idx INTEGER PRIMARY KEY NOT NULL, id INTEGER,cells JSON)")
             cur.execute(f"CREATE TABLE '{self.name}__columns__' (id INTEGER PRIMARY KEY NOT NULL, name TEXT COLLATE NOCASE, ordinal_position INTEGER, data_type TEXT, column_size INTEGER, decimal_digits INTEGER, data_props JSON)")
         cur.close()
 
     
-    def _get_columnid_sql(self, column):
+    def get_columnid(self, column):
         sql = f"SELECT id FROM {self.name}__columns__ where name = ?"
         cursor = self.conn.cursor()
         res = cursor.execute(sql,(column,))
         ret = res.fetchone()
         if ret:
             return ret['id']
+        else:
+            return None
+        
+
+    def get_columnids(self, columns):
+        sql = f"SELECT id FROM {self.name}__columns__ where name IN ({','.join(['?']*len(columns))})"
+        cursor = self.conn.cursor()
+        res = cursor.execute(sql, columns)
+        ret = res.fetchall()
+        if ret:
+            return [r['id'] for r in ret]
         else:
             return None
 
@@ -58,7 +69,7 @@ class SQL_Backend_Table(Base_Table):
     
     def _add_column_sql_(self, name, data_type=None, column_size=None):
         # check if the passed name already exists
-        columnid = self._get_columnid_sql(name)
+        columnid = self.get_columnid(name)
         ord_pos = self._get_last_assigned_ord_pos() + 1
         if columnid is None:
             sql = f"INSERT INTO {self.name}__columns__ (name, ordinal_position, data_type, column_size) VALUES (?,?,?,?)"
@@ -72,14 +83,11 @@ class SQL_Backend_Table(Base_Table):
 
     
     def _make_cell_sql(self,column,value,new_column=True):
-        columnid = self._get_columnid_sql(column)
+        columnid = self.get_columnid(column)
         if columnid is None: # if columnid is None then assume user wants a new column
             if new_column == True:
                 self._add_column_sql_(column)
-                columnid = self._get_columnid_sql(column) # reassign the columnid
-                # if self.__be is not None:
-                #     self.__be.add_column(self.name, columnid, column)
-                # deprecated moved up columnid = self.get_columnid(column) # reassign the columnid
+                columnid = self.get_columnid(column) # reassign the columnid
         if columnid is None:
             raise ValueError("Cannot make cell due to None column name.")    
         return Cell(columnid,value) 
@@ -87,10 +95,8 @@ class SQL_Backend_Table(Base_Table):
     
     def _add_row_sql(self, row, index=None):
         cur = self.conn.cursor()
-        sql = "INSERT INTO '{}' (cells) VALUES (?)".format(self.name)
-        # log.debug(sql)
-        # log.debug(row)
-        cur.execute(sql, [row]) 
+        sql = f'INSERT INTO "{self.name}" (id, cells) VALUES (?,?)'
+        cur.execute(sql, (row.id, row.cells)) 
 
 
     def get_columns(self):
@@ -114,7 +120,7 @@ class SQL_Backend_Table(Base_Table):
 
     def _update_column_sql(self,name, data_type=None, column_size=None, ordinal_position=None):
         # check if the passed name already exists
-        columnid = self._get_columnid_sql(name)
+        columnid = self.get_columnid(name)
         if columnid is not None:
             cursor = self.conn.cursor()
             if data_type is not None:
@@ -135,31 +141,31 @@ class SQL_Backend_Table(Base_Table):
 
 
 
-    def insert(self, record, columns=None, index=None):
-        """ restrict arguments for record insertion for this function as the followings:
-        1. a dictionary pass to record param
-        2. list values pass to record param and list columns pass to column param.
+    def insert(self, dict_or_columns, values=None, index=None):
+        """ restrict arguments for dict_or_columns insertion for this function as the followings:
+        1. a dictionary pass to dict_or_columns param
+        2. list values pass to dict_or_columns param and list columns pass to column param.
         """
-        if isinstance(record, dict):
+        if isinstance(dict_or_columns, dict):
             #row = self.make_row()
-            row = Row(0) # dummy idx
-            for idx, (col, val) in enumerate(record.items()):
+            row = self.make_row() #Row(0)# dummy idx
+            for idx, (col, val) in enumerate(dict_or_columns.items()):
                 cell = self._make_cell_sql(col, val)
                 row.add_cell(cell) # add to rows
-            row = json.dumps({v.columnid: v.value for v in row.cells.values()})
+            row.cells = json.dumps({v.columnid: v.value for v in row.cells.values()})
             self._add_row_sql(row, index)
             
                                                   
-        elif isinstance(columns,list) or isinstance(columns,tuple) or isinstance(record,list) or isinstance(record,tuple):
+        elif isinstance(dict_or_columns,list) or isinstance(dict_or_columns,tuple) or isinstance(dict_or_columns,list) or isinstance(dict_or_columns,tuple):
             #row = self.make_row()
-            row = Row(0) # dummy idx
-            for idx, col in enumerate(columns):
-                cell = self._make_cell_sql(col,record[idx])
+            row = self.make_row() #Row(0) # dummy idx
+            for idx, col in enumerate(dict_or_columns):
+                cell = self._make_cell_sql(col,values[idx])
                 row.add_cell(cell) # add to rows
-            row = json.dumps({v.columnid: v.value for v in row.cells.values()})
+            row.cells = json.dumps({v.columnid: v.value for v in row.cells.values()})
             self._add_row_sql(row, index)
         else:
-            raise ValueError("Arg for record set for dictionary or list/tuple of values with list/tuple of columns.")
+            raise ValueError("Arg for dict_or_columns set for dictionary or list/tuple of values with list/tuple of columns.")
 
     
     def _get_columns_withid_sql(self) -> dict:
@@ -176,17 +182,20 @@ class SQL_Backend_Table(Base_Table):
         return {int(k):v for k,v in json.loads(cells).items()}    
     
     
-    def _gen_row_dict_sql(self, cells: str, columns: list) -> dict:
+    def _gen_row_asdict_sql(self, cells: str, columns: list) -> dict:
         db_cols_withid = self._get_columns_withid_sql()
         user_cols = {k:v for k,v in db_cols_withid.items() if k in columns}
         cells_dict = self._gen_cells_dict(cells)
         row_dict = {}
         for col in columns:
-            row_dict[col] = cells_dict[user_cols[col]]
+            if user_cols[col] in cells_dict:
+                row_dict[col] = cells_dict[user_cols[col]] 
+            else:
+                row_dict[col] = None
         return row_dict
 
 
-    def _gen_row_asdict_sql(self,columns):
+    def _iter_row_asdict_sql(self,columns):
         # get columnames
         db_cols_withid = self._get_columns_withid_sql()
         user_cols = {k:v for k,v in db_cols_withid.items() if k in columns} #refine columns
@@ -206,7 +215,7 @@ class SQL_Backend_Table(Base_Table):
             yield row["idx"], row_asdict
 
 
-    def _gen_row_aslist_sql(self,columns):
+    def _iter_row_aslist_sql(self,columns):
         # get columnames
         db_cols_withid = self._get_columns_withid_sql()
         user_cols = {k:v for k,v in db_cols_withid.items() if k in columns} #refine columns
@@ -246,37 +255,53 @@ class SQL_Backend_Table(Base_Table):
 
         if columns is None:
             columns = self.get_columns() # assign all available column names
+        else:
+            columns = self.validate_columns(columns) # assign all available column names after validation
             
         if row_type == 'list':
-            for idx, row in self._gen_row_aslist_sql(columns):
+            for idx, row in self._iter_row_aslist_sql(columns):
                 yield idx, row 
                     
         else: # assume row_type is dict 
-            for idx, row in self._gen_row_asdict_sql(columns):
-                yield idx, row 
+            for idx, row in self._iter_row_asdict_sql(columns):
+                yield idx, row
+
+
+    def get_row_asdict(self, idx, columns=None):
+        if columns is None:
+            columns = self.get_columns() # assign all available column names
+        else:
+            columns = self.validate_columns(columns) # assign all available column names after validation
+        cursor = self.conn.cursor()
+        sql = "SELECT cells FROM {} WHERE idx=?".format(self.name)
+        res = cursor.execute(sql, (idx,))
+        ret = res.fetchone()
+        if ret:
+            print(ret['cells'])
+            return self._gen_row_asdict_sql(ret['cells'], columns)
+        else:
+            return None
+
+
+    def get_row_aslist(self, idx, columns=None):
+        if columns is None:
+            columns = self.get_columns() # assign all available column names
+        else:
+            columns = self.validate_columns(columns) # assign all available column names after validation
+        cursor = self.conn.cursor()
+        sql = "SELECT cells FROM {} WHERE idx=?".format(self.name)
+        res = cursor.execute(sql, (idx,))
+        ret = res.fetchone()
+        if ret:
+            return list(self._gen_row_asdict_sql(ret['cells'], columns).values())
+        else:
+            return None                
 
     
-    def _deprecated_update_row_sql(self, idx, column, value):
-        """ using method that updates 'all' content of the cells"""
-        row = self._get_row_sql(idx) # must get all columns to make cells complete for correct update to sql
-                                    # will this be a trigger to change get_row's columns parameter???
-        if row:                                    
-            row[column] = value # get this row updated
-            cursor = self.conn.cursor() 
-            sql = f'UPDATE {self.name} SET cells = ? WHERE idx = ?;'
-            db_cols_withid = self._get_columns_withid_sql()
-            cells = json.dumps({db_cols_withid[k]: v for k,v in row.items()})
-            params = [cells, idx]
-            cursor.execute(sql, params)
-        else:
-            fn = inspect.stack()[0][3]
-            warnings.warn(f'Warning! {fn}() trying to update a non existed row (ie. idx {idx}).')
-
-
     def update_row(self, idx, column, value):
         """ using json_set so only update for a specific key"""
         cursor = self.conn.cursor() 
-        columnid = self._get_columnid_sql(column)
+        columnid = self.get_columnid(column)
         sql_update = f"UPDATE {self.name} SET cells = (SELECT json_set({self.name}.cells, '$.{columnid}', ?)) where idx=?;"
         params = [value, idx]
         cursor.execute(sql_update, params)

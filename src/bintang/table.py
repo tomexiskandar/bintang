@@ -13,6 +13,7 @@ from abc import ABC, abstractmethod
 from bintang.log import log
 import bintang
 import types
+from bintang.row import Row
 
 MAX_ROW_SQL_INSERT = 300
 
@@ -40,6 +41,7 @@ class Base_Table(ABC):
         self.name: str = name
         self.INDEX_COLUMN_NAME: str = 'idx'
         self.PARENT_PREFIX: str = ''
+        self.__last_assigned_rowid = 0
         self.type_map: dict = type_map # assign type_map to self.type_map
         #self.pytype: dict = pytype # assign pytype to self.pytype
 
@@ -63,31 +65,25 @@ class Base_Table(ABC):
     def ColumnError(self):
         """Raise ColumnError with table name and column name."""
         return ColumnError(self.name, self.column)
+    
+
+    def make_row(self,id=None, option=None):
+        """make a new row.
+        by default it increments id.
+        """
+        if id is None:
+            row = Row(self.__last_assigned_rowid + 1)
+            self.__last_assigned_rowid += 1 #increment rowid
+        elif id is not None:
+            row = Row(id)
+        # elif id is None and option == 'uuid':
+        #     row = Row(uuid.uuid4())
+        return row
 
     
     def _get_columnnames_lced(self, columns=None) -> dict:
         return {col.lower(): col  for col in self.get_columns()}
 
-    
-    def validate_columns_OLD(self, columns):
-        """return columns from those stored in table.columns"""
-        validated_cols = []
-        unmatched_cols = []
-        for column in columns:
-            if column.lower() in self._get_columnnames_lced().keys():
-                validated_cols.append(self._get_columnnames_lced().get(column.lower()))
-            else:
-                unmatched_cols.append(column)
-        # print(validated_cols)
-        # print(unmatched_cols)
-        # quit()        
-        if len(unmatched_cols) > 0:
-            #raise ColumnNotFoundError(self.name, column)
-            res = self._suggest_similar_columns(unmatched_cols)
-            res_msg = self._suggest_columns_msg(res)
-            raise ValueError(res_msg)
-        else:
-            return validated_cols
 
     def validate_columns(self, columns):
         """return columns from those stored in table.columns"""
@@ -169,7 +165,36 @@ class Base_Table(ABC):
         elif str(type(conn)) == "<class 'psycopg.Connection'>":
             return 'psycopg'
         else:
-            raise ValueError('Sorry Only sqlite3, pyodbc and psycopg connection accepted!')   
+            raise ValueError('Sorry Only sqlite3, pyodbc and psycopg connection accepted!')
+
+            
+    def get_value(self, column, where = None):
+        """ 
+        return a scalar value.
+        switch different process if user want column pass as string or lambda
+        params:
+        column: either column name or using lambda expression
+        where: always a lambda expression"""
+        if where is not None:
+            if isinstance(column,str):
+                for idx, row in self.iterrows():
+                    if where(row):
+                        return row[column]
+            elif isinstance(column, types.FunctionType):
+                for idx, row in self.iterrows():
+                    if where(row):
+                        return column(row)
+            else:
+                raise 'param column must be either column name or lambda and param where must be a lambda.'
+        else:
+            if isinstance(column,str):
+                for idx, row in self.iterrows():
+                    return row[column]
+            elif isinstance(column, types.FunctionType):
+                for idx, row in self.iterrows():
+                    return column(row)
+            else:
+                raise 'param column must be either column name or lambda and param where must be a lambda.'           
 
 
     def cmprows(self, lkp_table: str, on: list[tuple] = None, min_matches=1, find_all=True):

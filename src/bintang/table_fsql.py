@@ -119,7 +119,7 @@ class From_SQL_Table(Base_Table):
                                    quotechar=quotechar, quoting=quoting)
             columns_towrite = [col for col in columns]
             if index:                       # if column index wanted
-                idx_col = INDEX_COLUMN_NAME
+                idx_col = self.INDEX_COLUMN_NAME
                 if isinstance(index, str):  # if user wanted own index column name
                     idx_col = index
                 columns_towrite.insert(0,idx_col)

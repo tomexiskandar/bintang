@@ -1509,9 +1509,7 @@ class Memory_Table(Base_Table):
         # loop through the groupped table)
         if means:
             for idx, row in group_tobj.iterrows():
-                print(idx, row)
                 for i, col in enumerate(means):
-                    print('i',i, col)
                     if isinstance(col, str):
                         col_mean = 'mean_' + col
                         group_tobj.update_row(idx, col_mean, row[temp_sum_columns[i]]/row[temp_count_columns[i]])

@@ -164,6 +164,8 @@ class Base_Table(ABC):
             return 'pyodbc'
         elif str(type(conn)) == "<class 'psycopg.Connection'>":
             return 'psycopg'
+        elif str(type(conn)) == "<class 'psycopg2.extensions.connection'>":
+            return 'psycopg2'
         else:
             raise ValueError('Sorry Only sqlite3, pyodbc and psycopg connection accepted!')
 
@@ -334,7 +336,7 @@ class Base_Table(ABC):
             return self._to_sql_prep(conn, table, columns, schema=schema, max_rows=max_rows,conn_name=conn_name)
 
  
-    def _to_sql_string(self, conn, table, columns, schema=None, max_rows = 300, conn_name='psycopg'):
+    def _to_sql_string(self, conn, table, columns, schema=None, max_rows = 300, conn_name='pyodbc'):
         colmap = self.set_to_sql_colmap(columns)
         src_cols = [x for x in colmap.values()]
         dest_columns = [x for x in colmap.keys()]
@@ -346,7 +348,12 @@ class Base_Table(ABC):
             str_stmt = sql_template.format(table,",".join(['"{}"'.format(x) for x in colmap]))
         
         # check if getting type info is supported, if yes then get sql data type and literal
-        res = self.get_sql_typeinfo_table(conn)
+        res = None
+        try:
+            res = self.get_sql_typeinfo_table(conn)
+        except Exception as e:
+            log.error(e)
+            log.warning('Getting SQL type info is not supported for this connection, will proceed without getting SQL data type and literal. This may cause issue for some data types and may cause all values to be treated as string literal.')
         if res is not None:
             sql_cols_withtype = self.set_sql_datatype(dest_columns, conn, schema, table)
             sql_cols_withliteral = self.set_sql_literal(sql_cols_withtype, conn)
@@ -481,7 +488,7 @@ class Base_Table(ABC):
         dest_columns = [x for x in colmap.keys()]
         
         # generate prepared statement
-        prep_stmt = self.gen_prep_stmt(table, dest_columns, numof_col, mrpb, schema=schema)
+        prep_stmt = self.gen_prep_stmt(table, dest_columns, numof_col, mrpb, conn_name=conn_name, schema=schema)
         
         cursor = conn.cursor()
         temp_rows = []
@@ -490,8 +497,8 @@ class Base_Table(ABC):
             for v in row:
                 temp_rows.append(v)
             if len(temp_rows) == (mrpb * numof_col):
-                # log.debug(prep_stmt)
-                # log.debug(temp_rows)
+                log.debug(prep_stmt)
+                log.debug(temp_rows)
                 try:
                     cursor.execute(prep_stmt, temp_rows)
                     rows_affected += cursor.rowcount
@@ -504,7 +511,7 @@ class Base_Table(ABC):
         if len(temp_rows) > 0: # if any reminder
             # create as prepared statement
             mrpb = int(len(temp_rows)/numof_col) # adjust mrpb
-            prep_stmt = self.gen_prep_stmt(table, dest_columns, numof_col, mrpb, schema=schema)
+            prep_stmt = self.gen_prep_stmt(table, dest_columns, numof_col, mrpb, conn_name=conn_name, schema=schema)
             try:
                 cursor.execute(prep_stmt, temp_rows)
                 rows_affected += cursor.rowcount
@@ -527,7 +534,7 @@ class Base_Table(ABC):
                 
 
     def gen_row_param_markers(self,numof_col,num_row, conn_name='pyodbc'):
-        p = "%s" if conn_name == 'psycopg' else "?"
+        p = "%s" if conn_name[:7] =='psycopg' else "?" # param marker is different for pyodbc and psycopg, so we need to check the connection name
         param = "(" + ",".join([p]  *numof_col) + ")"
         params = []
         for i in range(num_row):

@@ -26,29 +26,31 @@ class Sqlite_Table(Base_Table):
         cur.execute("SELECT EXISTS (SELECT 1 FROM sqlite_master WHERE type='table' AND name=:tablename)", {"tablename":self.name})
         ret = cur.fetchone()[0]
         if  ret == 0:
-            cur.execute(f"CREATE TABLE '{self.name}' (idx INTEGER PRIMARY KEY NOT NULL, id INTEGER,cells JSON)")
-            cur.execute(f"CREATE TABLE '{self.name}__columns__' (id INTEGER PRIMARY KEY NOT NULL, name TEXT COLLATE NOCASE, ordinal_position INTEGER, data_type TEXT, column_size INTEGER, decimal_digits INTEGER, data_props JSON)")
+            # cur.execute(f"CREATE TABLE '{self.name}' (id INTEGER PRIMARY KEY NOT NULL, cells JSON)")
+            # cur.execute(f"CREATE TABLE '{self.name}__columns__' (id INTEGER PRIMARY KEY NOT NULL, name TEXT COLLATE NOCASE, ordinal_position INTEGER, data_type TEXT, column_size INTEGER, decimal_digits INTEGER, data_props JSON)")
+            cur.execute(f"CREATE TABLE '{self.name}' (cells JSON)")
+            cur.execute(f"CREATE TABLE '{self.name}__columns__' (columnid INTEGER PRIMARY KEY NOT NULL, name TEXT COLLATE NOCASE, ordinal_position INTEGER, data_type TEXT, column_size INTEGER, decimal_digits INTEGER, data_props JSON)")
         cur.close()
 
     
     def get_columnid(self, column):
-        sql = f"SELECT id FROM {self.name}__columns__ where name = ?"
+        sql = f"SELECT columnid FROM {self.name}__columns__ where name = ?"
         cursor = self.conn.cursor()
         res = cursor.execute(sql,(column,))
         ret = res.fetchone()
         if ret:
-            return ret['id']
+            return ret['columnid']
         else:
             return None
         
 
     def get_columnids(self, columns):
-        sql = f"SELECT id FROM {self.name}__columns__ where name IN ({','.join(['?']*len(columns))})"
+        sql = f"SELECT columnid FROM {self.name}__columns__ where name IN ({','.join(['?']*len(columns))})"
         cursor = self.conn.cursor()
         res = cursor.execute(sql, columns)
         ret = res.fetchall()
         if ret:
-            return [r['id'] for r in ret]
+            return [r['columnid'] for r in ret]
         else:
             return None
 
@@ -95,8 +97,10 @@ class Sqlite_Table(Base_Table):
     
     def _add_row_sql(self, row, index=None):
         cur = self.conn.cursor()
-        sql = f'INSERT INTO "{self.name}" (id, cells) VALUES (?,?)'
-        cur.execute(sql, (row.id, row.cells)) 
+        # sql = f'INSERT INTO "{self.name}" (id, cells) VALUES (?,?)'
+        # cur.execute(sql, (row.id, row.cells)) 
+        sql = f'INSERT INTO "{self.name}" (cells) VALUES (?)'
+        cur.execute(sql, (row.cells,)) 
 
 
     def get_columns(self):
@@ -172,9 +176,9 @@ class Sqlite_Table(Base_Table):
         # get columnnames from db and return as dict of columnid : columnname
         col_dict = {}
         cur = self.conn.cursor()
-        sql = f"SELECT id, name FROM {self.name}__columns__ order by ordinal_position;"
+        sql = f"SELECT columnid, name FROM {self.name}__columns__ order by ordinal_position;"
         for row in cur.execute(sql):
-            col_dict[row['name']] = row['id'] 
+            col_dict[row['name']] = row['columnid'] 
         return col_dict
 
 
@@ -201,8 +205,9 @@ class Sqlite_Table(Base_Table):
         user_cols = {k:v for k,v in db_cols_withid.items() if k in columns} #refine columns
        
         cur = self.conn.cursor()
-        sql = "SELECT idx, cells FROM {}".format(self.name)
-        for row in cur.execute(sql):
+        #sql = "SELECT rowid, cells FROM {}".format(self.name) # expose rowid
+        sql = "SELECT cells FROM {}".format(self.name)
+        for idx, row in enumerate(cur.execute(sql),start=1):
             # debug cells_dict = json.loads(row["cells"])
             # log.debug(cells_dict)
             cells_dict = self._gen_cells_dict(row['cells'])
@@ -212,7 +217,8 @@ class Sqlite_Table(Base_Table):
                     row_asdict[col] = cells_dict[user_cols[col]]
                 else:
                     row_asdict[col] = None
-            yield row["idx"], row_asdict
+            # yield row['rowid'], row_asdict
+            yield idx, row_asdict
 
 
     def _iter_row_aslist_sql(self,columns):
@@ -221,8 +227,9 @@ class Sqlite_Table(Base_Table):
         user_cols = {k:v for k,v in db_cols_withid.items() if k in columns} #refine columns
        
         cur = self.conn.cursor()
-        sql = "SELECT idx, cells FROM {}".format(self.name)
-        for row in cur.execute(sql):
+        # sql = "SELECT rowid, cells FROM {}".format(self.name)
+        sql = "SELECT cells FROM {}".format(self.name)
+        for idx, row in enumerate(cur.execute(sql),start=1):
             # debug cells_dict = json.loads(row["cells"])
             # log.debug(cells_dict)
             cells_dict = self._gen_cells_dict(row['cells'])
@@ -232,8 +239,8 @@ class Sqlite_Table(Base_Table):
                     row_aslist.append(cells_dict[user_cols[col]])
                 else:
                     row_aslist.append(None) #???? this is strange line of code. revisit!!
-            yield row["idx"], row_aslist    
-    
+            # yield row["idx"], row_aslist    
+            yield idx, row_aslist
     
     def iterrows(self, 
                  columns: list=None, 

@@ -42,7 +42,7 @@ class Base_Table(ABC):
         self.INDEX_COLUMN_NAME: str = 'idx'
         self.PARENT_PREFIX: str = ''
         self.__last_assigned_rowid = 0
-        self.type_map: dict = type_map # assign type_map to self.type_map
+        self.type_map: dict = bintang.type_map # assign type_map to self.type_map
         #self.pytype: dict = pytype # assign pytype to self.pytype
 
     
@@ -581,8 +581,8 @@ class Base_Table(ABC):
                            ,key_columns = None
                            ,proc_name = None
                            ):
-        SQU = type_map[dbms]['delimited_identifiers']['start']
-        EQU = type_map[dbms]['delimited_identifiers']['end']
+        SQU = bintang.type_map[dbms]['delimited_identifiers']['start']
+        EQU = bintang.type_map[dbms]['delimited_identifiers']['end']
         columns = self.get_columns()
 
         # generate 'on' clause
@@ -590,7 +590,7 @@ class Base_Table(ABC):
         on_colmap = []
         if key_columns is not None:
             for col in key_columns:
-                item = self.quote('src.' + col, dbms) + ' = ' + self.quote('trg.' + col, dbms)       
+                item = self.quote_id('src.' + col, dbms) + ' = ' + self.quote_id('trg.' + col, dbms)       
                 on_colmap.append(item)
             on_colmap_str = ' AND '.join(on_colmap)
 
@@ -598,19 +598,19 @@ class Base_Table(ABC):
         update_colmap = []
         for col in columns:
             if col not in key_columns:
-                item = self.quote(col, dbms) + ' = ' + self.quote('src', dbms) + '.' + self.quote(col, dbms) + '\n\t\t'
+                item = self.quote_id(col, dbms) + ' = ' + self.quote_id('src', dbms) + '.' + self.quote_id(col, dbms) + '\n\t\t'
                 update_colmap.append(item)
         update_colmap_str = ','.join(update_colmap)
 
         merge_stmt = f"""
-        MERGE INTO {self.quote(trg_table, dbms)} AS trg
-        USING {self.quote(self.name, dbms)} AS src
+        MERGE INTO {self.quote_id(trg_table, dbms)} AS trg
+        USING {self.quote_id(self.name, dbms)} AS src
         ON ({on_colmap_str})
         WHEN MATCHED THEN
             UPDATE SET {update_colmap_str}
         WHEN NOT MATCHED BY TARGET THEN
-            INSERT ({','.join([self.quote(col, dbms) for col in columns])})
-            VALUES ({','.join([self.quote('src', dbms) + '.' + self.quote(col, dbms) for col in columns])})
+            INSERT ({','.join([self.quote_id(col, dbms) for col in columns])})
+            VALUES ({','.join([self.quote_id('src', dbms) + '.' + self.quote_id(col, dbms) for col in columns])})
         WHEN NOT MATCHED BY SOURCE THEN
             DELETE
         ;
@@ -619,9 +619,9 @@ class Base_Table(ABC):
         schema_str = ''
         schema = self.get_schema_name()
         if schema is not None:
-            schema_str = self.quote(schema, dbms) + '.'
+            schema_str = self.quote_id(schema, dbms) + '.'
 
-        proc_name_str = self.quote(f'Merge_{self.get_table_name()}_To_TRG', dbms)
+        proc_name_str = self.quote_id(f'Merge_{self.get_table_name()}_To_TRG', dbms)
         proc_name = f'{schema_str}{proc_name_str}' if proc_name is None else 'proc_name'
 
         proc_stmt = f"""
@@ -634,9 +634,9 @@ class Base_Table(ABC):
         return proc_stmt
 
 
-    def quote(self, name, dbms):
-        STARTQ = type_map[dbms]['delimited_identifiers']['start']
-        ENDQ = type_map[dbms]['delimited_identifiers']['end']
+    def quote_id(self, name, dbms):
+        STARTQ = self.type_map[dbms]['delimited_identifiers']['start']
+        ENDQ = self.type_map[dbms]['delimited_identifiers']['end']
         split_name = name.split('.')
         return '.'.join([STARTQ + x + ENDQ for x in split_name])
 
@@ -645,12 +645,12 @@ class Base_Table(ABC):
         schema_str = ''
         schema = self.get_schema_name()
         if schema is not None:
-            schema_str = self.quote(schema, dbms) + '.'
+            schema_str = self.quote_id(schema, dbms) + '.'
         
         truncate_stmt = f"""
-        TRUNCATE TABLE {self.quote(self.name, dbms)}
+        TRUNCATE TABLE {self.quote_id(self.name, dbms)}
         """
-        proc_name_str = self.quote(f'Truncate_Table_{self.get_table_name()}', dbms)
+        proc_name_str = self.quote_id(f'Truncate_Table_{self.get_table_name()}', dbms)
         proc_name = f'{schema_str}{proc_name_str}' if proc_name is not None else 'proc_name'
         proc_stmt = f"""
         CREATE OR ALTER PROCEDURE {proc_name}
@@ -660,54 +660,4 @@ class Base_Table(ABC):
         END
         """
         return proc_stmt         
-
-
-
-type_map = {
-    'sqlite': {
-        'type_mappings': {
-            'str':'text'
-            ,'int':'int'
-            ,'datetime':'datetime'
-            ,'float':'real'
-            ,'bool':'int'
-            ,'bytes':'blob'
-        },
-        'delimited_identifiers':{'start':'"', 'end':'"'},
-        'type_info': {
-        'varchar': {'literal_prefix':"'", 'literal_suffix':"'"}
-        } 
-    },
-    'sqlserver': {
-        'type_mappings': {
-            'str':'nvarchar'
-            ,'int':'int'
-            ,'datetime':'datetime'
-            ,'float':'float'
-            ,'bool':'bit'
-            ,'bytes':'varbinary'
-        },
-        'delimited_identifiers':{'start':'[', 'end':']'},
-        'type_info': {
-        'varchar': {'literal_prefix':"'", 'literal_suffix':"'"}
-        } 
-    },
-    'postgresql': {
-        'type_mappings': {
-            'str':'varchar'
-            ,'int':'INTEGER'
-            ,'datetime':'timestamp'
-            ,'float':'float8'
-            ,'bool':'boolean'
-            ,'bytes':'bytes'
-        },
-        'delimited_identifiers':{'start':'"', 'end':'"'},
-        'type_info': {
-            'varchar': {'literal_prefix':"'", 'literal_suffix':"'"}
-        }   
-    }            
-}
-
-
-
 

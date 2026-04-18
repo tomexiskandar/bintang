@@ -2,7 +2,7 @@ import unicodedata
 class Column:
     """class to define column object 
     """
-    __slots__ = ('id','name','data_type','required','min_value','max_value','min_length','max_length','ordinal_position','column_size','decimal_digits','data_props')
+    __slots__ = ('id','name','data_type','required','min_value','max_value','min_length','max_length','min_digit','max_digit','decimal_places','ordinal_position','column_size','decimal_digits','data_props')
     def __init__(self,name):
         self.id = None
         self.name = name
@@ -12,6 +12,9 @@ class Column:
         self.max_value = None # for validation for int and float
         self.min_length = None # for validation for str
         self.max_length = None # for validation for str
+        self.min_digit = None # for validation for decimal
+        self.max_digit = None # for validation for decimal
+        self.decimal_places = None # for validation for decimal
         self.ordinal_position = 0
         self.column_size = 0 # the max. get this on request
         self.decimal_digits = 0 # get this on request

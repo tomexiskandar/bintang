@@ -160,6 +160,13 @@ def gen_ts_path(file_path: str, fmt: str = '%Y%m%dT%H%M%S') -> str:
     return str(original_path.parent.joinpath(new_filename))
 
 
+def quote_id(name, dbms):
+    STARTQ = type_map[dbms]['delimited_identifiers']['start']
+    ENDQ = type_map[dbms]['delimited_identifiers']['end']
+    split_name = name.split('.')
+    return '.'.join([STARTQ + x + ENDQ for x in split_name])    
+
+
 class Bintang():
     def __init__(self, name=None, backend=None):
         self.name = name
@@ -365,7 +372,7 @@ class Bintang():
 
 
     def read_dict(self, dict_obj, tablepaths=None, root='/', path_sep='/'):
-        debug = False
+        #debug = False
         for tprow in iterdict.iterdict(dict_obj, tablepaths=tablepaths, root=root, path_sep=path_sep):
             # if debug:
             #     print("\n---------------------in bintang---------------------")
@@ -607,5 +614,51 @@ class Bintang():
         self.add_table(tobj) 
   
 
+
+
+type_map = {
+    'sqlite': {
+        'type_mappings': {
+            'str':'text'
+            ,'int':'int'
+            ,'datetime':'datetime'
+            ,'float':'real'
+            ,'bool':'int'
+            ,'bytes':'blob'
+        },
+        'delimited_identifiers':{'start':'"', 'end':'"'},
+        'type_info': {
+        'varchar': {'literal_prefix':"'", 'literal_suffix':"'"}
+        } 
+    },
+    'sqlserver': {
+        'type_mappings': {
+            'str':'varchar'
+            ,'int':'int'
+            ,'datetime':'datetime'
+            ,'float':'float'
+            ,'bool':'bit'
+            ,'bytes':'varbinary'
+        },
+        'delimited_identifiers':{'start':'[', 'end':']'},
+        'type_info': {
+        'varchar': {'literal_prefix':"'", 'literal_suffix':"'"}
+        } 
+    },
+    'postgresql': {
+        'type_mappings': {
+            'str':'varchar'
+            ,'int':'INTEGER'
+            ,'datetime':'timestamp'
+            ,'float':'float8'
+            ,'bool':'boolean'
+            ,'bytes':'bytes'
+        },
+        'delimited_identifiers':{'start':'"', 'end':'"'},
+        'type_info': {
+            'varchar': {'literal_prefix':"'", 'literal_suffix':"'"}
+        }   
+    }            
+}
 
     

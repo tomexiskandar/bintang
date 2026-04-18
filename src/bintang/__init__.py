@@ -6,5 +6,7 @@ from .core import get_wb_type_toread
 from .core import get_wb_type_towrite
 from .core import gen_ts_string
 from .core import gen_ts_path
+from .core import type_map
+from .core import quote_id
 # import Bintang class so it's visible via bintang.Bintang()
 from .core import Bintang

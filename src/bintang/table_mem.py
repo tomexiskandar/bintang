@@ -11,6 +11,7 @@ from typing import Literal, Annotated, Any, get_origin
 from itertools import product
 from dataclasses import dataclass
 import datetime
+import decimal
 
 @dataclass
 class ValueRange:
@@ -35,7 +36,8 @@ class Memory_Table(Base_Table):
             'float': self.validate_float,
             'str': self.validate_string,
             'date': self.validate_date,
-            'datetime': self.validate_datetime
+            'datetime': self.validate_datetime,
+            'decimal': self.validate_decimal
             }
         
     def __getitem__(self, idx): # subscriptable version of self.get_row_asdict()
@@ -101,7 +103,7 @@ class Memory_Table(Base_Table):
             yield dict(zip(columns, row))
 
     
-    def gen_sql_stmt_create_table_dev(self, dbms, schema = None, str_size = None):
+    def gen_sql_stmt_create_table_dev(self, dbms, str_sizes = (255,)):
         # scanning table to get column properties
         # and assign the data type and size (when able)
         self.set_data_props()
@@ -110,23 +112,17 @@ class Memory_Table(Base_Table):
             if cobj.data_type is None:
                 if len(cobj.data_props) == 0: # a column that has no data at all
                     cobj.data_type = 'str'  # force to str
-                    cobj.column_size = str_size # force to str_size
+                    cobj.column_size = str_sizes[0] # force to the lower of str_sizes
                 # loop through the data props for column that has it
                 if 'str' in cobj.data_props:
                     cobj.data_type = 'str'
-                    if str_size: # if user size to be used
-                        if dbms == 'sqlserver':
-                            if cobj.data_props['str']['column_size'] > 1:
-                                cobj.column_size = str_size
-                            else:
-                                cobj.column_size = cobj.data_props['str']['column_size']
-                    else:    
-                        cobj.column_size = cobj.data_props['str']['column_size']
+                    cobj.column_size = cobj.data_props['str']['column_size']
                     # loop through any other type if the column_size bigger, if it is assign it.
-                    # for k, v in cobj.data_props.items():
-                    #     if v['column_size'] > col_size:
-                    #         col_size = v['column_size']
-                    # cobj.column_size = col_size #cobj.data_props['str']['column_size']
+                    col_size_ = cobj.column_size # initial size
+                    for k, v in cobj.data_props.items():
+                        if v['column_size'] > col_size_:
+                            col_size_ = v['column_size']
+                    cobj.column_size = col_size_ #cobj.data_props['str']['column_size']
                 elif 'datetime' in cobj.data_props:
                     cobj.data_type = 'datetime'
                     cobj.column_size = cobj.data_props['datetime']['column_size']
@@ -144,8 +140,16 @@ class Memory_Table(Base_Table):
             di_start = self.type_map[dbms]['delimited_identifiers']['start']
             di_end = self.type_map[dbms]['delimited_identifiers']['end']
             if cobj.data_type == 'str':
-                col_size = cobj.column_size if cobj.column_size <= 4000 else 'max'
-                create_item = [f'{di_start}{colname}{di_end}', f'{dtype}', f'({col_size})']
+                # redefine col_size to be the one that is assigned in the column object which is either from data_props or from user defined str_sizes, so it can be used in the create table statement
+                apply_str_size = cobj.column_size
+                for i in range(len(str_sizes)):
+                    try:
+                        if apply_str_size <= str_sizes[i]:
+                            apply_str_size = str_sizes[i]
+                            break
+                    except TypeError as e:
+                        apply_str_size = str_sizes[i]
+                create_item = [f'{di_start}{colname}{di_end}', f'{dtype}', f'({apply_str_size})']
                 create_columns.append(create_item)
             else:
                 create_item = [f'{di_start}{colname}{di_end}', f'{dtype}']
@@ -159,12 +163,11 @@ class Memory_Table(Base_Table):
                 create_item_str.append(i)
             create_item_str.append('\n')
             create_columns_str.append(' '.join(create_item_str))
-            schema_name = '' if schema is None else schema + '.'
-        create_sqltable_templ = 'CREATE TABLE {}"{}" (\n{})'.format(schema_name, self.name, '\t,'.join(create_columns_str))
+        create_sqltable_templ = 'CREATE TABLE {} (\n{})'.format(self.quote_id(self.name,dbms), '\t,'.join(create_columns_str))
         return create_sqltable_templ 
     
 
-    def add_column(self, name, data_type=None, column_size=None, min_value=None, max_value=None, min_length=None, max_length=None, required=False):
+    def add_column(self, name, data_type=None, column_size=None, min_value=None, max_value=None, min_length=None, max_length=None, min_digit=None, max_digit=None, decimal_places=None, required=False):
         # check if the passed name already exists
         columnid = self.get_columnid(name)
         if columnid is None:
@@ -181,6 +184,12 @@ class Memory_Table(Base_Table):
                 cobj.min_length = min_length
             if max_length is not None:
                 cobj.max_length = max_length
+            if min_digit is not None:
+                cobj.min_digit = min_digit
+            if max_digit is not None:
+                cobj.max_digit = max_digit
+            if decimal_places is not None:
+                cobj.decimal_places = decimal_places
             if required is not None:
                 cobj.required = required
             cobj.id = self.__last_assigned_columnid + 1
@@ -191,16 +200,16 @@ class Memory_Table(Base_Table):
             log.debug(f'Warning! trying to add existing column "{name}".')
         
 
-    def add_or_update_column(self, name, data_type=None, column_size=None, min_value=None, max_value=None, min_length=None, max_length=None, required=False):
+    def add_or_update_column(self, name, data_type=None, column_size=None, min_value=None, max_value=None, min_length=None, max_length=None, min_digit=None, max_digit=None, decimal_places=None, required=False):
         # check if the passed name already exists
         columnid = self.get_columnid(name)
         if columnid is None:
-            self.add_column(name, data_type, column_size, min_value, max_value, min_length, max_length, required)
+            self.add_column(name, data_type, column_size, min_value, max_value, min_length, max_length, min_digit, max_digit, decimal_places, required)
         else:
-            self.update_column(name, data_type, column_size, None, min_value, max_value, min_length, max_length, required)
+            self.update_column(name, data_type, column_size, None, min_value, max_value, min_length, max_length, min_digit, max_digit, decimal_places, required)
 
 
-    def update_column(self,name, data_type=None, column_size=None, ordinal_position=None, min_value=None, max_value=None, min_length=None, max_length=None, required=False):
+    def update_column(self,name, data_type=None, column_size=None, ordinal_position=None, min_value=None, max_value=None, min_length=None, max_length=None, min_digit=None, max_digit=None, decimal_places=None, required=False):
         # check if the passed name already exists
         columnid = self.get_columnid(name)
         if columnid is not None:
@@ -218,6 +227,12 @@ class Memory_Table(Base_Table):
                 self.__columns[columnid].min_length = min_length
             if max_length is not None:
                 self.__columns[columnid].max_length = max_length
+            if min_digit is not None:
+                self.__columns[columnid].min_digit = min_digit
+            if max_digit is not None:
+                self.__columns[columnid].max_digit = max_digit
+            if decimal_places is not None:
+                self.__columns[columnid].decimal_places = decimal_places
             if required is not None:
                 self.__columns[columnid].required = required
 
@@ -333,12 +348,15 @@ class Memory_Table(Base_Table):
 
 
     def validate_integer(self, value: int, cobj) -> tuple[int, bool, str | None]:
+        if type(value) is not int:
+            return (value, False, f"ValueError: Expected int, got {type(value).__name__}")
         #print(f"validate_integer called with value: {value} for column '{cobj.name}' with min_value={cobj.min_value} and max_value={cobj.max_value}")
         type_ = Annotated[int, ValueRange(cobj.min_value, cobj.max_value)]
         for annotation in type_.__metadata__:
             if isinstance(annotation, ValueRange):
                 try:
-                    value = int(float(value))  # Convert value to the base type float then integer
+                    # deprecated - prefer strict type() 
+                    # value = int(float(value))  # Convert value to the base type float then integer
                     if cobj.min_value is not None and cobj.max_value is not None:
                         if not (cobj.min_value <= value <= cobj.max_value):
                             return (value, False, f"value is out of range [{cobj.min_value}, {cobj.max_value}]")
@@ -354,13 +372,16 @@ class Memory_Table(Base_Table):
     
     
     def validate_float(self, value: float, cobj) -> tuple[float,bool, str | None]:
+        if type(value) is not float:
+            return (value, False, f"ValueError: Expected float, got {type(value).__name__}")
         #print(f"validate_float called with value: {value} for column '{cobj.name}' with min_value={cobj.min_value} and max_value={cobj.max_value}")
         type_ = Annotated[float, ValueRange(cobj.min_value, cobj.max_value)]
         for annotation in type_.__metadata__:
             if isinstance(annotation, ValueRange):
                 errors = []
                 try:
-                    value = float(value)  # Convert value to the base type float
+                    # deprecated - prefer strict type() 
+                    # value = float(value)  # Convert value to the base type float
                     if cobj.min_value is not None and cobj.max_value is not None:
                         if not (cobj.min_value <= value <= cobj.max_value):
                             return (value, False, f"value is out of range [{cobj.min_value}, {cobj.max_value}]")
@@ -373,6 +394,33 @@ class Memory_Table(Base_Table):
                     return (value, True, None) # return the converted value, validation result, and error message
                 except (TypeError, IndexError, ValueError) as e:
                     return (value, False, f"ValueError: {e}")
+
+
+    def validate_decimal(self, value: decimal, cobj) -> tuple[decimal,bool, str | None]:
+        # if type(value) is not decimal.Decimal:
+        #     return (value, False, f"ValueError: Expected decimal, got {type(value).__name__}")
+        #print(f"validate_decimal called with value: {value} for column '{cobj.name}' with min_value={cobj.min_value} and max_value={cobj.max_value}")
+        type_ = Annotated[decimal.Decimal, ValueRange(cobj.min_value, cobj.max_value)]
+        for annotation in type_.__metadata__:
+            if isinstance(annotation, ValueRange):
+                errors = []
+                try:
+                    value = decimal.Decimal(str(value))  # Convert value to the base type decimal
+                    decimal_places_cnt = abs(value.as_tuple().exponent)
+                    if cobj.decimal_places is not None and decimal_places_cnt > cobj.decimal_places:
+                        return (value, False, f"value has {decimal_places_cnt} decimal places which is above the maximum allowed {cobj.decimal_places}")
+                    if cobj.min_value is not None and cobj.max_value is not None:
+                        if not (cobj.min_value <= value <= cobj.max_value):
+                            return (value, False, f"value is out of range [{cobj.min_value}, {cobj.max_value}]")
+                    elif cobj.min_value is not None and cobj.decimal_places is not None:
+                        if not (value >= cobj.min_value and decimal_places_cnt <= cobj.decimal_places):
+                            return (value, False, f"value is below the minimum allowed value {cobj.min_value}") 
+                    elif cobj.max_value is not None and cobj.decimal_places is not None:
+                        if not (value <= cobj.max_value and decimal_places_cnt <= cobj.decimal_places):
+                            return (value, False, f"value is above the maximum allowed value {cobj.max_value}")
+                    return (value, True, None) # return the converted value, validation result, and error message
+                except (TypeError, IndexError, ValueError) as e:
+                    return (value, False, f"ValueError: {e}")                
 
 
     def validate_string(self, value: str, cobj) -> tuple[str, bool, str | None]:
@@ -443,11 +491,15 @@ class Memory_Table(Base_Table):
         put the results to a new table with name into.
         any passing validation will be inserted into the new table and any failed validation will be logged with error message and put into the new table as well.
         """
-        try:
-            from dateutil import parser
-        except ImportError as e:
-            print(e)
-            raise ImportError("valrows() require python-dateutil. please install it for eg. pip install python-dateutil")
+        # check if date and datetime validation are required.
+        types = ["date", "datetime"]
+        if any(self.__columns[colid].data_type in types for colid in self.get_columnids()):
+            #log.debug(f'date or datetime validation required, checking if python-dateutil is installed...')
+            try:
+                from dateutil import parser
+            except ImportError as e:
+                log.error(e)
+                raise ImportError("valrows() require python-dateutil to validate date and datetime columns. please install it for eg. pip install python-dateutil")
 
         # get columns that have data type assigned.
         data_typed_columnids = []
@@ -503,7 +555,6 @@ class Memory_Table(Base_Table):
                 row = self.__rows[idx]
                 # update row for each valid column in the results
                 for res in results:
-                    print(res)
                     self.__rows[idx].cells[res[0]].value = res[1]
             else:
                 invalids.append(idx)
@@ -1938,7 +1989,7 @@ class Path_Table(Memory_Table):
         tbl['name'] = self.name
         tbl['path'] = self.path
         columns = []
-        for k,v in self._Table__columns.items():
+        for k,v in self._Memory_Table__columns.items():
             columns.append(dict(id=v.id, name=v.name))
         tbl['columns'] = columns
         return json.dumps(tbl, indent=2)

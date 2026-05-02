@@ -98,10 +98,7 @@ def match(value1, value2):
 def get_similar_values(value, similar_values, min_ratio=0.6):
         res = []
         for col in similar_values:
-            ratio = get_fuzzy_ratio(col, value)
-            print(col,value)
-            print(ratio)
-          
+            ratio = get_fuzzy_ratio(col, value)  
             if ratio >= min_ratio:
                 res.append((col,ratio))
         res_sorted = sorted(res, key=lambda tup: tup[1], reverse=True)

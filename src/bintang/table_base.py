@@ -200,7 +200,6 @@ class Base_Table(ABC):
 
 
     def cmprows(self, lkp_table: str, on: list[tuple] = None, min_matches=1, find_all=True):
-        print('len of on', on)
         """
         compare rows in the current table with rows in the lkp_table.
         Args:
@@ -571,7 +570,6 @@ class Base_Table(ABC):
                         if where(row): # function called 
                             self.update_row(idx, column, value) 
                     except Exception as e:
-                        # print(e)
                         pass 
 
 
@@ -584,7 +582,7 @@ class Base_Table(ABC):
         SQU = bintang.type_map[dbms]['delimited_identifiers']['start']
         EQU = bintang.type_map[dbms]['delimited_identifiers']['end']
         columns = self.get_columns()
-
+        
         # generate 'on' clause
         on_colmap_str = '<TO BE DEFINED>'
         on_colmap = []
@@ -622,7 +620,7 @@ class Base_Table(ABC):
             schema_str = self.quote_id(schema, dbms) + '.'
 
         proc_name_str = self.quote_id(f'Merge_{self.get_table_name()}_To_TRG', dbms)
-        proc_name = f'{schema_str}{proc_name_str}' if proc_name is None else 'proc_name'
+        proc_name = f'{schema_str}{proc_name_str}' if proc_name is None else proc_name
 
         proc_stmt = f"""
         CREATE OR ALTER PROCEDURE {proc_name}

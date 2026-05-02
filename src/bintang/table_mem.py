@@ -1023,7 +1023,7 @@ class Memory_Table(Base_Table):
 
         
 
-    def print(self, columns=None, show_data_type=False, square=False, limit = 10):
+    def print(self, columns=None, show_data_type=False, square=False, limit = None):
         # validate columns arg
         if columns: #user want specific columns
             columns_ = self.validate_columns(columns)
@@ -1087,7 +1087,8 @@ class Memory_Table(Base_Table):
                     padded_cells.append((str(val) + '  ').rjust(max_width)) # add double spaces for readable
             #padded_cells_str = '|'.join(padded_cells)
             print(self._gen_print_padded_cells_str(padded_cells,  square=square))
-            if idx == limit: break
+            if limit is not None:
+                if idx == limit: break
         print(self._gen_print_line(len(heading_col_str), col_div_pos,  square=square))
         print('({} rows)'.format(len(self)))    
 

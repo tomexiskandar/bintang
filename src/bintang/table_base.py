@@ -39,6 +39,7 @@ class Base_Table(ABC):
     def __init__(self,name, bing=None):
         self.bing: bintang.Bintang = bing # reference to parent Bintang object
         self.name: str = name
+        self.__columns: dict = {} # columnid: Column object
         self.INDEX_COLUMN_NAME: str = 'idx'
         self.PARENT_PREFIX: str = ''
         self.__last_assigned_rowid = 0
@@ -659,3 +660,126 @@ class Base_Table(ABC):
         """
         return proc_stmt         
 
+
+    def set_data_props(self):
+        """ scan table to obtain columns properties - data type, column size (if str type then the max of len of string)"""
+        columnids = self.get_columnids()
+        columns = self.get_columns()
+        # generate column object in memory to hold data_props if the caller is not a Memory_Table
+        if type(self).__name__ != 'Memory_Table':
+            from bintang.column import Column
+            for column in columns:
+                columnid = self.get_columnid(column)
+                cobj = Column(column)
+                self.__columns[columnid] = cobj
+
+        for idx, row in self._iterrows():
+            for columnid in columnids:
+                if columnid in row.cells:
+                    self._set_data_props_datatype(columnid, row.cells[columnid].value)
+                    if row.cells[columnid].value is not None:
+                        if type(row.cells[columnid].value).__name__ == 'str':
+                            self._set_data_props_str_column_size(columnid, row.cells[columnid].value)
+                        if type(row.cells[columnid].value).__name__ not in ['str','int','float','bool','datetime']:
+                            self._set_data_props_other_column_size(columnid, row.cells[columnid].value)
+
+
+    def _set_data_props_datatype(self, columnid, value):
+        if value is not None:
+            if type(value).__name__ not in self.__columns[columnid].data_props:
+                self.__columns[columnid].data_props[type(value).__name__] = dict(column_size=1)
+                if type(value).__name__ == 'int':
+                    self.__columns[columnid].data_props['int']['column_size'] = 10
+                if type(value).__name__ == 'float':
+                    self.__columns[columnid].data_props['float']['column_size'] = 15
+                if type(value).__name__ == 'bool':
+                    self.__columns[columnid].data_props['bool']['column_size'] = 1
+                if type(value).__name__ == 'datetime':
+                    self.__columns[columnid].data_props['datetime']['column_size'] = 19
+
+
+    def _set_data_props_str_column_size(self, columnid, value):
+        if len(value) > self.__columns[columnid].data_props['str']['column_size']:
+            self.__columns[columnid].data_props['str']['column_size'] = len(value)
+
+
+    def _set_data_props_other_column_size(self, columnid, value):
+        if len(str(value)) > self.__columns[columnid].data_props[type(value).__name__]['column_size']:
+            self.__columns[columnid].data_props[type(value).__name__]['column_size'] = len(str(value)) 
+
+
+    def gen_sql_stmt_create_table_dev(self, dbms, str_sizes = None):#(255,)):
+        """ generate create table statement for the table object with the assigned column properties.
+        steps:
+          - scanning table to get column properties
+          - and assign the data type and size (when able)
+        dbms: as define in core.type_map
+        str_sizes: default None, a tuple of sizes eg. (1, 255, ...)
+                   if none then use the max size calculated by self.set_data_props() for each column,
+                   if provided then use the provided size will be used to compared with the max size and the bigger one will be used in the create table stmt.
+        """
+        self.set_data_props()
+        for col in self.get_columns():
+            cobj = self._Base_Table__columns[self.get_columnid(col)]
+            if cobj.data_type is None:
+                if len(cobj.data_props) == 0: # a column that has no data at all
+                    cobj.data_type = 'str'  # force to str
+                    cobj.column_size = 1 
+                # loop through the data props for column that has it
+                elif 'str' in cobj.data_props:
+                    cobj.data_type = 'str'
+                    cobj.column_size = cobj.data_props['str']['column_size']
+                    # loop through any other type if the column_size bigger, if it is assign it.
+                    col_size_ = cobj.column_size # initial size
+                    for k, v in cobj.data_props.items():
+                        if v['column_size'] > col_size_:
+                            col_size_ = v['column_size']
+                    cobj.column_size = col_size_ #cobj.data_props['str']['column_size']
+                elif 'datetime' in cobj.data_props:
+                    cobj.data_type = 'datetime'
+                    cobj.column_size = cobj.data_props['datetime']['column_size']
+                else: # just get the first one and break. to be observed later on!
+                    for type, prop in cobj.data_props.items():
+                        cobj.data_type = type
+                        break
+        
+        # use type_map to translate the type
+        create_columns = []
+        for col in self.get_columns():
+            cobj = self._Base_Table__columns[self.get_columnid(col)]
+            colname = cobj.name
+            dtype = 'str' # default data type if not able to determine.
+            try:
+                dtype = self.type_map[dbms]['type_mappings'][cobj.data_type]
+            except KeyError:
+                pass
+            di_start = self.type_map[dbms]['delimited_identifiers']['start']
+            di_end = self.type_map[dbms]['delimited_identifiers']['end']
+            if cobj.data_type == 'str':
+                # redefine col_size to be the one that is assigned in the column object which is either from data_props or from user defined str_sizes, so it can be used in the create table statement
+                apply_str_size = cobj.column_size
+                if str_sizes is not None:
+                    for i in range(len(str_sizes)):
+                        try:
+                            if apply_str_size <= str_sizes[i]:
+                                apply_str_size = str_sizes[i]
+                                break
+                        except TypeError as e:
+                            apply_str_size = str_sizes[i]
+                create_item = [f'{di_start}{colname}{di_end}', f'{dtype}', f'({apply_str_size})']
+                create_columns.append(create_item)
+            else:
+                create_item = [f'{di_start}{colname}{di_end}', f'{dtype}']
+                create_columns.append(create_item)       
+        create_columns_str = []
+        for i, citem in enumerate(create_columns):
+            create_item_str = []
+            if i == 0: # add tab if first, the rest will be added at later join
+                create_item_str.append('\t')
+            for i in citem:
+                create_item_str.append(i)
+            create_item_str.append('\n')
+            create_columns_str.append(' '.join(create_item_str))
+        create_sqltable_templ = 'CREATE TABLE {} (\n{})'.format(self.quote_id(self.name,dbms), '\t,'.join(create_columns_str))
+        return create_sqltable_templ 
+                  

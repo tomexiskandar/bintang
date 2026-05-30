@@ -25,7 +25,6 @@ class Memory_Table(Base_Table):
     """
     def __init__(self,name, bing=None, conn=None):
         super().__init__(name, bing=bing)
-        self.__columns = {}
         self.__rows = {}
         self.__temprows = []
         self.__last_assigned_columnid= 0 #
@@ -55,7 +54,7 @@ class Memory_Table(Base_Table):
         tbl = {}
         tbl['name'] = self.name
         columns = []
-        for k,v in self.__columns.items():
+        for k,v in self._Base_Table__columns.items():
             columns.append(dict(id=v.id, name=v.name, ordinal_position=v.ordinal_position))
         columns.sort(key=lambda x: x['ordinal_position']) 
         tbl['columns'] = columns
@@ -101,70 +100,6 @@ class Memory_Table(Base_Table):
         columns = [col[0] for col in cursor.description]
         for row in cursor.fetchall():
             yield dict(zip(columns, row))
-
-    
-    def gen_sql_stmt_create_table_dev(self, dbms, str_sizes = (255,)):
-        # scanning table to get column properties
-        # and assign the data type and size (when able)
-        self.set_data_props()
-        for col in self.get_columns():
-            cobj = self.__columns[self.get_columnid(col)]
-            if cobj.data_type is None:
-                if len(cobj.data_props) == 0: # a column that has no data at all
-                    cobj.data_type = 'str'  # force to str
-                    cobj.column_size = str_sizes[0] # force to the lower of str_sizes
-                # loop through the data props for column that has it
-                if 'str' in cobj.data_props:
-                    cobj.data_type = 'str'
-                    cobj.column_size = cobj.data_props['str']['column_size']
-                    # loop through any other type if the column_size bigger, if it is assign it.
-                    col_size_ = cobj.column_size # initial size
-                    for k, v in cobj.data_props.items():
-                        if v['column_size'] > col_size_:
-                            col_size_ = v['column_size']
-                    cobj.column_size = col_size_ #cobj.data_props['str']['column_size']
-                elif 'datetime' in cobj.data_props:
-                    cobj.data_type = 'datetime'
-                    cobj.column_size = cobj.data_props['datetime']['column_size']
-                else: # just get the first one and break. to be observed later on!
-                    for type, prop in cobj.data_props.items():
-                        cobj.data_type = type
-                        break
-        
-        # use type_map to translate the type
-        create_columns = []
-        for col in self.get_columns():
-            cobj = self.__columns[self.get_columnid(col)]
-            colname = cobj.name
-            dtype = self.type_map[dbms]['type_mappings'][cobj.data_type]
-            di_start = self.type_map[dbms]['delimited_identifiers']['start']
-            di_end = self.type_map[dbms]['delimited_identifiers']['end']
-            if cobj.data_type == 'str':
-                # redefine col_size to be the one that is assigned in the column object which is either from data_props or from user defined str_sizes, so it can be used in the create table statement
-                apply_str_size = cobj.column_size
-                for i in range(len(str_sizes)):
-                    try:
-                        if apply_str_size <= str_sizes[i]:
-                            apply_str_size = str_sizes[i]
-                            break
-                    except TypeError as e:
-                        apply_str_size = str_sizes[i]
-                create_item = [f'{di_start}{colname}{di_end}', f'{dtype}', f'({apply_str_size})']
-                create_columns.append(create_item)
-            else:
-                create_item = [f'{di_start}{colname}{di_end}', f'{dtype}']
-                create_columns.append(create_item)       
-        create_columns_str = []
-        for i, citem in enumerate(create_columns):
-            create_item_str = []
-            if i == 0: # add tab if first, the rest will be added at later join
-                create_item_str.append('\t')
-            for i in citem:
-                create_item_str.append(i)
-            create_item_str.append('\n')
-            create_columns_str.append(' '.join(create_item_str))
-        create_sqltable_templ = 'CREATE TABLE {} (\n{})'.format(self.quote_id(self.name,dbms), '\t,'.join(create_columns_str))
-        return create_sqltable_templ 
     
 
     def add_column(self, name, data_type=None, column_size=None, min_value=None, max_value=None, min_length=None, max_length=None, min_digit=None, max_digit=None, decimal_places=None, required=False):
@@ -194,7 +129,7 @@ class Memory_Table(Base_Table):
                 cobj.required = required
             cobj.id = self.__last_assigned_columnid + 1
             cobj.ordinal_position = self.__last_assigned_columnid + 1
-            self.__columns[cobj.id] = cobj
+            self._Base_Table__columns[cobj.id] = cobj
             self.__last_assigned_columnid= self.__last_assigned_columnid + 1
         else:
             log.debug(f'Warning! trying to add existing column "{name}".')
@@ -214,32 +149,32 @@ class Memory_Table(Base_Table):
         columnid = self.get_columnid(name)
         if columnid is not None:
             if data_type is not None:
-                self.__columns[columnid].data_type = data_type
+                self._Base_Table__columns[columnid].data_type = data_type
             if column_size is not None:
-                self.__columns[columnid].column_size = column_size
+                self._Base_Table__columns[columnid].column_size = column_size
             if ordinal_position is not None:
-                self.__columns[columnid].ordinal_position = ordinal_position
+                self._Base_Table__columns[columnid].ordinal_position = ordinal_position
             if min_value is not None:
-                self.__columns[columnid].min_value = min_value
+                self._Base_Table__columns[columnid].min_value = min_value
             if max_value is not None:
-                self.__columns[columnid].max_value = max_value
+                self._Base_Table__columns[columnid].max_value = max_value
             if min_length is not None:
-                self.__columns[columnid].min_length = min_length
+                self._Base_Table__columns[columnid].min_length = min_length
             if max_length is not None:
-                self.__columns[columnid].max_length = max_length
+                self._Base_Table__columns[columnid].max_length = max_length
             if min_digit is not None:
-                self.__columns[columnid].min_digit = min_digit
+                self._Base_Table__columns[columnid].min_digit = min_digit
             if max_digit is not None:
-                self.__columns[columnid].max_digit = max_digit
+                self._Base_Table__columns[columnid].max_digit = max_digit
             if decimal_places is not None:
-                self.__columns[columnid].decimal_places = decimal_places
+                self._Base_Table__columns[columnid].decimal_places = decimal_places
             if required is not None:
-                self.__columns[columnid].required = required
+                self._Base_Table__columns[columnid].required = required
 
                 
 
     def get_columnid(self,column):
-        for id, cobj in self.__columns.items():
+        for id, cobj in self._Base_Table__columns.items():
             if cobj.get_name_uppercased() == column.upper():
                 return id      
 
@@ -247,7 +182,7 @@ class Memory_Table(Base_Table):
     def get_columnids(self,columns=None):
         columnids = []
         if columns is None: # assume user want all available column ids
-            return [id for id in self.__columns.keys()]
+            return [id for id in self._Base_Table__columns.keys()]
         for column in columns:
             columnid = self.get_columnid(column)
             if columnid is None:
@@ -259,24 +194,24 @@ class Memory_Table(Base_Table):
             
     def rename_column(self,old_column,new_column):
         
-        # for v in self.__columns.values():
+        # for v in self._Base_Table__columns.values():
         #     if v.name == old_column:
         #         v.name = new_column
         #         return
         old_column = self.validate_column(old_column) # validate user input
         columnid = self.get_columnid(old_column)
         if columnid is not None:
-            self.__columns[columnid].name = new_column
+            self._Base_Table__columns[columnid].name = new_column
        
         
     def drop_column(self,column):
         column = self.validate_column(column) # validate user input
         columnid = self.get_columnid(column)
-        self.__columns.pop(columnid,None)
+        self._Base_Table__columns.pop(columnid,None)
         
 
     def get_column(self,columnid):
-        return self.__columns[columnid].name
+        return self._Base_Table__columns[columnid].name
     
 
     def order_columns(self, columns):
@@ -300,7 +235,7 @@ class Memory_Table(Base_Table):
 
 
     def get_columns(self) -> tuple:
-        col_objs = [col for col in self.__columns.values()]
+        col_objs = [col for col in self._Base_Table__columns.values()]
         col_objs.sort(key=lambda col: col.ordinal_position)
         sorted_columns = [col.name for col in col_objs]
         return tuple(sorted_columns)   
@@ -317,22 +252,22 @@ class Memory_Table(Base_Table):
         #     # return {x.name.lower(): x.name  for x in columns_fromsql}
         #     pass
         # else:
-        #return {x.name.lower(): x.name  for x in self.__columns.values()}
+        #return {x.name.lower(): x.name  for x in self._Base_Table__columns.values()}
         return {col.lower(): col  for col in self.get_columns()}
 
 
     def get_data_props(self, column):
         columnid = self.get_columnid(column)
-        return self.__columns[columnid].data_props
+        return self._Base_Table__columns[columnid].data_props
 
 
     def get_column_object(self, column):
         columnid = self.get_columnid(column)
-        return self.__columns[columnid]
+        return self._Base_Table__columns[columnid]
 
 
     def get_column_object_byid(self,columnid):
-        return self.__columns[columnid]    
+        return self._Base_Table__columns[columnid]    
 
  
     def validate_column(self, column):
@@ -493,7 +428,7 @@ class Memory_Table(Base_Table):
         """
         # check if date and datetime validation are required.
         types = ["date", "datetime"]
-        if any(self.__columns[colid].data_type in types for colid in self.get_columnids()):
+        if any(self._Base_Table__columns[colid].data_type in types for colid in self.get_columnids()):
             #log.debug(f'date or datetime validation required, checking if python-dateutil is installed...')
             try:
                 from dateutil import parser
@@ -504,14 +439,14 @@ class Memory_Table(Base_Table):
         # get columns that have data type assigned.
         data_typed_columnids = []
         for colid in self.get_columnids():
-            if self.__columns[colid].data_type is not None:
+            if self._Base_Table__columns[colid].data_type is not None:
                 data_typed_columnids.append(colid)      
         # iterate through rows and validate each cell value with its column properties
         # only validate a non None value. if None value then only check if it is requred.
         for idx, row in self._iterrows():
             results = []
             for colid in data_typed_columnids:
-                cobj = self.__columns[colid]
+                cobj = self._Base_Table__columns[colid]
                 value = None
                 if colid in row.cells: # check if the cell exists
                     value = row.cells[colid].value 
@@ -519,15 +454,15 @@ class Memory_Table(Base_Table):
                         value = None 
                         res = (colid, None, True, None) # force any '' to None
                 if value is None:
-                    if self.__columns[colid].required:
+                    if self._Base_Table__columns[colid].required:
                         res = (colid, None, False, f"column is required but value is None")
                     # else: # comment to avoid handling later
                     #     res = (colid, None, True, None)
                 elif value is not None:
                     if cobj.data_type in ['date','datetime']:
-                        res = (colid,) + self.validate_funcs[cobj.data_type](value, self.__columns[colid], parser)
+                        res = (colid,) + self.validate_funcs[cobj.data_type](value, self._Base_Table__columns[colid], parser)
                     else:
-                        res = (colid,) + self.validate_funcs[cobj.data_type](value, self.__columns[colid])
+                        res = (colid,) + self.validate_funcs[cobj.data_type](value, self._Base_Table__columns[colid])
                 results.append(res)
             yield idx, tuple(results)
 
@@ -909,48 +844,48 @@ class Memory_Table(Base_Table):
             yield idx, row
     
     
-    def set_data_props(self):
-        """ scan table to obtain columns properties - data type, column size (if str type then the max of len of string)"""
-        columnids = self.get_columnids()
-        columns = self.get_columns()
-        for idx, row in self.__rows.items():
-            for columnid in columnids:
-                # log.debug(row)
-                # log.debug('id: {}, value: {}'.format(idx , self.__columns[columnid].name))
-                if columnid in row.cells:
-                    self.set_data_props_datatype(columnid, row.cells[columnid].value)
-                    if row.cells[columnid].value is not None:
-                        if type(row.cells[columnid].value).__name__ == 'str':
-                            self.set_data_props_str_column_size(columnid, row.cells[columnid].value)
-                        if type(row.cells[columnid].value).__name__ not in ['str','int','float','bool','datetime']:
-                            self.set_data_props_other_column_size(columnid, row.cells[columnid].value)
+    # def set_data_props(self):
+    #     """ scan table to obtain columns properties - data type, column size (if str type then the max of len of string)"""
+    #     columnids = self.get_columnids()
+    #     columns = self.get_columns()
+    #     for idx, row in self.__rows.items():
+    #         for columnid in columnids:
+    #             # log.debug(row)
+    #             # log.debug('id: {}, value: {}'.format(idx , self._Base_Table__columns[columnid].name))
+    #             if columnid in row.cells:
+    #                 self.set_data_props_datatype(columnid, row.cells[columnid].value)
+    #                 if row.cells[columnid].value is not None:
+    #                     if type(row.cells[columnid].value).__name__ == 'str':
+    #                         self.set_data_props_str_column_size(columnid, row.cells[columnid].value)
+    #                     if type(row.cells[columnid].value).__name__ not in ['str','int','float','bool','datetime']:
+    #                         self.set_data_props_other_column_size(columnid, row.cells[columnid].value)
 
 
-    def set_data_props_datatype(self, columnid,value):
-        # set a column's data_type
-        # set predefined column size for known data type, int, float, bool, datetime
-        # while for str and the rest, need to go through all column cells and get greatest length.
-        if value is not None:
-            if type(value).__name__ not in self.__columns[columnid].data_props:
-                self.__columns[columnid].data_props[type(value).__name__] = dict(column_size=1)
-                if type(value).__name__ == 'int':
-                    self.__columns[columnid].data_props['int']['column_size'] = 10
-                if type(value).__name__ == 'float':
-                    self.__columns[columnid].data_props['float']['column_size'] = 15
-                if type(value).__name__ == 'bool':
-                    self.__columns[columnid].data_props['bool']['column_size'] = 1
-                if type(value).__name__ == 'datetime':
-                    self.__columns[columnid].data_props['datetime']['column_size'] = 19        
+    # def set_data_props_datatype(self, columnid,value):
+    #     # set a column's data_type
+    #     # set predefined column size for known data type, int, float, bool, datetime
+    #     # while for str and the rest, need to go through all column cells and get greatest length.
+    #     if value is not None:
+    #         if type(value).__name__ not in self._Base_Table__columns[columnid].data_props:
+    #             self._Base_Table__columns[columnid].data_props[type(value).__name__] = dict(column_size=1)
+    #             if type(value).__name__ == 'int':
+    #                 self._Base_Table__columns[columnid].data_props['int']['column_size'] = 10
+    #             if type(value).__name__ == 'float':
+    #                 self._Base_Table__columns[columnid].data_props['float']['column_size'] = 15
+    #             if type(value).__name__ == 'bool':
+    #                 self._Base_Table__columns[columnid].data_props['bool']['column_size'] = 1
+    #             if type(value).__name__ == 'datetime':
+    #                 self._Base_Table__columns[columnid].data_props['datetime']['column_size'] = 19        
 
                 
-    def set_data_props_str_column_size(self, columnid, value):
-        if len(value) > self.__columns[columnid].data_props['str']['column_size']:
-            self.__columns[columnid].data_props['str']['column_size'] = len(value)
+    # def set_data_props_str_column_size(self, columnid, value):
+    #     if len(value) > self._Base_Table__columns[columnid].data_props['str']['column_size']:
+    #         self._Base_Table__columns[columnid].data_props['str']['column_size'] = len(value)
 
 
-    def set_data_props_other_column_size(self, columnid, value):
-        if len(str(value)) > self.__columns[columnid].data_props[type(value).__name__]['column_size']:
-            self.__columns[columnid].data_props[type(value).__name__]['column_size'] = len(str(value))         
+    # def set_data_props_other_column_size(self, columnid, value):
+    #     if len(str(value)) > self._Base_Table__columns[columnid].data_props[type(value).__name__]['column_size']:
+    #         self._Base_Table__columns[columnid].data_props[type(value).__name__]['column_size'] = len(str(value))                  
 
 
     def print_columns_info(self):
@@ -1830,7 +1765,7 @@ class Memory_Table(Base_Table):
         temp_idxs = list(temp_tobj.__rows)
         # reset table methods
         self.__rows.clear()     # reset all rows
-        self.__columns.clear()  # reset all columns
+        self._Base_Table__columns.clear()  # reset all columns
         self.__last_assigned_columnid= 0 #
         self.__last_assigned_rowid = 0 # for use when row created
         self.__last_assigned_idx = 0 # for use when add

@@ -1,10 +1,43 @@
 import sqlite3
 import json
+from datetime import datetime
+from dateutil import parser
 from bintang.log import log
 from bintang.cell import Cell
 from bintang.row import Row
 from bintang.table_base import Base_Table
 
+class DateTimeJSONDecoder(json.JSONDecoder):
+    def __init__(self, *args, **kwargs):
+        super().__init__(object_hook=self.parse_dates, *args, **kwargs)
+
+    def parse_dates(self, obj):
+        for key, value in obj.items():
+            if isinstance(value, str):
+                try:
+                    # dateutil.parser is great, but we want to be careful 
+                    # not to accidentally parse regular strings as dates.
+                    # Checking for a hybrid of digits and dashes/colons helps.
+                    if any(char in value for char in ['-', ':']) and any(c.isdigit() for c in value):
+                        obj[key] = parser.isoparse(value)  # Fast for ISO strings
+                except (ValueError, TypeError):
+                    try:
+                        obj[key] = parser.parse(value)  # Fallback for fuzzy dates
+                    except (ValueError, TypeError):
+                        pass  # Not a date, leave as string
+        return obj
+def adapt_json(data):
+    # Convert Python dict/list to JSON string to store in DB
+    return json.dumps(data, default=str)
+
+def convert_json(blob):
+    # Convert JSON string from DB back to Python dict with parsed datetimes
+    return json.loads(blob.decode('utf-8'), cls=DateTimeJSONDecoder)
+
+# Registering the handlers
+sqlite3.register_adapter(dict, adapt_json)
+sqlite3.register_adapter(list, adapt_json)
+sqlite3.register_converter("JSON_DATA", convert_json)
 
 class Sqlite_Table(Base_Table):
     def __init__(self, name, conn, bing):
@@ -28,7 +61,7 @@ class Sqlite_Table(Base_Table):
         if  ret == 0:
             # cur.execute(f"CREATE TABLE '{self.name}' (id INTEGER PRIMARY KEY NOT NULL, cells JSON)")
             # cur.execute(f"CREATE TABLE '{self.name}__columns__' (id INTEGER PRIMARY KEY NOT NULL, name TEXT COLLATE NOCASE, ordinal_position INTEGER, data_type TEXT, column_size INTEGER, decimal_digits INTEGER, data_props JSON)")
-            cur.execute(f"CREATE TABLE '{self.name}' (cells JSON)")
+            cur.execute(f"CREATE TABLE '{self.name}' (cells JSON_DATA)")
             cur.execute(f"CREATE TABLE '{self.name}__columns__' (columnid INTEGER PRIMARY KEY NOT NULL, name TEXT COLLATE NOCASE, ordinal_position INTEGER, data_type TEXT, column_size INTEGER, decimal_digits INTEGER, data_props JSON)")
         cur.close()
 
@@ -44,7 +77,9 @@ class Sqlite_Table(Base_Table):
             return None
         
 
-    def get_columnids(self, columns):
+    def get_columnids(self, columns=None):
+        if columns is None:
+            columns = self.get_columns()
         sql = f"SELECT columnid FROM {self.name}__columns__ where name IN ({','.join(['?']*len(columns))})"
         cursor = self.conn.cursor()
         res = cursor.execute(sql, columns)
@@ -156,7 +191,7 @@ class Sqlite_Table(Base_Table):
             for idx, (col, val) in enumerate(dict_or_columns.items()):
                 cell = self._make_cell_sql(col, val)
                 row.add_cell(cell) # add to rows
-            row.cells = json.dumps({v.columnid: v.value for v in row.cells.values()})
+            row.cells = json.dumps({v.columnid: v.value for v in row.cells.values()}, default=str)
             self._add_row_sql(row, index)
             
                                                   
@@ -166,11 +201,22 @@ class Sqlite_Table(Base_Table):
             for idx, col in enumerate(dict_or_columns):
                 cell = self._make_cell_sql(col,values[idx])
                 row.add_cell(cell) # add to rows
-            row.cells = json.dumps({v.columnid: v.value for v in row.cells.values()})
+            row.cells = json.dumps({v.columnid: v.value for v in row.cells.values()}, default=str)
             self._add_row_sql(row, index)
         else:
             raise ValueError("Arg for dict_or_columns set for dictionary or list/tuple of values with list/tuple of columns.")
 
+    
+    def _iterrows(self):
+        cur = self.conn.cursor()
+        sql = "SELECT ROWID, cells FROM {}".format(self.name) # extract rowid as well
+        for sqlrow in cur.execute(sql):
+            row = Row(sqlrow['ROWID']) # create row object with rowid as id
+            #for columnid, value in json.loads(sqlrow['cells']).items(): # depreacated as we don't need this as the converter is in registered in connection.
+            for columnid, value in sqlrow['cells'].items(): 
+                cell = Cell(int(columnid), value) # convert columnid to int as it is stored as string in json
+                row.add_cell(cell)
+            yield sqlrow['ROWID'], row
     
     def _get_columns_withid_sql(self) -> dict:
         # get columnnames from db and return as dict of columnid : columnname
@@ -199,92 +245,63 @@ class Sqlite_Table(Base_Table):
         return row_dict
 
 
-    def _iter_row_asdict_sql(self,columns):
-        # get columnames
-        db_cols_withid = self._get_columns_withid_sql()
-        user_cols = {k:v for k,v in db_cols_withid.items() if k in columns} #refine columns
-       
-        cur = self.conn.cursor()
-        #sql = "SELECT rowid, cells FROM {}".format(self.name) # expose rowid
-        sql = "SELECT cells FROM {}".format(self.name)
-        for idx, row in enumerate(cur.execute(sql),start=1):
-            # debug cells_dict = json.loads(row["cells"])
-            # log.debug(cells_dict)
-            cells_dict = self._gen_cells_dict(row['cells'])
+    def _iter_row_asdict_sql(self,colid_dict):
+        for idx, row in self._iterrows():
             row_asdict = {}
-            for col in columns:
-                if user_cols[col] in cells_dict:
-                    row_asdict[col] = cells_dict[user_cols[col]]
+            for col, id in colid_dict.items():
+                if id in row.cells:
+                    row_asdict[col] = row.cells[id].value
                 else:
                     row_asdict[col] = None
-            # yield row['rowid'], row_asdict
             yield idx, row_asdict
 
 
-    def _iter_row_aslist_sql(self,columns):
-        # get columnames
-        db_cols_withid = self._get_columns_withid_sql()
-        user_cols = {k:v for k,v in db_cols_withid.items() if k in columns} #refine columns
-       
-        cur = self.conn.cursor()
-        # sql = "SELECT rowid, cells FROM {}".format(self.name)
-        sql = "SELECT cells FROM {}".format(self.name)
-        for idx, row in enumerate(cur.execute(sql),start=1):
-            # debug cells_dict = json.loads(row["cells"])
-            # log.debug(cells_dict)
-            cells_dict = self._gen_cells_dict(row['cells'])
+    def _iter_row_aslist_sql(self,colid_dict):
+        for idx, row in self._iterrows():
             row_aslist = []
-            for col in columns:
-                if user_cols[col] in cells_dict:
-                    row_aslist.append(cells_dict[user_cols[col]])
+            for col, id in colid_dict.items():
+                if id in row.cells:
+                    row_aslist.append(row.cells[id].value)
                 else:
-                    row_aslist.append(None) #???? this is strange line of code. revisit!!
-            # yield row["idx"], row_aslist    
+                    row_aslist.append(None) 
             yield idx, row_aslist
     
+
     def iterrows(self, 
                  columns: list=None, 
                  row_type: str='dict', 
                  where=None, 
                  rowid: bool=False):
 
-        # validate user's args
-        if columns is not None:
-            ## need to work on validation from diff types of table
-            db_columns = self._get_columns_sql()
-            missing_cols = []
-            for col in columns:
-                if col not in db_columns:
-                    missing_cols.append(col)
-            if len(missing_cols) > 0:
-                raise ValueError ('Error! Column {} not found.'.format(','.join(missing_cols)))
-                
-
+        # validate columns, if column is None then assign all available columns, otherwise validate the passed columns.
+        db_cols_withid = self._get_columns_withid_sql()
         if columns is None:
-            columns = self.get_columns() # assign all available column names
+            columns = self.get_columns() # assign all available column names  
+            colid_dict = {k:v for k,v in db_cols_withid.items() if k in columns} #refine columns
         else:
-            columns = self.validate_columns(columns) # assign all available column names after validation
-            
+            # validate passed columns
+            columns = self.validate_columns(columns) 
+            colid_dict = {k:self.get_columnid(k) for k in columns}
+
         if row_type == 'list':
-            for idx, row in self._iter_row_aslist_sql(columns):
+            for idx, row in self._iter_row_aslist_sql(colid_dict):
                 yield idx, row 
                     
         else: # assume row_type is dict 
-            for idx, row in self._iter_row_asdict_sql(columns):
+            for idx, row in self._iter_row_asdict_sql(colid_dict):
                 yield idx, row
-
-
+    
+    
     def get_row_asdict(self, idx, columns=None):
         if columns is None:
             columns = self.get_columns() # assign all available column names
         else:
             columns = self.validate_columns(columns) # assign all available column names after validation
         cursor = self.conn.cursor()
-        sql = "SELECT cells FROM {} WHERE idx=?".format(self.name)
+        sql = "SELECT cells FROM {} WHERE ROWID=?".format(self.name)
         res = cursor.execute(sql, (idx,))
         ret = res.fetchone()
         if ret:
-            print(ret['cells'])
             return self._gen_row_asdict_sql(ret['cells'], columns)
         else:
             return None
@@ -296,7 +313,7 @@ class Sqlite_Table(Base_Table):
         else:
             columns = self.validate_columns(columns) # assign all available column names after validation
         cursor = self.conn.cursor()
-        sql = "SELECT cells FROM {} WHERE idx=?".format(self.name)
+        sql = "SELECT cells FROM {} WHERE ROWID=?".format(self.name)
         res = cursor.execute(sql, (idx,))
         ret = res.fetchone()
         if ret:
@@ -309,7 +326,7 @@ class Sqlite_Table(Base_Table):
         """ using json_set so only update for a specific key"""
         cursor = self.conn.cursor() 
         columnid = self.get_columnid(column)
-        sql_update = f"UPDATE {self.name} SET cells = (SELECT json_set({self.name}.cells, '$.{columnid}', ?)) where idx=?;"
+        sql_update = f"UPDATE {self.name} SET cells = (SELECT json_set({self.name}.cells, '$.{columnid}', ?)) where ROWID=?;"
         params = [value, idx]
         cursor.execute(sql_update, params)
 
@@ -318,8 +335,9 @@ class Sqlite_Table(Base_Table):
         """ using json_set so only update for a specific key and accept columnid
         Note: no performance increase even not calling get_columnid_sql()"""
         cursor = self.conn.cursor() 
-        sql_update = f"UPDATE {self.name} SET cells = (SELECT json_set({self.name}.cells, '$.{columnid}', ?)) where idx=?;"
+        sql_update = f"UPDATE {self.name} SET cells = (SELECT json_set({self.name}.cells, '$.{columnid}', ?)) where ROWID=?;"
         params = [value, idx]
-        cursor.execute(sql_update, params)    
+        cursor.execute(sql_update, params)
+        
                             
 

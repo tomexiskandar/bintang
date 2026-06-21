@@ -824,11 +824,9 @@ class Memory_Table(Base_Table):
             else:
                 for idx, row in self.__rows.items():
                     yield idx, self._gen_row_aslist(row,columnids)
-        elif row_type == 'object':
-            for idx, row in self.__rows.items():
-                yield idx, self._normalise_row(row, columnids)
-
-
+        # elif row_type == 'object':
+        #     for idx, row in self.__rows.items():
+        #         yield idx, self._normalise_row(row, columnids)
         else: # assume row_type is dict
             if where is not None:
                 for idx, row in self.__rows.items():
@@ -1718,20 +1716,32 @@ class Memory_Table(Base_Table):
         cursor = conn.cursor()
         if sql_str is None:
             sql_str = "SELECT * FROM {}".format(self.name)
-        if params is not None:
-            cursor.execute(sql_str, params)
-        else:
-            cursor.execute(sql_str)
-        columns = [col[0] for col in cursor.description]
-        for col in columns:
-            self.add_column(col)
-        # for row in cursor.fetchall():
-        #     self.insert(columns, row) 
-        while True:
-            rows = cursor.fetchmany(300)
-            if not rows: break
-            for row in rows:
-                self.insert(columns, row)                  
+        try:
+            if params is not None:
+                cursor.execute(sql_str, params)
+            else:
+                cursor.execute(sql_str)
+            # Loop through the result sets to skip the setup steps (CREATE, INDEX)
+            # cursor.description is only populated when a set contains actual rows to fetch    
+            while cursor.description is None:
+                if not cursor.nextset():
+                    break
+            # Once the loop exits and finds cursor.description, fetch final data    
+            if cursor.description is not None:
+                columns = [col[0] for col in cursor.description]
+                for col in columns:
+                    self.add_column(col)
+                # for row in cursor.fetchall():
+                #     self.insert(columns, row) 
+                while True:
+                    rows = cursor.fetchmany(300)
+                    if not rows: break
+                    for row in rows:
+                        self.insert(columns, row)
+        except Exception as e:
+            log.error('Error executing SQL: {}'.format(e))
+        finally:
+            cursor.close()                   
 
 
     def reindex(self):

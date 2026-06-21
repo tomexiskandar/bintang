@@ -5,9 +5,6 @@ import copy
 import unicodedata
 from bintang.table_base import Base_Table
 from bintang.table_mem import Memory_Table, Path_Table
-from bintang.table_sqlite import Sqlite_Table
-from bintang.table_fsql import From_SQL_Table
-from bintang.table_fcsv import From_CSV_Table
 from bintang import iterdict
 from pathlib import Path
 from bintang.log import log
@@ -252,7 +249,7 @@ class Bintang():
         return self.get_table(tablename).get_columns()
     
 
-    def add_table(self, table: Union[Memory_Table, Path_Table, Sqlite_Table, From_SQL_Table, From_CSV_Table]): 
+    def add_table(self, table): 
         tableid = self.get_tableid(table.name)
         if tableid is None:
             tableid = self.__last_assigned_tableid + 1
@@ -573,12 +570,14 @@ class Bintang():
     
 
     def create_sqlite_table(self, name, conn):
+        from bintang.table_sqlite import Sqlite_Table
         tobj = Sqlite_Table(name, conn, bing=self) # create a tobj object
         self.add_table(tobj)
         return tobj
     
     
-    def create_linked_table(self, name, conn, sql_str=None, params=None ):
+    def create_linked_table(self, name, conn, sql_str=None, params=None ):    
+        from bintang.table_fsql import From_SQL_Table
         tobj = From_SQL_Table(name, bing=self) # create a tobj object
         tobj.type = 'FROMSQL'
         tobj.conn = conn
@@ -592,6 +591,7 @@ class Bintang():
 
     def create_sql_linked_table(self, name, conn, sql_str=None, params=None ):
         """ this is an alias to create_linked_table() """
+        from bintang.table_fsql import From_SQL_Table
         tobj = From_SQL_Table(name, bing=self) # create a tobj object
         tobj.conn = conn
         if sql_str is None:
@@ -603,6 +603,7 @@ class Bintang():
 
 
     def create_csv_linked_table(self, name, filepath, delimiter=',', quotechar='"', header_row=1):
+        from bintang.table_fcsv import From_CSV_Table
         tobj = From_CSV_Table(name, filepath, delimiter=delimiter, quotechar=quotechar, header_row=header_row, bing=self) # create a tobj object
         tobj.filepath = filepath
         tobj.delimiter = delimiter

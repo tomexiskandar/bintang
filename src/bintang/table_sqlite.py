@@ -26,6 +26,7 @@ class DateTimeJSONDecoder(json.JSONDecoder):
                     except (ValueError, TypeError):
                         pass  # Not a date, leave as string
         return obj
+
 def adapt_json(data):
     # Convert Python dict/list to JSON string to store in DB
     return json.dumps(data, default=str)

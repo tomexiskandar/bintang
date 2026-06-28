@@ -68,13 +68,6 @@ class Memory_Table(Base_Table):
     def get_size(self):
         return sys.getsizeof(self.__rows)
         
- 
-    def set_to_sql_colmap(self, columns):
-        if isinstance(columns, list) or isinstance(columns, tuple):
-            return dict(zip(columns, columns))
-        elif isinstance(columns, dict):
-            return columns
-
         
     # here the location of def_to_sql()    
     
@@ -1721,7 +1714,7 @@ class Memory_Table(Base_Table):
                 cursor.execute(sql_str, params)
             else:
                 cursor.execute(sql_str)
-            # Loop through the result sets to skip the setup steps (CREATE, INDEX)
+            # Loop through the result sets to skip the setup steps (CREATE, INDEX etc) and reach the final SELECT result set
             # cursor.description is only populated when a set contains actual rows to fetch    
             while cursor.description is None:
                 if not cursor.nextset():

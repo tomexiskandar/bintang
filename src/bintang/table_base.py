@@ -122,7 +122,14 @@ class Base_Table(ABC):
             # construct message
             for msg in line_msg:
                 message += msg
-            return message                 
+            return message  
+
+
+    def set_to_sql_colmap(self, columns):
+        if isinstance(columns, list) or isinstance(columns, tuple):
+            return dict(zip(columns, columns))
+        elif isinstance(columns, dict):
+            return columns                       
 
     
     def get_schema_name(self) -> str | None:

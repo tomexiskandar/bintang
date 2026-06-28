@@ -17,6 +17,10 @@ class From_SQL_Table(Base_Table):
         return json.dumps(tbl, indent=2)
 
 
+    def __len__(self):
+        return 0    
+
+
     def get_columnid(self, column):
         pass
 
@@ -27,13 +31,25 @@ class From_SQL_Table(Base_Table):
     
     def get_columns(self) -> tuple:
         cursor = self.conn.cursor()
-        if self.sql_str is None:
-            sql_str = "SELECT * FROM {}".format(self.name)
-        if self.params is not None:
-            cursor.execute(self.sql_str, self.params)
-        else:
-            cursor.execute(self.sql_str)
-        return tuple([col[0] for col in cursor.description])
+        try:
+            if self.sql_str is None:
+                sql_str = "SELECT * FROM {}".format(self.name)
+            if self.params is not None:
+                cursor.execute(self.sql_str, self.params)
+            else:
+                cursor.execute(self.sql_str)
+            # Loop through the result sets to skip the setup steps (CREATE, INDEX etc) and reach the final SELECT result set
+            # cursor.description is only populated when a set contains actual rows to fetch    
+            while cursor.description is None:
+                if not cursor.nextset():
+                    break
+            # Once the loop exits and finds cursor.description, fetch final data    
+            if cursor.description is not None:    
+                return tuple([col[0] for col in cursor.description])
+        except Exception as e:
+            log.error('Error executing SQL: {}'.format(e))
+        finally:
+            cursor.close()   
 
 
     def iterrows(self,
@@ -60,45 +76,57 @@ class From_SQL_Table(Base_Table):
             
         # execute sql
         cursor = self.conn.cursor()
-        if self.sql_str is None:
-            sql_str = "SELECT * FROM {}".format(self.name)
-        if self.params is not None:
-            cursor.execute(self.sql_str, self.params)
-        else:
-            cursor.execute(self.sql_str)
-        columns_fromsql = [col[0] for col in cursor.description]
-        ## use fetchmany instead of fetchone for better performance
-        # row = cursor.fetchone()
-        # idx = 1
-        # while row is not None:
-        #     yield idx, row
-        #     row = cursor.fetchone()
-        #     idx += 1 
-        # 
-        idx = 1
-        while True:
-            rows = cursor.fetchmany(300)
-            if not rows: break
-            if rowid is not None:
-                if row_type.upper() == 'LIST':
-                    for row in rows:
-                        row_dict = {k: dict(zip(columns_fromsql, row))[k] for k in columns_fromsql}
-                        yield row_dict[rowid], row_dict  
-                        idx += 1
-                else:
-                    for row in rows:
-                        row_dict = {k: dict(zip(columns_fromsql, row))[k] for k in columns_fromsql}
-                        yield row_dict[rowid], row_dict 
-                        idx += 1
+        try:
+            if self.sql_str is None:
+                sql_str = "SELECT * FROM {}".format(self.name)
+            if self.params is not None:
+                cursor.execute(self.sql_str, self.params)
             else:
-                if row_type.upper() == 'LIST':
-                    for row in rows:
-                        yield idx, [dict(zip(columns_fromsql, row))[x] for x in columns_fromsql] 
-                        idx += 1
-                else:
-                    for row in rows:
-                        yield idx, {k: dict(zip(columns_fromsql, row))[k] for k in columns_fromsql}
-                        idx += 1            
+                cursor.execute(self.sql_str)
+            # Loop through the result sets to skip the setup steps (CREATE, INDEX etc) and get to the actual data result set.
+            # cursor.description is only populated when a set contains actual rows to fetch    
+            while cursor.description is None:
+                if not cursor.nextset():
+                    break    
+            # Once the loop exits and finds cursor.description, fetch final data    
+            if cursor.description is not None:
+                columns_fromsql = [col[0] for col in cursor.description]
+                ## use fetchmany instead of fetchone for better performance
+                # row = cursor.fetchone()
+                # idx = 1
+                # while row is not None:
+                #     yield idx, row
+                #     row = cursor.fetchone()
+                #     idx += 1 
+                # 
+                idx = 1
+                while True:
+                    rows = cursor.fetchmany(300)
+                    if not rows: break
+                    if rowid is not None:
+                        if row_type.upper() == 'LIST':
+                            for row in rows:
+                                row_dict = {k: dict(zip(columns_fromsql, row))[k] for k in columns_fromsql}
+                                yield row_dict[rowid], row_dict  
+                                idx += 1
+                        else:
+                            for row in rows:
+                                row_dict = {k: dict(zip(columns_fromsql, row))[k] for k in columns_fromsql}
+                                yield row_dict[rowid], row_dict 
+                                idx += 1
+                    else:
+                        if row_type.upper() == 'LIST':
+                            for row in rows:
+                                yield idx, [dict(zip(columns_fromsql, row))[x] for x in columns_fromsql] 
+                                idx += 1
+                        else:
+                            for row in rows:
+                                yield idx, {k: dict(zip(columns_fromsql, row))[k] for k in columns_fromsql}
+                                idx += 1
+        except Exception as e:
+            log.error('Error executing SQL: {}'.format(e))
+        finally:
+            cursor.close()               
             
 
 

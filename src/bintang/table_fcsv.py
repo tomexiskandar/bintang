@@ -1,5 +1,5 @@
-from bintang.table_base import Base_Table
 from bintang.log import log
+from bintang.table_base import Base_Table
 import csv
 
 class From_CSV_Table(Base_Table):

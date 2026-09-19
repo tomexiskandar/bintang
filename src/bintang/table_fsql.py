@@ -1,3 +1,4 @@
+from bintang.log import log
 from bintang.table_base import Base_Table
 import json
 

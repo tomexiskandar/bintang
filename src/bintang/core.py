@@ -249,7 +249,8 @@ class Bintang():
         return self.get_table(tablename).get_columns()
     
 
-    def add_table(self, table): 
+    def add_table(self, table):         
+        table.bing = self  # add this so client code doesn't need to add or redefine like table.bing = Bintang() instance
         tableid = self.get_tableid(table.name)
         if tableid is None:
             tableid = self.__last_assigned_tableid + 1

@@ -174,8 +174,10 @@ class Base_Table(ABC):
             return 'psycopg'
         elif str(type(conn)) == "<class 'psycopg2.extensions.connection'>":
             return 'psycopg2'
+        elif str(type(conn)) == "<class 'pymssql._pymssql.Connection'>":
+            return 'pymssql'
         else:
-            raise ValueError('Sorry Only sqlite3, pyodbc and psycopg connection accepted!')
+            raise ValueError('Sorry Only sqlite3, pyodbc, psycopg and pymssql connection accepted!')
 
             
     def get_value(self, column, where = None):
@@ -363,7 +365,8 @@ class Base_Table(ABC):
             log.warning('Getting SQL type info is not supported for this connection, will proceed without getting SQL data type and literal. This may cause issue for some data types and may cause all values to be treated as string literal.')
         if res is not None:
             sql_cols_withtype = self.set_sql_datatype(dest_columns, conn, schema, table)
-            sql_cols_withliteral = self.set_sql_literal(sql_cols_withtype, conn)
+            if sql_cols_withtype is not None:
+                sql_cols_withliteral = self.set_sql_literal(sql_cols_withtype, conn)
         else:
             sql_cols_withliteral = None
 
@@ -541,7 +544,7 @@ class Base_Table(ABC):
                 
 
     def gen_row_param_markers(self,numof_col,num_row, conn_name='pyodbc'):
-        p = "%s" if conn_name[:7] =='psycopg' else "?" # param marker is different for pyodbc and psycopg, so we need to check the connection name
+        p = "%s" if conn_name[:7] in('psycopg', 'pymssql') else "?" # param marker is different for pyodbc and psycopg, so we need to check the connection name
         param = "(" + ",".join([p]  *numof_col) + ")"
         params = []
         for i in range(num_row):

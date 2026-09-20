@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "bintang"
-version = "0.2.42"
+version = "0.2.43"
 description = "A tiny and temporary db for quick data cleansing and transformation. It is a high-level Python coding and would help any Pythonistas up to speed with ETL work."
 readme = "README.rst"
 
@@ -15,7 +15,8 @@ validation = [
 	]
 database = [
 	"psycopg",    # for to_sql() and read_sql() for Postgresql specifically
-    "pyodbc"     # for to_sql() and read_sql using ODBC connection
+    "pyodbc",    # for to_sql() and read_sql using ODBC connection
+	"pymssql"
 ]
 excel = [
     "openpyxl",   # for read_excel() and to_excel() using .xlsx file
@@ -32,7 +33,8 @@ all = [
 	"python-dateutil",
 	"rapidfuzz",
 	"psycopg",
-	"pyodbc", 
+	"pyodbc",
+	"pymssql", 
 	"openpyxl",   
 	"xlrd",       
 	"xlwt",    

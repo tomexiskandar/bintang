@@ -311,7 +311,7 @@ class Bintang():
 
 
     def _print(self):
-        tobj = Table('Columns Info')
+        tobj = Memory_Table('Columns Info')
         row_dict = {}
         for tab in self.get_tables():
             self[tab].set_data_props() # it sets 

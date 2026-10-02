@@ -1879,6 +1879,24 @@ class Memory_Table(Base_Table):
                 res_list.append(next(iter(row.values())))
             return res_list    
         else:
+            raise ValueError('column must be a single column string!')  
+
+    def to_set(self, column):
+        if isinstance(column, str):
+            res_set = set()
+            for idx, row in self.iterrows([column]):
+                res_set.add(next(iter(row.values())))
+            return res_set    
+        else:
+            raise ValueError('column must be a single column string!')  
+
+    def to_tuple(self, column):
+        if isinstance(column, str):
+            res_tuple = tuple()
+            for idx, row in self.iterrows([column]):
+                res_tuple += (next(iter(row.values())),)
+            return res_tuple    
+        else:
             raise ValueError('column must be a single column string!')    
 
 

@@ -26,8 +26,8 @@ warnings.formatwarning = custom_formatwarning
 
 class ColumnError(Exception):
     def __init__(self,message):
-        self.message = message
-    
+        self.message = 'ColumnError: ' + message
+
 
 
 class Base_Table(ABC):
@@ -98,18 +98,27 @@ class Base_Table(ABC):
         if len(unmatched_cols) > 0:
             similar_columns = self._suggest_similar_columns(unmatched_cols)
             message = self._suggest_columns_msg(similar_columns)
-            raise ColumnError(message)
+            # raise ColumnError(message)
+            log.error(message)
+            return None
         else:
             return validated_cols 
 
 
-    def _suggest_similar_columns(self, columns, min_ratio=0.7):
+    def _suggest_similar_columns(self, columns):
         res = {}
         for col in columns:
             similar_cols = bintang.get_similar_values(col, self.get_columns())
             res[col] = ['{}'.format(x) for x in similar_cols]
-        return res  
+        return res 
 
+
+    def _suggest_similar_columns_choice(self, columns, choices):
+        res = {}
+        for col in columns:
+            similar_cols = bintang.get_similar_values(col, choices)
+            res[col] = ['{}'.format(x) for x in similar_cols]
+        return res 
 
     def _suggest_columns_msg(self, suggested_columns):   
         unmatched_cols = [x for x in suggested_columns.keys()]
@@ -124,12 +133,25 @@ class Base_Table(ABC):
                 message += msg
             return message  
 
+    def _suggest_db_columns_msg(self, suggested_columns, table):   
+        unmatched_cols = [x for x in suggested_columns.keys()]
+        if len(suggested_columns) > 0:
+            message = f"No such {', '.join(unmatched_cols)} column{'(s)' if len(suggested_columns)>1 else ''} in db table {table}."
+            line_msg = []
+            for col, suggestion  in suggested_columns.items():
+                msg = f" For {col}, did you mean: {', '.join(suggestion)}?"
+                line_msg.append(msg)
+            # construct message
+            for msg in line_msg:
+                message += msg
+            return message
+        
 
     def set_to_sql_colmap(self, columns):
         if isinstance(columns, list) or isinstance(columns, tuple):
             return dict(zip(columns, columns))
-        elif isinstance(columns, dict):
-            return columns                       
+        # elif isinstance(columns, dict):
+        #     return columns                       
 
     
     def get_schema_name(self) -> str | None:
@@ -322,31 +344,36 @@ class Base_Table(ABC):
            method: prepared (default) or string
            return-> rows_affected: number of rows affected by the insert operation.
         """
-        conn_name = self._get_sql_conn_name_xp(conn)
-        if columns is None: # check if user want to include all columns in the table
-            columns = self.get_columns()
-        else:
-            if isinstance(columns,list) or isinstance(columns, tuple):
-                columns= self.validate_columns(columns)
-            elif isinstance(columns,dict):
-                columns_key = [x for x in columns.keys()]
-                columns_val = [x for x in columns.values()] ## trouble maker
-                columns_val= self.validate_columns(columns_val) ## trouble maker
-                columns = dict(zip(columns_key, columns_val))
-            else: 
-                raise ValueError('Error! Only list or dict allowed for columns.')
+        try:
+            conn_name = self._get_sql_conn_name_xp(conn)
+            # to do: validate stuff based on conn_name
+            if columns is None: # check if user want to include all columns in the table
+                columns = self.get_columns()
+                colmap = self.set_to_sql_colmap(columns)
+            elif isinstance(columns,list) or isinstance(columns, tuple):
+                    colmap = self.set_to_sql_colmap(columns)
+            elif isinstance(columns, dict):
+                    colmap = columns
+            # validate columns to make sure user passed the correct column names
+            schema = self.extract_schema_name(table)
+            table = self.extract_table_name(table)
+            columns_val = [x for x in colmap.values()]
+            columns_key = [x for x in colmap.keys()]
+            validated_bintang_columns = self.validate_columns(columns_val)
+            validated_db_columns = self.validate_db_columns(columns_key, conn, schema, table)
+            # todo: validate validated columns to give warning, perhaps a conn cannot extract schema data from the database
+            if validated_bintang_columns is None or validated_db_columns is None:
+                log.warning(f"columns validation failed. pls check schema access and column mappings.")
 
-        schema = self.extract_schema_name(table)
-        table = self.extract_table_name(table)
-
-        if method.upper() =='STRING':
-            return self._to_sql_string(conn, table, columns, schema=schema, max_rows=max_rows, conn_name=conn_name)
-        else:
-            return self._to_sql_prep(conn, table, columns, schema=schema, max_rows=max_rows,conn_name=conn_name)
-
+            if method.upper() =='STRING':
+                return self._to_sql_string(conn, table, colmap, schema=schema, max_rows=max_rows, conn_name=conn_name)
+            else:
+                return self._to_sql_prep(conn, table, colmap, schema=schema, max_rows=max_rows,conn_name=conn_name)
+        except:
+            return None
+        
  
-    def _to_sql_string(self, conn, table, columns, schema=None, max_rows = 300, conn_name='pyodbc'):
-        colmap = self.set_to_sql_colmap(columns)
+    def _to_sql_string(self, conn, table, colmap, schema=None, max_rows = 300, conn_name='pyodbc'):
         src_cols = [x for x in colmap.values()]
         dest_columns = [x for x in colmap.keys()]
         if schema is not None:
@@ -358,17 +385,16 @@ class Base_Table(ABC):
         
         # check if getting type info is supported, if yes then get sql data type and literal
         res = None
+        sql_cols_withliteral = None
         try:
             res = self.get_sql_typeinfo_table(conn)
         except Exception as e:
-            log.error(e)
-            log.warning('Getting SQL type info is not supported for this connection, will proceed without getting SQL data type and literal. This may cause issue for some data types and may cause all values to be treated as string literal.')
+            log.warning(e)
+            log.warning('getting SQL type info is not supported, will proceed without getting SQL data type and literal.')
         if res is not None:
             sql_cols_withtype = self.set_sql_datatype(dest_columns, conn, schema, table)
             if sql_cols_withtype is not None:
                 sql_cols_withliteral = self.set_sql_literal(sql_cols_withtype, conn)
-        else:
-            sql_cols_withliteral = None
 
         cursor = conn.cursor()
         temp_rows = []  
@@ -449,6 +475,35 @@ class Base_Table(ABC):
             sql_typeinfo[type_name] = row_dict
         return sql_typeinfo
     
+    
+    def validate_db_columns(self, columns, conn, schema, table):
+        """
+        validate columns by user to align with those columns stored in db
+        return: validated_cols: list of validated columns
+        raise ColumnError if any unmatched columns found
+        """
+        validated_cols = []
+        unmatched_cols = []
+        cursor = conn.cursor()
+        try:
+            db_columns = [row.column_name for row in cursor.columns(schema=schema, table=table)]
+            db_columns_lower = [col.lower() for col in db_columns]
+            for column in columns:
+                if column.lower() in db_columns_lower:
+                    validated_cols.append(column)
+                else:
+                    unmatched_cols.append(column)
+            if len(unmatched_cols) > 0:
+                similar_columns = self._suggest_similar_columns_choice(unmatched_cols, choices=db_columns)
+                message = self._suggest_db_columns_msg(similar_columns, table)
+                log.warning(message)
+                return None
+            else:
+                return validated_cols
+        except Exception as e:
+            log.warning(e)
+            return None
+
 
     def set_sql_datatype(self, dest_columns, conn, schema, table):
         cursor = conn.cursor()
@@ -464,6 +519,9 @@ class Base_Table(ABC):
             for col in dest_columns:
                 sql_columns_withtype[col] = col_dict[col]['type_name']    
             return sql_columns_withtype
+        except KeyError as ke:
+            log.error(f"column {ke} not found in the database table!")
+            return None
         except Exception as e: 
             log.error(e)
             return None  
@@ -483,17 +541,15 @@ class Base_Table(ABC):
             log.error(e)
             literals = (None, None)
             return {col:literals for col in sql_cols_withtype.keys()}
-        
 
 
-    def _to_sql_prep(self, conn, table, columns, schema=None, max_rows = 1, conn_name='pyodbc'):
+    def _to_sql_prep(self, conn, table, colmap, schema=None, max_rows = 1, conn_name='pyodbc'):
         if max_rows <= len(self): # validate max_row
             mrpb = max_rows # assign max row per batch
         else:
             #log.warning('Warning! max_rows {} set greater than totalrows {}. max_rows set to 1'.format(max_rows, len(self)))
             mrpb = 1
-        numof_col = len(columns) # num of columns
-        colmap = self.set_to_sql_colmap(columns)
+        numof_col = len(colmap) # num of columns
         src_cols = [x for x in colmap.values()]
         dest_columns = [x for x in colmap.keys()]
         

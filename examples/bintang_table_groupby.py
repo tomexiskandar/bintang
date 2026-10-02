@@ -11,7 +11,7 @@ p.insert({'id':6, 'brand': 'Shimano', 'class':'reel', 'sub class':'spinning', 'n
 
 grouped = p.groupby(['brand', 'class'], group_count=True)
 
-grouped.print()
+# grouped.print()
 #              Table: grouped
 # -------------+---------+---------------
 #     brand    |  class  |  group_count
@@ -21,10 +21,11 @@ grouped.print()
 #  Shimano     | reel    |             2
 # -------------+---------+---------------
 # (3 rows)
+shimano_rod_count = grouped.get_value('group_count', where=lambda row: row['brand']=='Shimano' and row['class']=='rod')
+assert 3 == shimano_rod_count
 
 grouped = p.groupby(['brand'], group_concat='id', sums=['price']) # another example
-
-grouped.print()
+# grouped.print()
 #                     Table: grouped
 # -------------+-------------------+-------------------
 #     brand    |    group_concat   |     sum_price
@@ -33,3 +34,5 @@ grouped.print()
 #  Ugly Stik   |               [3] |             63.99
 # -------------+-------------------+-------------------
 # (2 rows)
+assert 5 == len(grouped.get_value('group_concat', where=lambda row: row['brand']=='Shimano'))
+assert 1 == len(grouped.get_value('group_concat', where=lambda row: row['brand']=='Ugly Stik'))

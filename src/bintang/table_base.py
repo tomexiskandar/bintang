@@ -14,6 +14,7 @@ from bintang.log import log
 import bintang
 import types
 from bintang.row import Row
+from bintang.cell import Cell
 
 MAX_ROW_SQL_INSERT = 300
 
@@ -68,6 +69,18 @@ class Base_Table(ABC):
         return ColumnError(self.name, self.column)
     
 
+    def make_cell(self,column,value,new_column=True):
+        if not isinstance(column, str):
+            raise ValueError("column name must be a string type!")
+        columnid = self.get_columnid(column)
+        if columnid is None: # if columnid is None then assume user wants a new column
+            if new_column == True:
+                self.add_column(column)
+                columnid = self.get_columnid(column) # reassign the columnid
+        # if columnid is None:
+        #     raise ValueError("Cannot make cell due to None column name.")    
+        return Cell(columnid,value)
+
     def make_row(self,id=None, option=None):
         """make a new row.
         by default it increments id.
@@ -100,7 +113,7 @@ class Base_Table(ABC):
             message = self._suggest_columns_msg(similar_columns)
             # raise ColumnError(message)
             log.error(message)
-            return None
+            raise Exception(message)
         else:
             return validated_cols 
 
@@ -245,6 +258,10 @@ class Base_Table(ABC):
             1 [(2, ((11, 11), (12, 12)))]
         """
         if on:
+            # validate provided columns
+            validated_left_columns = self.validate_columns([x[0] for x in on])
+            validated_right_columns = self.validate_columns([x[1] for x in on])
+            on = list(zip(validated_left_columns,validated_right_columns))
             req_matches = len(on)
         else:
             lcolumns = self.get_columns()
@@ -254,7 +271,7 @@ class Base_Table(ABC):
         on_ = [] # will hold column id keys instead column name
         for tup in on:
             tup_ = (self.get_columnid(tup[0]), self.bing[lkp_table].get_columnid(tup[1]))
-            on_.append(tup_) 
+            on_.append(tup_)    
         for lidx, lrow in self._iterrows():
             results = []
             for ridx, rrow in self.bing[lkp_table]._iterrows():
@@ -369,7 +386,8 @@ class Base_Table(ABC):
                 return self._to_sql_string(conn, table, colmap, schema=schema, max_rows=max_rows, conn_name=conn_name)
             else:
                 return self._to_sql_prep(conn, table, colmap, schema=schema, max_rows=max_rows,conn_name=conn_name)
-        except:
+        except Exception as e:
+            log.exception(e)
             return None
         
  
@@ -445,7 +463,8 @@ class Base_Table(ABC):
         
 
     def gen_sql_value_with_literal(self, value, literals):
-        if value == "" or value is None:
+        #if value == "" or value is None: # deprecated as empty string may be what client code want to insert
+        if value is None:
             return "NULL"
         if isinstance(value, str):
             value = value.replace("'","''")
@@ -453,7 +472,8 @@ class Base_Table(ABC):
 
 
     def gen_sql_value_without_literal(self, value):
-        if value == "" or value is None:
+        #if value == "" or value is None: # deprecated as empty string may be what client code want to insert
+        if value is None:
             return "NULL"
         if isinstance(value, str):
             value = value.replace("'","''")
@@ -640,6 +660,45 @@ class Base_Table(ABC):
                         pass 
 
 
+    def to_csv(self, path, index=False, \
+               dialect='excel', delimiter=',', \
+               quotechar='"', quoting=0): 
+        import csv
+        # csv.QUOTE_MINIMAL = 0
+        # csv.QUOTE_ALL = 1
+        # csv.QUOTE_NONNUMERIC = 2
+        # csv.QUOTE_NONE = 3
+        
+        # define columns
+        columns = self.get_columns()
+        with open(path, 'w', newline = '\n') as csvfile:
+            csvwriter = csv.writer(csvfile, dialect=dialect, delimiter=delimiter,
+                                   quotechar=quotechar, quoting=quoting)
+            columns_towrite = [col for col in columns]
+            if index:                       # if column index wanted
+                idx_col = self.INDEX_COLUMN_NAME
+                if isinstance(index, str):  # if user wanted own index column name
+                    idx_col = index
+                columns_towrite.insert(0,idx_col)
+            # write header to csvfile
+            csvwriter.writerow(columns_towrite)
+            if index:
+                for idx, row in self.iterrows(row_type='list'):
+                    csvwriter.writerow([idx] + row)
+            else:
+                for idx, row in self.iterrows(row_type='list'):
+                    csvwriter.writerow(row)
+
+
+    def to_jsonl(self, path):
+        with open(path, 'w', encoding='utf-8') as file:
+            for _, row in self.iterrows():
+                jsonl = json.dumps(row)
+                file.write(jsonl + '\n')
+
+
+    
+    
     def gen_sql_stmt_merge_dev(self
                            ,trg_table
                            ,dbms = None

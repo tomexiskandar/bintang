@@ -599,7 +599,8 @@ class Bintang():
             tobj.sql_str = "SELECT * FROM {}".format(name)
         else:
             tobj.sql_str = sql_str
-        tobj.params = params    
+        tobj.params = params
+        tobj.populate_columns()
         self.add_table(tobj)
 
 
@@ -610,7 +611,15 @@ class Bintang():
         tobj.delimiter = delimiter
         tobj.quotechar = quotechar
         tobj.header_row = header_row
+        tobj.populate_columns()
         self.add_table(tobj) 
+
+
+    def create_jsonl_linked_table(self, name, filepath):
+            from bintang.table_jsonl import From_JSONL_Table
+            tobj = From_JSONL_Table(name, filepath, bing=self) # create a tobj object
+            tobj.filepath = filepath
+            self.add_table(tobj)
   
 
 

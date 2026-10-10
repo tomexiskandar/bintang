@@ -2,7 +2,7 @@ import json
 import bintang
 from bintang.table_base import Base_Table
 from bintang.column import Column
-from bintang.cell import Cell
+# from bintang.cell import Cell
 # from bintang.row import Row
 from bintang.log import log
 import types
@@ -664,17 +664,7 @@ class Memory_Table(Base_Table):
         #log.debug("\n  ------------------out upsert_table_path_row (table.py)-------------------")
 
 
-    def make_cell(self,column,value,new_column=True):
-        if not isinstance(column, str):
-            raise ValueError("column name must be a string type!")
-        columnid = self.get_columnid(column)
-        if columnid is None: # if columnid is None then assume user wants a new column
-            if new_column == True:
-                self.add_column(column)
-                columnid = self.get_columnid(column) # reassign the columnid
-        # if columnid is None:
-        #     raise ValueError("Cannot make cell due to None column name.")    
-        return Cell(columnid,value)
+    # def make_cell() move to base
 
 
     def add_row(self, row, index=None):
@@ -788,13 +778,13 @@ class Memory_Table(Base_Table):
         return row.get_values(columnids)
 
 
-    def _normalise_row(self, row, columnids, rowid=False):
-        # we'll add a new cell as None if never existed when reading the source
-        for cid in columnids:
-            if cid not in row.cells:
-                cell = Cell(cid,None)  # a none cell or never existed for the row at the source
-                row.add_cell(cell)
-        return row  
+    # def _normalise_row(self, row, columnids, rowid=False):
+    #     # we'll add a new cell as None if never existed when reading the source
+    #     for cid in columnids:
+    #         if cid not in row.cells:
+    #             cell = Cell(cid,None)  # a none cell or never existed for the row at the source
+    #             row.add_cell(cell)
+    #     return row  
 
 
     def iterrows(self, 

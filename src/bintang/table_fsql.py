@@ -1,5 +1,6 @@
 from bintang.log import log
 from bintang.table_base import Base_Table
+from bintang.cell import Cell
 import json
 
 class From_SQL_Table(Base_Table):
@@ -7,7 +8,8 @@ class From_SQL_Table(Base_Table):
         super().__init__(name, bing=bing)
         self.conn = None    # for fromsql use
         self.sql_str = None     # for fromsql use
-        self.params = None  # for fromsql use      
+        self.params = None  # for fromsql use
+        self.columns = {}    
 
 
     def __repr__(self):
@@ -23,11 +25,17 @@ class From_SQL_Table(Base_Table):
 
 
     def get_columnid(self, column):
-        pass
+        return next((k for k, v in self.columns.items() if v == column), None)
 
 
     def get_columnids(self, columns):
-        pass     
+        pass
+
+    def populate_columns(self):
+        columns = self.get_columns()
+        for i, col in enumerate(columns, start=1):
+            self.columns[i] = col
+
     
     
     def get_columns(self) -> tuple:
@@ -53,6 +61,65 @@ class From_SQL_Table(Base_Table):
             cursor.close()   
 
 
+    def _iterrows(self, rowid: str=None):
+        # execute sql
+        cursor = self.conn.cursor()
+        try:
+            if self.sql_str is None:
+                sql_str = "SELECT * FROM {}".format(self.name)
+            if self.params is not None:
+                cursor.execute(self.sql_str, self.params)
+            else:
+                cursor.execute(self.sql_str)
+            # Loop through the result sets to skip the setup steps (CREATE, INDEX etc) and get to the actual data result set.
+            # cursor.description is only populated when a set contains actual rows to fetch    
+            while cursor.description is None:
+                if not cursor.nextset():
+                    break    
+            # Once the loop exits and finds cursor.description, fetch final data    
+            if cursor.description is not None:
+                ## use fetchmany instead of fetchone for better performance
+                # row = cursor.fetchone()
+                # idx = 1
+                # while row is not None:
+                #     yield idx, row
+                #     row = cursor.fetchone()
+                #     idx += 1 
+                # 
+                idx = 1
+                while True:
+                    rows = cursor.fetchmany(300)
+                    if not rows: break
+                    if rowid is not None:
+                        for sqlrow in rows:
+                            # print('sqlrow',sqlrow)
+                            row = self.make_row()
+                            rowid_value = None
+                            for k, v in self.columns.items():
+                                cell = Cell(k, sqlrow[k-1])
+                                row.add_cell(cell)
+                                if rowid == v:
+                                    rowid_value = sqlrow[k-1]
+                            yield rowid_value, row
+                            idx += 1
+                    else:
+                        for sqlrow in rows:
+                            # print('sqlrow',sqlrow)
+                            row = self.make_row()
+                            for k, v in self.columns.items():
+                                cell = Cell(k, sqlrow[k-1])
+                                row.add_cell(cell)
+
+                            yield idx, row
+                            idx += 1
+        except Exception as e:
+            log.exception('Error executing SQL: {}'.format(e))
+        finally:
+            cursor.close()               
+
+    
+    
+    
     def iterrows(self,
                     columns: list | tuple | None = None,
                     row_type: str='dict', 
@@ -131,38 +198,8 @@ class From_SQL_Table(Base_Table):
             
 
 
-    def to_csv(self, path, index=False, \
-               dialect='excel', delimiter=',', \
-               quotechar='"', quoting=0): 
-        import csv
-        # csv.QUOTE_MINIMAL = 0
-        # csv.QUOTE_ALL = 1
-        # csv.QUOTE_NONNUMERIC = 2
-        # csv.QUOTE_NONE = 3
-        
-        # define columns
-        columns = self.get_columns()
-        with open(path, 'w', newline = '\n') as csvfile:
-            csvwriter = csv.writer(csvfile, dialect=dialect, delimiter=delimiter,
-                                   quotechar=quotechar, quoting=quoting)
-            columns_towrite = [col for col in columns]
-            if index:                       # if column index wanted
-                idx_col = self.INDEX_COLUMN_NAME
-                if isinstance(index, str):  # if user wanted own index column name
-                    idx_col = index
-                columns_towrite.insert(0,idx_col)
-            # write header to csvfile
-            csvwriter.writerow(columns_towrite)
-            if index:
-                for idx, row in self.iterrows(row_type='list'):
-                    csvwriter.writerow([idx] + row)
-            else:
-                for idx, row in self.iterrows(row_type='list'):
-                    csvwriter.writerow(row)
+    # to_csv() move to table_base
     
-
-    
-
 
 type_map = {
     'sqlserver': {

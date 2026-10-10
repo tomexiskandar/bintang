@@ -12,4 +12,5 @@ ztodo.txt
 src/bintang/_version.py
 zshow_version.py
 sync_git.py
+examples/local*
 

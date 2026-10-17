@@ -608,20 +608,21 @@ Bintang.Table.to_sql(conn, table, columns=None, schema=None, method='prep', max_
 -----------------------------------------------------------------------------------------
 
 Insert records into sql table.
-This function requires pyodbc or psycopg (postgresql specific) connection, therefore you must install the required package.
+This function requires pyodbc or psycopg (postgresql specific) or pymssql (sqlserver specific) connection, therefore you must install the required package.
 Below is an example to install the package from a terminal.
 
 .. code-block:: console
 
    C:\project_dir>pip install pyodbc
    C:\project_dir>pip install psycopg
+   C:\project_dir>pip install pymssql
 
-:conn: pyodbc database connection
+:conn: database connection
 :table: the table name in the sql database
 :columns: If a dictionary then a columns mapping where the key is sql column (destination) and the value is bintang columns (source). If a list, column mapping will be created automatically assuming source columns and destination columns are the same. If not provided it assumes that user wants to insert all the columns from the table.
 :schema: the schema name the sql table belongs to.
-:method: 'prep' to use prepared statement (default) or 'string' to use sql string. To avoid sql injection, never use string method when the datasource is external or not known.
-:max_rows: maximum rows per batch insert. Allowed value would be from 1 to 1000. Insert more then 1 record when using prep require all data in a column to use the same type, otherwise will raise error.
+:method: 'prep' to use prepared statement or bulk copy depending the connection used (default) or 'string' to use sql string. To avoid sql injection, never use string method when the datasource is external or not known.
+:max_rows: maximum rows per batch insert. The default is 1 and if provided the max value it is depending the specifications provided by the connection.
 
 .. code-block:: python
    

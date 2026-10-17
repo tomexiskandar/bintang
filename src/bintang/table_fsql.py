@@ -56,7 +56,7 @@ class From_SQL_Table(Base_Table):
             if cursor.description is not None:    
                 return tuple([col[0] for col in cursor.description])
         except Exception as e:
-            log.error('Error executing SQL: {}'.format(e))
+            log.exception('Error executing SQL: {}'.format(e))
         finally:
             cursor.close()   
 

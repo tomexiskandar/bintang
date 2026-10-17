@@ -374,18 +374,31 @@ class Base_Table(ABC):
             # validate columns to make sure user passed the correct column names
             schema = self.extract_schema_name(table)
             table = self.extract_table_name(table)
+            
             columns_val = [x for x in colmap.values()]
             columns_key = [x for x in colmap.keys()]
             validated_bintang_columns = self.validate_columns(columns_val)
-            validated_db_columns = self.validate_db_columns(columns_key, conn, schema, table)
+            # validate db columns
+            if conn_name == 'pymssql':
+                validated_db_columns = self.validate_pymssql_columns(columns_key, conn, schema, table)
+            elif conn_name == 'psycopg':
+                validated_db_columns = self.validate_psycopg_columns(columns_key, conn, schema, table)
+            else: # do it for pyodbc
+                validated_db_columns = self.validate_pyodbc_columns(columns_key, conn, schema, table)
             # todo: validate validated columns to give warning, perhaps a conn cannot extract schema data from the database
             if validated_bintang_columns is None or validated_db_columns is None:
                 log.warning(f"columns validation failed. pls check schema access and column mappings.")
-
             if method.upper() =='STRING':
                 return self._to_sql_string(conn, table, colmap, schema=schema, max_rows=max_rows, conn_name=conn_name)
-            else:
-                return self._to_sql_prep(conn, table, colmap, schema=schema, max_rows=max_rows,conn_name=conn_name)
+            else: # do prepared or bulk method here
+                if conn_name == 'pyodbc' and conn.getinfo(17).lower() == 'microsoft sql server': # 17 is the explicit ODBC API code for SQL_DBMS_NAME
+                    return self._to_sql_prep_fast_pyodbc(conn, table, colmap, schema=schema, max_rows=max_rows)
+                elif conn_name == 'pymssql':
+                    return self._to_sql_bulkcopy_pymssql(conn, table, colmap, schema=schema, max_rows=max_rows)
+                elif conn_name == 'psycopg':
+                    return self._to_sql_bulkcopy_psycopg(conn, table, colmap, schema=schema, max_rows=max_rows)
+                else:
+                    return self._to_sql_prep(conn, table, colmap, schema=schema, max_rows=max_rows,conn_name=conn_name)
         except Exception as e:
             log.exception(e)
             return None
@@ -496,7 +509,7 @@ class Base_Table(ABC):
         return sql_typeinfo
     
     
-    def validate_db_columns(self, columns, conn, schema, table):
+    def validate_pyodbc_columns(self, columns, conn, schema, table):
         """
         validate columns by user to align with those columns stored in db
         return: validated_cols: list of validated columns
@@ -507,6 +520,79 @@ class Base_Table(ABC):
         cursor = conn.cursor()
         try:
             db_columns = [row.column_name for row in cursor.columns(schema=schema, table=table)]
+            db_columns_lower = [col.lower() for col in db_columns]
+            for column in columns:
+                if column.lower() in db_columns_lower:
+                    validated_cols.append(column)
+                else:
+                    unmatched_cols.append(column)
+            if len(unmatched_cols) > 0:
+                similar_columns = self._suggest_similar_columns_choice(unmatched_cols, choices=db_columns)
+                message = self._suggest_db_columns_msg(similar_columns, table)
+                log.warning(message)
+                return None
+            else:
+                return validated_cols
+        except Exception as e:
+            log.warning(e)
+            return None
+
+
+    def validate_pymssql_columns(self, columns, conn, schema, table):
+        """
+        validate columns by user to align with those columns stored in db
+        return: validated_cols: list of validated columns
+        raise ColumnError if any unmatched columns found
+        """
+        validated_cols = []
+        unmatched_cols = []
+        cursor = conn.cursor()
+        try:
+            sql = f"""
+            DECLARE @TargetSchema NVARCHAR(128) = {repr(schema) if schema is not None else 'NULL'}; -- Leave NULL to automatically use default schema (e.g., dbo)
+            SELECT COLUMN_NAME, ORDINAL_POSITION 
+            FROM INFORMATION_SCHEMA.COLUMNS 
+            WHERE TABLE_NAME = {repr(table)}
+                AND TABLE_SCHEMA = COALESCE(@TargetSchema, SCHEMA_NAME());"""
+            cursor.execute(sql)
+            db_columns = [row[0] for row in cursor.fetchall()]
+            db_columns_lower = [col.lower() for col in db_columns]
+            for column in columns:
+                if column.lower() in db_columns_lower:
+                    validated_cols.append(column)
+                else:
+                    unmatched_cols.append(column)
+            if len(unmatched_cols) > 0:
+                similar_columns = self._suggest_similar_columns_choice(unmatched_cols, choices=db_columns)
+                message = self._suggest_db_columns_msg(similar_columns, table)
+                log.warning(message)
+                return None
+            else:
+                return validated_cols
+        except Exception as e:
+            log.warning(e)
+            return None
+        
+
+
+    def validate_psycopg_columns(self, columns, conn, schema, table):
+        """
+        validate columns by user to align with those columns stored in db
+        return: validated_cols: list of validated columns
+        raise ColumnError if any unmatched columns found
+        """
+        validated_cols = []
+        unmatched_cols = []
+        cursor = conn.cursor()
+        try:
+            sql = f"""
+            SELECT column_name
+            FROM information_schema.columns
+            WHERE table_schema = {repr(schema if schema is not None else 'public')}
+            AND table_name = {repr(table)}
+            ORDER BY ordinal_position;"""
+            cursor.execute(sql)
+            db_columns = [row[0] for row in cursor.fetchall()]
             db_columns_lower = [col.lower() for col in db_columns]
             for column in columns:
                 if column.lower() in db_columns_lower:
@@ -549,13 +635,17 @@ class Base_Table(ABC):
 
     def set_sql_literal(self, sql_cols_withtype, conn):
         try:
-            sql_typeinfo_tab = self.get_sql_typeinfo_table(conn)           
+            sql_typeinfo_tab = self.get_sql_typeinfo_table(conn)
             sql_cols_withliteral = {}
             for k, v in sql_cols_withtype.items():
-                prefix = sql_typeinfo_tab[v]['literal_prefix']
-                suffix = sql_typeinfo_tab[v]['literal_suffix']
-                literals = (prefix,suffix)
-                sql_cols_withliteral[k] = literals
+                if k in sql_typeinfo_tab:
+                    prefix = sql_typeinfo_tab[v]['literal_prefix']
+                    suffix = sql_typeinfo_tab[v]['literal_suffix']
+                    literals = (prefix,suffix)
+                    sql_cols_withliteral[k] = literals
+                else: # eg. for SQLite3 TEXT
+                    literals = ("'", "'")
+                    sql_cols_withliteral[k] = literals
             return sql_cols_withliteral    
         except Exception as e: # opps... no support
             log.error(e)
@@ -564,25 +654,18 @@ class Base_Table(ABC):
 
 
     def _to_sql_prep(self, conn, table, colmap, schema=None, max_rows = 1, conn_name='pyodbc'):
-        if max_rows <= len(self): # validate max_row
-            mrpb = max_rows # assign max row per batch
-        else:
-            #log.warning('Warning! max_rows {} set greater than totalrows {}. max_rows set to 1'.format(max_rows, len(self)))
-            mrpb = 1
         numof_col = len(colmap) # num of columns
         src_cols = [x for x in colmap.values()]
         dest_columns = [x for x in colmap.keys()]
-        
         # generate prepared statement
-        prep_stmt = self.gen_prep_stmt(table, dest_columns, numof_col, mrpb, conn_name=conn_name, schema=schema)
-        
+        prep_stmt = self.gen_prep_stmt(table, dest_columns, numof_col, max_rows, conn_name=conn_name, schema=schema)
         cursor = conn.cursor()
         temp_rows = []
         rows_affected = 0
         for idx, row in self.iterrows(src_cols, row_type='list'):
             for v in row:
-                temp_rows.append(v)
-            if len(temp_rows) == (mrpb * numof_col):
+                temp_rows.append(str(v) if v is not None else None)  # convert to str to fix the bug "cannot convert int to string even though the target column is varchar"
+            if len(temp_rows) == (max_rows * numof_col):
                 log.debug(prep_stmt)
                 log.debug(temp_rows)
                 try:
@@ -591,13 +674,11 @@ class Base_Table(ABC):
                 except Exception as e:
                     log.error(e)
                     log.error(prep_stmt)
-                    log.error(temp_rows)  
-                temp_rows.clear()     
-        
+                    log.error(temp_rows)
+                temp_rows.clear()
         if len(temp_rows) > 0: # if any reminder
-            # create as prepared statement
-            mrpb = int(len(temp_rows)/numof_col) # adjust mrpb
-            prep_stmt = self.gen_prep_stmt(table, dest_columns, numof_col, mrpb, conn_name=conn_name, schema=schema)
+            max_rows = (len(temp_rows)+numof_col-1) // numof_col
+            prep_stmt = self.gen_prep_stmt(table, dest_columns, numof_col, max_rows, conn_name=conn_name, schema=schema)
             try:
                 cursor.execute(prep_stmt, temp_rows)
                 rows_affected += cursor.rowcount
@@ -608,8 +689,46 @@ class Base_Table(ABC):
         return rows_affected
 
 
-    def gen_prep_stmt(self, table, dest_columns, numof_col, mrpb, conn_name='pyodbc', schema=None):
-        param_markers = self.gen_row_param_markers(numof_col, mrpb, conn_name=conn_name)
+    def _to_sql_prep_fast_pyodbc(self, conn, table, colmap, schema=None, max_rows = None):
+        max_rows = max_rows
+        numof_col = len(colmap) # num of columns
+        src_cols = [x for x in colmap.values()]
+        dest_columns = [x for x in colmap.keys()]
+        # generate prepared statement
+        prep_stmt = self.gen_prep_stmt_fast_pyodbc(table, dest_columns, numof_col, schema=schema)
+        cursor = conn.cursor()
+        cursor.fast_executemany = True
+        temp_rows = []
+        rows_affected = 0
+        for idx, row in self.iterrows(src_cols, row_type='list'):
+            temp_rows.append(tuple(row))           
+            if len(temp_rows) == max_rows: 
+                log.debug(prep_stmt)
+                log.debug(temp_rows)
+                try:
+                    cursor.executemany(prep_stmt, temp_rows)
+                    rows_affected += len(temp_rows)
+                except Exception as e:
+                    log.error(e)
+                    log.error(prep_stmt)
+                    log.error(temp_rows)  
+                temp_rows.clear()         
+        if len(temp_rows) > 0: # if any reminder
+            # create as prepared statement
+            log.debug(prep_stmt)
+            log.debug(temp_rows)
+            try:
+                cursor.executemany(prep_stmt, temp_rows)
+                rows_affected += len(temp_rows)
+            except Exception as e:
+                log.error(e)
+                log.error(prep_stmt)
+                log.error(temp_rows)
+        return rows_affected
+
+
+    def gen_prep_stmt(self, table, dest_columns, numof_col, max_rows, conn_name='pyodbc', schema=None):
+        param_markers = self.gen_row_param_markers(numof_col, max_rows, conn_name=conn_name)
         if schema is not None:
             sql_template = 'INSERT INTO "{}"."{}" ({}) VALUES {}'
             prep_stmt = sql_template.format(schema, table, ",".join(['"{}"'.format(x) for x in dest_columns]),param_markers)
@@ -627,7 +746,103 @@ class Base_Table(ABC):
             params.append(param)
         return ",".join(params)
 
+
+    def gen_prep_stmt_fast_pyodbc(self, table, dest_columns, numof_col, schema=None):
+            param_markers = self.gen_row_param_markers_fast_pyodbc(numof_col)
+            if schema is not None:
+                sql_template = 'INSERT INTO "{}"."{}" ({}) VALUES {}'
+                prep_stmt = sql_template.format(schema, table, ",".join(['"{}"'.format(x) for x in dest_columns]),param_markers)
+            else:
+                sql_template = 'INSERT INTO "{}" ({}) VALUES {}'
+                prep_stmt = sql_template.format(table, ",".join(['"{}"'.format(x) for x in dest_columns]),param_markers)
+            return prep_stmt
+
+
+    def gen_row_param_markers_fast_pyodbc(self,numof_col):
+        param = "(" + ",".join(['?']  *numof_col) + ")"
+        return param    
+
+
+    def _to_sql_bulkcopy_pymssql(self, conn, table, colmap, schema=None, max_rows = None):
+        src_cols = [x for x in colmap.values()]
+        # get column id for each column
+        cursor = conn.cursor()
+        sql = f"""
+        DECLARE @TargetSchema NVARCHAR(128) = {repr(schema) if schema is not None else 'NULL'}; -- Leave NULL to automatically use default schema (e.g., dbo)
+        SELECT COLUMN_NAME, ORDINAL_POSITION 
+        FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE TABLE_NAME = {repr(table)}
+            AND TABLE_SCHEMA = COALESCE(@TargetSchema, SCHEMA_NAME());"""
+        cursor.execute(sql)
+        db_schema_map = {row[0]: row[1] for row in cursor.fetchall()} # Example output: {'id': 1, 'name': 2, 'surname': 3}
+        column_ids = [db_schema_map[col] for col in colmap.keys() if col in db_schema_map]
+        print('column_ids', column_ids)
+        # Verify all source fields actually exist in the database table
+        if len(column_ids) != len(colmap):
+            raise ValueError("One or more keys in your source data do not exist in the database table schema.")
+    
+        temp_rows = []
+        rows_affected = 0
         
+        for idx, row in self.iterrows(src_cols, row_type='list'):
+            temp_rows.append(tuple(row))           
+            if len(temp_rows) == max_rows: 
+                try:
+                    conn.bulk_copy(table, temp_rows, column_ids=column_ids)
+                    rows_affected += len(temp_rows)
+                except Exception as e:
+                    log.error(e)
+                temp_rows.clear()         
+        if len(temp_rows) > 0: # if any reminder
+            try:
+                conn.bulk_copy(table, temp_rows, column_ids=column_ids)
+                rows_affected += len(temp_rows)
+            except Exception as e:
+                log.error(e)
+        return rows_affected
+
+
+    def _to_sql_bulkcopy_psycopg(self, conn, table, colmap, schema=None, max_rows = None):
+        import csv
+        import io
+        src_cols = [x for x in colmap.values()]
+        # get column id for each column
+        stmt = f"COPY {schema if schema is not None else 'public'}.{table} ({', '.join(colmap.keys())}) FROM STDIN WITH (FORMAT CSV)"
+        buffer = io.StringIO()
+        cursor = conn.cursor()
+        
+        temp_rows = []
+        rows_affected = 0
+        
+        
+        for idx, row in self.iterrows(src_cols, row_type='list'):
+            temp_rows.append(tuple(row))           
+            if len(temp_rows) == max_rows:
+                try:
+                    with cursor.copy(stmt) as copy:
+                        buffer = io.StringIO()
+                        writer = csv.writer(buffer)
+                        writer.writerows(temp_rows)
+                        buffer.seek(0)
+                        copy.write(buffer.getvalue())                        
+                        rows_affected += len(temp_rows)
+                except Exception as e:
+                    log.error(e)
+                temp_rows.clear()         
+        if len(temp_rows) > 0: # if any reminder
+            try:
+                with cursor.copy(stmt) as copy:
+                    buffer = io.StringIO()
+                    writer = csv.writer(buffer)
+                    writer.writerows(temp_rows)
+                    buffer.seek(0)
+                    copy.write(buffer.getvalue())   
+                    rows_affected += len(temp_rows)
+            except Exception as e:
+                log.error(e)
+        return rows_affected
+
+    
     def update(self, column, value, where=None):
         if isinstance(value, types.FunctionType):
             # value passed as function

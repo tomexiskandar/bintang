@@ -40,8 +40,8 @@ Here is a list of the functions and its dependencies:
 
    * - Functions
      - Packages
-   * - create_linked_table(), read_sql() and to_sql()
-     - pyodbc or psycopg (postgresql specific)
+   * - create_sql_linked_table(), read_sql() and to_sql()
+     - pyodbc, psycopg (postgresql specific), pymssql (sqlserver specific), sqlite3 (sqlite3 specific).
    * - read_excel()
      - openpyxl (xlsx) and xlrd (xls)
    * - to_excel()
@@ -51,6 +51,10 @@ Here is a list of the functions and its dependencies:
    * - fuzzy_cmprows()  
      - rapidfuzz (faster than the built-in difflib.SequenceMatcher)
 
+Note: pyodbc needs an ODBC driver installed in your system. Here is the list of drivers that have been tested:
+* ODBC Driver 17 for SQL Server
+* PostgreSQL ODBC Driver(UNICODE)
+* SQLITE3 ODBC Driver
 
 
 
@@ -604,23 +608,15 @@ Here an example of using our to_dict() function then use build-in module json to
 
 
 
-Bintang.Table.to_sql(conn, table, columns=None, schema=None, method='prep', max_rows = 1)
+Bintang.Table.to_sql(conn, table, columns=None, method='prep', max_rows = 1)
 -----------------------------------------------------------------------------------------
 
 Insert records into sql table.
-This function requires pyodbc or psycopg (postgresql specific) or pymssql (sqlserver specific) connection, therefore you must install the required package.
-Below is an example to install the package from a terminal.
-
-.. code-block:: console
-
-   C:\project_dir>pip install pyodbc
-   C:\project_dir>pip install psycopg
-   C:\project_dir>pip install pymssql
+This function requires a connection object.
 
 :conn: database connection
 :table: the table name in the sql database
 :columns: If a dictionary then a columns mapping where the key is sql column (destination) and the value is bintang columns (source). If a list, column mapping will be created automatically assuming source columns and destination columns are the same. If not provided it assumes that user wants to insert all the columns from the table.
-:schema: the schema name the sql table belongs to.
 :method: 'prep' to use prepared statement or bulk copy depending the connection used (default) or 'string' to use sql string. To avoid sql injection, never use string method when the datasource is external or not known.
 :max_rows: maximum rows per batch insert. The default is 1 and if provided the max value it is depending the specifications provided by the connection.
 

@@ -701,7 +701,7 @@ class Base_Table(ABC):
         temp_rows = []
         rows_affected = 0
         for idx, row in self.iterrows(src_cols, row_type='list'):
-            temp_rows.append(tuple(row))           
+            temp_rows.append(row)           
             if len(temp_rows) == max_rows: 
                 log.debug(prep_stmt)
                 log.debug(temp_rows)
@@ -785,7 +785,7 @@ class Base_Table(ABC):
         rows_affected = 0
         
         for idx, row in self.iterrows(src_cols, row_type='list'):
-            temp_rows.append(tuple(row))           
+            temp_rows.append(row)           
             if len(temp_rows) == max_rows: 
                 try:
                     conn.bulk_copy(table, temp_rows, column_ids=column_ids)
@@ -816,7 +816,7 @@ class Base_Table(ABC):
         
         
         for idx, row in self.iterrows(src_cols, row_type='list'):
-            temp_rows.append(tuple(row))           
+            temp_rows.append(row)           
             if len(temp_rows) == max_rows:
                 try:
                     with cursor.copy(stmt) as copy:

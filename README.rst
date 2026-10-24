@@ -10,13 +10,22 @@
    :target: https://codecov.io/gh/tomexiskandar/bintang   
 
 
-
-
-=======
 Bintang
 =======
-A tiny and temporary db for quick data cleansing and transformation.
-It is a high-level Python coding and would help any Pythonistas up to speed with ETL work.
+
+**A lightweight Python data-processing package with in-memory and streaming-style linked tables.**
+
+Bintang is designed to make everyday data processing simple, transparent, and accessible. It provides a high-level Python interface for validating, cleansing, comparing, and transferring data between files and databases.
+
+Bintang supports both in-memory tables and read-only linked tables connected to external data sources, such as SQL databases and CSV files. Linked tables use incremental iteration to process records without requiring the entire dataset to be loaded into memory.
+
+Both approaches provide a familiar interface for common data operations, allowing Python developers to work with data efficiently, regardless of how it is stored.
+
+Bintang focuses on doing a few essential things well rather than becoming a complex ETL framework. For advanced data enrichment and transformation, it works alongside SQL and other specialised tools.
+
+**Bintang's philosophy: Keep it simple, transparent, and practical.**
+
+
 
 .. contents:: Table of Contents
    :depth: 2

@@ -1,12 +1,12 @@
 # import core functions so it's accessable bintang.<func()>
-from .core import get_similar_values
-from .core import match
-from .core import get_fuzzy_ratio
-from .core import get_wb_type_toread
-from .core import get_wb_type_towrite
-from .core import gen_ts_string
-from .core import gen_ts_path
-from .core import type_map
-from .core import quote_id
+from .utils import get_similar_values
+from .utils import match
+from .utils import get_fuzzy_ratio
+from .utils import get_wb_type_toread
+from .utils import get_wb_type_towrite
+from .utils import gen_ts_string
+from .utils import gen_ts_path
+from .utils import type_map
+from .utils import quote_id
 # import Bintang class so it's visible via bintang.Bintang()
 from .core import Bintang

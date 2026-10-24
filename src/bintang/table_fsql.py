@@ -1,6 +1,7 @@
 from bintang.log import log
 from bintang.table_base import Base_Table
 from bintang.cell import Cell
+from bintang import quote_id
 import json
 
 class From_SQL_Table(Base_Table):
@@ -9,7 +10,6 @@ class From_SQL_Table(Base_Table):
         self.conn = None    # for fromsql use
         self.sql_str = None     # for fromsql use
         self.params = None  # for fromsql use
-        self.columns = {}    
 
 
     def __repr__(self):
@@ -21,30 +21,26 @@ class From_SQL_Table(Base_Table):
 
 
     def __len__(self):
-        return 0    
-
-
-    def get_columnid(self, column):
-        return next((k for k, v in self.columns.items() if v == column), None)
+        return -1
 
 
     def get_columnids(self, columns):
         pass
 
     def populate_columns(self):
-        columns = self.get_columns()
-        for i, col in enumerate(columns, start=1):
-            self.columns[i] = col
-
+        columns = self.get_columns_fromdb()
+        for column in columns: # do it for Base_Table's __columns
+            columnid = self.get_columnid(column)
+            if columnid is None: # if columnid is None then assume user wants a new column
+                self.add_column(column)
     
     
-    def get_columns(self) -> tuple:
+    def get_columns_fromdb(self) -> tuple:
         cursor = self.conn.cursor()
         try:
             if self.sql_str is None:
-                sql_str = "SELECT * FROM {}".format(self.name)
-            if self.params is not None:
-                cursor.execute(self.sql_str, self.params)
+                sql_str = "SELECT * FROM {} WHERE 1=0".format(quote_id(self.name))
+                cursor.execute(sql_str)           
             else:
                 cursor.execute(self.sql_str)
             # Loop through the result sets to skip the setup steps (CREATE, INDEX etc) and reach the final SELECT result set
@@ -66,7 +62,7 @@ class From_SQL_Table(Base_Table):
         cursor = self.conn.cursor()
         try:
             if self.sql_str is None:
-                sql_str = "SELECT * FROM {}".format(self.name)
+                self.sql_str = "SELECT * FROM {}".format(self.name)
             if self.params is not None:
                 cursor.execute(self.sql_str, self.params)
             else:
@@ -85,31 +81,43 @@ class From_SQL_Table(Base_Table):
                 #     yield idx, row
                 #     row = cursor.fetchone()
                 #     idx += 1 
-                # 
+                #
+                columns_from_db_= tuple([col[0] for col in cursor.description])
+                # generate local columns based on the columns from the database
+                for column in columns_from_db_: 
+                    columnid = self.get_columnid(column)
+                    if columnid is None: # if columnid is None then assume user wants a new column
+                        self.add_column(column)
+                        
+                columns_dict = {} # to hold column id to column name mapping
+                for column in self.get_columns():
+                    cobj = self.get_column_object(column)
+                    columns_dict[cobj.id] = column 
                 idx = 1
                 while True:
                     rows = cursor.fetchmany(300)
                     if not rows: break
                     if rowid is not None:
                         for sqlrow in rows:
-                            # print('sqlrow',sqlrow)
+                            row_dict = dict(zip(columns_dict.keys(), sqlrow))
                             row = self.make_row()
-                            rowid_value = None
-                            for k, v in self.columns.items():
-                                cell = Cell(k, sqlrow[k-1])
+                            try: # user may not have rowid passed to the query but still passed rowid arg
+                                rowid_value = row_dict[self.get_columnid(rowid)]
+                            except KeyError:
+                                raise KeyError(f"Row ID column '{rowid}' not found in SQL row.")
+                            for k, v in row_dict.items():
+                                cell = Cell(k, v)
                                 row.add_cell(cell)
-                                if rowid == v:
-                                    rowid_value = sqlrow[k-1]
                             yield rowid_value, row
                             idx += 1
                     else:
                         for sqlrow in rows:
                             # print('sqlrow',sqlrow)
+                            row_dict = dict(zip(columns_dict.keys(), sqlrow))
                             row = self.make_row()
-                            for k, v in self.columns.items():
-                                cell = Cell(k, sqlrow[k-1])
+                            for k, v in row_dict.items():
+                                cell = Cell(k, v)
                                 row.add_cell(cell)
-
                             yield idx, row
                             idx += 1
         except Exception as e:
@@ -138,7 +146,7 @@ class From_SQL_Table(Base_Table):
 
         
         # define columns
-        if columns is not None:          
+        if columns is None:          
             columns = self.get_columns() # assign all available column names
 
             

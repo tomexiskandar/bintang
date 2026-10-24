@@ -10,7 +10,7 @@ class From_CSV_Table(Base_Table):
         self.delimiter = delimiter
         self.quotechar = quotechar
         self.header_row = header_row
-        self.columns = {}
+        # self.columns = {}
 
 
     def __len__(self):
@@ -21,20 +21,16 @@ class From_CSV_Table(Base_Table):
         return row_count
 
 
-    def get_columnid(self, column):
-        return next((k for k, v in self.columns.items() if v == column), None)
-
-
-    def get_columnids(self, columns):
-        pass
-
     def populate_columns(self):
-        columns = self.get_columns()
-        for i, col in enumerate(columns, start=1):
-            self.columns[i] = col    
+        columns = self.get_columns_from_file()
+        for column in columns: 
+            columnid = self.get_columnid(column)
+            if columnid is None: # if columnid is None then assume user wants a new column
+                self.add_column(column)
 
 
-    def get_columns(self):
+
+    def get_columns_from_file(self):
         with open(self.filepath, newline='') as f:
             reader = csv.reader(f, delimiter=self.delimiter, quotechar=self.quotechar)
             # determine columns
@@ -47,12 +43,13 @@ class From_CSV_Table(Base_Table):
                     
 
     def _iterrows(self, 
-                 columns: list | tuple | None = None, 
-                 row_type: str='dict', 
                  where=None, 
                  rowid: str=None):
 
-        import csv
+        columns_dict = {} # to hold column id to column name mapping
+        for column in self.get_columns():
+            cobj = self.get_column_object(column)
+            columns_dict[cobj.id] = column
         with open(self.filepath, newline='') as f:
             reader = csv.reader(f, delimiter=self.delimiter, quotechar=self.quotechar)
             next(reader)
@@ -60,26 +57,30 @@ class From_CSV_Table(Base_Table):
             # for i in range(self.header_row):
             #     print('i', i)
             #     next(reader)
-            # split this logic into two, whether rowid provided or not to simplify the logics 
+            # to simplify this logic, split it into two, whether rowid provided or not.
             if rowid is not None:
+                print('rowid:', rowid)
                 for rownum, csvrow in enumerate(reader, start=1):
-                    if len(self.columns) == len(csvrow):
+                    row_dict = dict(zip(columns_dict.keys(), csvrow))
+                    if len(columns_dict) == len(csvrow):
                         row = self.make_row()
-                        rowid_value = None
-                        for k, v in self.columns.items():
-                            cell = Cell(k, csvrow[k-1])
+                        try:
+                            rowid_value = row_dict[self.get_columnid(rowid)]
+                        except KeyError:
+                            raise KeyError(f"Row ID column '{rowid}' not found in CSV row.")
+                        for k, v in row_dict.items():
+                            cell = Cell(k, v)
                             row.add_cell(cell)
-                            if rowid == v:
-                                rowid_value = csvrow[k-1]
                         yield rowid_value, row
                     else:
                         raise IndexError ('length of column and row is not the same at rownum {}. Possible issues were incorrect quoting or missing value.'.format(rownum))
             else:
                 for rownum, csvrow in enumerate(reader, start=1):
-                    if len(self.columns) == len(csvrow):
+                    row_dict = dict(zip(columns_dict.keys(), csvrow))
+                    if len(columns_dict) == len(csvrow):
                         row = self.make_row()
-                        for k, v in self.columns.items():
-                            cell = Cell(k, csvrow[k-1])
+                        for k, v in row_dict.items():
+                            cell = Cell(k, v)
                             row.add_cell(cell)
                         yield rownum, row
                     else:
@@ -93,7 +94,10 @@ class From_CSV_Table(Base_Table):
                  row_type: str='dict', 
                  where=None, 
                  rowid: str=None):
-
+        if columns is None:
+            columns = self.get_columns()
+        else:
+            columns = self.validate_columns(columns)
         import csv
         with open(self.filepath, newline='') as f:
             reader = csv.reader(f, delimiter=self.delimiter, quotechar=self.quotechar)
@@ -105,9 +109,8 @@ class From_CSV_Table(Base_Table):
             # split this logic into two, whether rowid provided or not to simplify the logics 
             if rowid is not None:
                 for rownum, row in enumerate(reader, start=1):
-                    if len(self.columns) == len(row):
-                        row_dict = dict(zip(self.columns.values(), row))
-                        # print('row_dict before where:', row_dict)
+                    if len(columns) == len(row):
+                        row_dict = dict(zip(columns, row))
                         if columns is not None:
                             # print('columns arg', columns)
                             row_dict = {col: row_dict[col] for col in columns}
@@ -124,8 +127,9 @@ class From_CSV_Table(Base_Table):
                         raise IndexError ('length of column and row is not the same at rownum {}. Possible issues were incorrect quoting or missing value.'.format(rownum))
             else:
                 for rownum, row in enumerate(reader, start=1):
-                    if len(self.columns) == len(row):
-                        row_dict = dict(zip(self.columns.values(), row))
+                    # assert len(self.get_columns()) == len(columns)
+                    if len(columns) == len(row):
+                        row_dict = dict(zip(columns, row))
                         # print('row_dict before where:', row_dict)
                         if columns is not None:
                             # print('columns arg', columns)

@@ -27,7 +27,7 @@ jobs:
 
       - name: Run tests with coverage
         run: |
-          python -m pytest --cov=bintang --cov-report=xml tests/
+          python -m pytest -m "not local" --cov=bintang --cov-report=xml tests/
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4

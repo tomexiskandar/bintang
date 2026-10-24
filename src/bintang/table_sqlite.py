@@ -60,8 +60,6 @@ class Sqlite_Table(Base_Table):
         cur.execute("SELECT EXISTS (SELECT 1 FROM sqlite_master WHERE type='table' AND name=:tablename)", {"tablename":self.name})
         ret = cur.fetchone()[0]
         if  ret == 0:
-            # cur.execute(f"CREATE TABLE '{self.name}' (id INTEGER PRIMARY KEY NOT NULL, cells JSON)")
-            # cur.execute(f"CREATE TABLE '{self.name}__columns__' (id INTEGER PRIMARY KEY NOT NULL, name TEXT COLLATE NOCASE, ordinal_position INTEGER, data_type TEXT, column_size INTEGER, decimal_digits INTEGER, data_props JSON)")
             cur.execute(f"CREATE TABLE '{self.name}' (cells JSON_DATA)")
             cur.execute(f"CREATE TABLE '{self.name}__columns__' (columnid INTEGER PRIMARY KEY NOT NULL, name TEXT COLLATE NOCASE, ordinal_position INTEGER, data_type TEXT, column_size INTEGER, decimal_digits INTEGER, data_props JSON)")
         cur.close()
@@ -133,8 +131,6 @@ class Sqlite_Table(Base_Table):
     
     def _add_row_sql(self, row, index=None):
         cur = self.conn.cursor()
-        # sql = f'INSERT INTO "{self.name}" (id, cells) VALUES (?,?)'
-        # cur.execute(sql, (row.id, row.cells)) 
         sql = f'INSERT INTO "{self.name}" (cells) VALUES (?)'
         cur.execute(sql, (row.cells,)) 
 
@@ -197,7 +193,6 @@ class Sqlite_Table(Base_Table):
             
                                                   
         elif isinstance(dict_or_columns,list) or isinstance(dict_or_columns,tuple) or isinstance(dict_or_columns,list) or isinstance(dict_or_columns,tuple):
-            #row = self.make_row()
             row = self.make_row() #Row(0) # dummy idx
             for idx, col in enumerate(dict_or_columns):
                 cell = self._make_cell_sql(col,values[idx])

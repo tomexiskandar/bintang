@@ -19,7 +19,6 @@ class Row:
 
     def get_cell(self,columnid):
         cell = self.cells[columnid]
-        #print("test direct...",cell.get_cell())
         return cell
 
 

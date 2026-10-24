@@ -1,8 +1,7 @@
-import unicodedata
 class Column:
     """class to define column object 
     """
-    __slots__ = ('id','name','data_type','required','min_value','max_value','min_length','max_length','min_digit','max_digit','decimal_places','ordinal_position','column_size','decimal_digits','data_props')
+    __slots__ = ('id','name','data_type','required','min_value','max_value','min_length','max_length','min_digit','max_digit','decimal_places','ordinal_position','column_size','decimal_digits','empty_string_as_null','data_props')
     def __init__(self,name):
         self.id = None
         self.name = name
@@ -18,13 +17,14 @@ class Column:
         self.ordinal_position = 0
         self.column_size = 0 # the max. get this on request
         self.decimal_digits = 0 # get this on request
+        self.empty_string_as_null = False # for validation for str
         self.data_props = {}
         #self.data_types = [] # get this on request. its common data type more than one (inconsistent data)
         
         
     
     def __repr__(self):
-        return f'id:{self.id}, name: {self.name}, data_type: {self.data_type}, required: {self.required}, min_value: {self.min_value}, max_value: {self.max_value}, min_length: {self.min_length}, max_length: {self.max_length}'
+        return f'id:{self.id}, name: {self.name}, data_type: {self.data_type}, required: {self.required}, min_value: {self.min_value}, max_value: {self.max_value}, min_length: {self.min_length}, max_length: {self.max_length}, min_digit: {self.min_digit}, max_digit: {self.max_digit}, decimal_places: {self.decimal_places}, ordinal_position: {self.ordinal_position}, column_size: {self.column_size}, decimal_digits: {self.decimal_digits}, empty_string_as_null: {self.empty_string_as_null}'
 
     def get_name_uppercased(self):
         return self.name.upper()

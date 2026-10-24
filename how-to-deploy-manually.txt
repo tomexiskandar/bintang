@@ -1,0 +1,15 @@
+How to deploy to github and pypi manually
+----------------------------------------
+change the line that start with log.setLevel in the src/bintang.log file to log.setLevel(logging.ERROR)
+increase 1 to the version of pyproject.toml # generally the patch version
+at the root run the following command lines:
+python -m build --no-build-isolation
+# if exist dist rmdir /s /q dist && python -m build --no-build-isolation   # to delete any existing build and build
+pip install -e ".[all]"    # run pip install
+pytest -v                  # run pytest
+python sync_git.py "msg"   # run git add, git commit and git push origin main
+git <tag v0.2.##>          # run git to tag version
+git push origin v0.2.##    # run git to push the tag version
+
+# to manually upload to pypi directly if github action has failed
+python -m twine upload --verbose dist/bintang-0.2.xx* # where xx the minor version and * a wild card for the whl and tar.gz 

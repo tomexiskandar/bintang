@@ -9,8 +9,7 @@ temp/
 znotes.txt
 ztodo.txt
 .pytest_cache
-src/bintang/_version.py
 zshow_version.py
-sync_git.py
-examples/local*
-
+.env
+.env.*
+!.env.example

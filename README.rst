@@ -79,12 +79,12 @@ Examples of Usage
    from bintang import Bintang # import the package
    bt = Bintang()              # bintang object created
 
-   bt.create_table('Person')  
+   bt.create_table('person')  
    print(bt  )
    # {  
    #    "name": null,  
    #    "tables": [  
-   #    "Person"  
+   #    'person'  
    #    ]  
    # }  
 
@@ -94,26 +94,26 @@ Use insert function to populate a table. The parameters are dict/columns and val
 .. code-block:: python
 
    # Create a couple of tables and use insert function to insert data.
-   bt.create_table('Person') 
+   bt.create_table('person') 
 
-   bt['Person'].insert({'id':1,'name':'John','surname':'Smith','address':'1 Station St'})
-   bt['Person'].insert(['id','name','surname','hobby','address'],[2,'Jane','Brown','Digging','8 Parade Rd'])
-   bt['Person'].insert(['id','name','surname','Address'], [3,'Okie','Dokie', '7 Ocean Rd'])
-   bt['Person'].insert((4,'Maria','Digging','7 Heaven Ave'), ('id','name','hobby','Address'))
-   bt['Person'].insert((5,'Bing','Digging',None), ('id','name','hobby','Address'))
+   bt['person'].insert({'id':1,'name':'John','surname':'Smith','address':'1 Station St'})
+   bt['person'].insert(['id','name','surname','hobby','address'],[2,'Jane','Brown','Digging','8 Parade Rd'])
+   bt['person'].insert(['id','name','surname','Address'], [3,'Okie','Dokie', '7 Ocean Rd'])
+   bt['person'].insert(('id','name','hobby','Address'),(4,'Maria','Digging','7 Heaven Ave'))
+   bt['person'].insert(('id','name','hobby','Address'),(5,'Bing','Digging',None))
 
-   bt.create_table("FishingClub")
-   bt['FishingClub'].insert({'FirstName':'Ajes','LastName':'Freeman','Membership':'Active'})
-   bt['FishingClub'].insert({'FirstName':'John','LastName':'Smith','Membership':'Active'})
-   bt['FishingClub'].insert({'FirstName':'Jane','LastName':'Brown','Membership':'Active'})
-   bt['FishingClub'].insert({'FirstName':'Nutmeg','LastName':'Spaniel','Membership':'Active'})
-   bt['FishingClub'].insert({'FirstName':'Zekey','LastName':'Pokey','Membership':'Active'})
+   bt.create_table("fishing_club")
+   bt['fishing_club'].insert({'FirstName':'Ajes','LastName':'Freeman','Membership':'Active'})
+   bt['fishing_club'].insert({'FirstName':'John','LastName':'Smith','Membership':'Active'})
+   bt['fishing_club'].insert({'FirstName':'Jane','LastName':'Brown','Membership':'Active'})
+   bt['fishing_club'].insert({'FirstName':'Nutmeg','LastName':'Spaniel','Membership':'Active'})
+   bt['fishing_club'].insert({'FirstName':'Zekey','LastName':'Pokey','Membership':'Active'})
 
 Loop your data using iterrows function. This will loop through all the rows one by one in a Python dict.
 
 .. code-block:: python
 
-   for idx, row in bt['Person'].iterrows():
+   for idx, row in bt['person'].iterrows():
        print(idx, row)  
   
    # 1 {'id': 1, 'name': 'John', 'surname': 'Smith', 'address': '1 Station St', 'hobby': None}
@@ -149,9 +149,9 @@ Inspect Person table column list. You can also use function table.get_columns() 
 
 .. code-block:: python
 
-   print(bt['Person'])
+   print(bt['person'])
    # {  
-   #   "name": "Person",  
+   #   "name": 'person',  
    #   "columns": [
    #       {"id": 0,"name": "id"},  
    #       {"id": 1,"name": "name"},  
@@ -163,13 +163,13 @@ Use update function to change the data. The function signature is table.update(c
 
 .. code-block:: python
 
-   bt['Person'].update('age', 10, where=lambda row: row['name']=='Maria') 
+   bt['person'].update('age', 10, where=lambda row: row['name']=='Maria') 
 
 Retrieve the row stored at the 3rd index by passing 3 inside the list next to table object.
 
 .. code-block:: python
 
-   bt['Person'][3] 
+   bt['person'][3] 
    # {'id': 4, 'name': 'Maria', 'age': 10, 'address': '7 Heaven Ave', 'hobby': 'Digging'} 
 
 
@@ -257,12 +257,12 @@ Return one or more columns from lookup table.
 .. code-block:: python
     
    # using tables from Example of Usage section above.
-   bt['Person'].blookup('FishingClub')], \
+   bt['person'].blookup('fishing_club')], \
        [('name','FirstName')], \
        ['Membership'])
 
    # check results
-   for idx, row in bt['Person'].iterrows(['name','Membership']):
+   for idx, row in bt['person'].iterrows(['name','Membership']):
        print(idx, row)
 
    # 0 {'name': 'John', 'Membership': 'Active'}
@@ -292,8 +292,8 @@ Return grouped rows based upon the value of columns.
 
    import bintang
    bt = bintang.Bintang()
-   bt.create_table('Product') # this will be our basis table for grouping
-   p = bt['Product'] # assign p as the table
+   bt.create_table('product') # this will be our basis table for grouping
+   p = bt['product'] # assign p as the table
    p.insert({'id':1, 'brand': 'Shimano', 'class':'rod', 'name':'Extraction','price':299})
    p.insert({'id':2, 'brand': 'Shimano', 'class':'rod', 'name':'Zodias Travel','price':399})
    p.insert({'id':3, 'brand': 'Ugly Stik', 'class':'rod', 'name':'Balance II','price':63.99})
@@ -341,17 +341,17 @@ Return a new table from an inner join operation.
 
 .. code-block:: python
 
-   bt.create_table('Person') # This will be a left table
+   bt.create_table('person') # This will be a left table
    # insert some record here. See insert below for an example.
    # ...
 
-   bt.create_table('FishingClub') # this will be a right table
+   bt.create_table('fishing_club') # this will be a right table
    # insert some records here. See insert below for an example.
    # ...
 
    # let's match the two tables for their firt name and last name.
-   res = bt.innerjoin('Person'                                       # left table
-                     ,'FishingClub'                                  # right table
+   res = bt.innerjoin('person'                                       # left table
+                     ,'fishing_club'                                  # right table
                      ,[('name','FirstName'), ('surname','LastName')] # on
                      ,into='Fisherman'                               
                      ,out_lcolumns=['name','address']
@@ -373,8 +373,8 @@ Insert a record into a table.
 
 .. code-block:: python
 
-   bt.create_table('Person') 
-   p = bt.get_table('Person') # get table object for Person
+   bt.create_table('person') 
+   p = bt.get_table('person') # get table object for Person
    # insert data directly from table object instead throug bt object.
    p.insert({'id':1,'name':'John','surname':'Smith','address':'1 Station St'})
    p.insert({'id':2,'name':'Jane','surname':'Brown','hobby':'Digging','address':'8 Parade Rd'})
@@ -382,18 +382,18 @@ Insert a record into a table.
    p.insert({'id':4,'name':'Maria','surname':'Digging','address':'7 Heaven Ave'})
    p.insert({'id':5,'name':'Bing','surname':'Digging', 'address':None})
 
-   bt.create_table('FishingClub')
+   bt.create_table('fishing_club')
    # lets make a list of columns so we can pass it to insert.
    columns = ['FirstName','LastName','Membership']
-   bt['FishingClub'].insert({'FirstName':'Ajes','LastName':'Freeman','Membership':'Active'})
-   bt['FishingClub'].insert({'FirstName':'John','LastName':'Smith','Membership':'Active'})
-   bt['FishingClub'].insert({'FirstName':'John','LastName':'Brown','Membership':'Active'})
-   bt['FishingClub'].insert({'FirstName':'Okie','LastName':'Dokie','Membership':'Active'})
-   bt['FishingClub'].insert({'FirstName':'Zekey','LastName':'Pokey','Membership':'Active'})
+   bt['fishing_club'].insert({'FirstName':'Ajes','LastName':'Freeman','Membership':'Active'})
+   bt['fishing_club'].insert({'FirstName':'John','LastName':'Smith','Membership':'Active'})
+   bt['fishing_club'].insert({'FirstName':'John','LastName':'Brown','Membership':'Active'})
+   bt['fishing_club'].insert({'FirstName':'Okie','LastName':'Dokie','Membership':'Active'})
+   bt['fishing_club'].insert({'FirstName':'Zekey','LastName':'Pokey','Membership':'Active'})
 
 
    bt.create_table("Product")
-   prod = bt['Product']
+   prod = bt['product']
    # example of assigning a dictionary argument for record parameter.
    prod.insert({'id':1, 'name':'Hook','price':1.60})
    prod.insert({'id':2, 'name':'Sinker','price':1.20})
@@ -434,9 +434,9 @@ Read csv file and populate its records to table.
    # "1","John","Smith","1 Station St",""
    # "2","Jane","Brown","8 Parade Rd","Digging"
    
-   bt.create_table('Person')
-   bt['Person'].read('/path/to/file.csv') 
-   bt['Person'].print()
+   bt.create_table('person')
+   bt['person'].read('/path/to/file.csv') 
+   bt['person'].print()
 
    #                          Table: Person
    # ------+---------+-----------+----------------+-----------
@@ -472,16 +472,16 @@ Before using openpyxl or xlrd package, you must install the packages. Below is a
    from openpyxl import load_workbook
    ...
    wb = load_workbook('/path/to/file.xlsx', read_only=True, data_only=True)
-   bt.create_table('Person')
-   bt['Person'].read_excel(wb, 'Sheet1')
+   bt.create_table('person')
+   bt['person'].read_excel(wb, 'Sheet1')
    
 
    ### to read from xls
    import xlrd
    ...
    wb = xlrd.open_workbook('/path/to/file.xlsx')
-   bt.create_table('Person')
-   bt['Person'].read_excel(wb, 'Sheet1')
+   bt.create_table('person')
+   bt['person'].read_excel(wb, 'Sheet1')
    
 
 .. _read_sql:
@@ -516,10 +516,10 @@ Below is an example to install the package from a terminal.
    params = ('Dokey')
 
    bt = bintang.Bintang()
-   bt.create_table('Person')
-   bt['Person'].read_sql(conn, sql_str, params)
+   bt.create_table('person')
+   bt['person'].read_sql(conn, sql_str, params)
 
-   for idx, row in bt['Person'].iterrows():
+   for idx, row in bt['person'].iterrows():
        print(idx, row)
        # would print {'ID': 3, 'FirstName': 'Okie', 'LastName': 'Dokey', 'address': '7 Ocean Rd'}
 
@@ -626,8 +626,8 @@ This function requires a connection object.
    import pyodbc
 
    bt = bintang.Bintang()
-   bt.create_table('Person')
-   person = bt.get_table('Person')
+   bt.create_table('person')
+   person = bt.get_table('person')
    person.insert({'id':1,'name':'John','surname':'Smith','address':'1 Station St'})
    person.insert({'id':2,'name':'Jane','surname':'Brown','hobby':'Digging','address':'8 Parade Rd'})
    person.insert({'id':3,'name':'Okie','surname':'Dokie','address':'7 Ocean Rd'})
@@ -639,7 +639,7 @@ This function requires a connection object.
    # connect to database
    conn = pyodbc.connect("DRIVER={ODBC Driver 17 for SQL Server};SERVER=localhost;PORT=1443;DATABASE=test;Trusted_Connection=yes;")  
    # send data to sql
-   ret = person.to_sql(conn, 'Person', columns)
+   ret = person.to_sql(conn, 'person', columns)
    print(f'{ret} record(s) affected.')
    conn.commit()
    conn.close()
@@ -658,8 +658,8 @@ This function can only validate data type of int, float, bool, str, None, dateti
 
    import bintang
    bt = bintang.Bintang()
-   bt.create_table('Product')
-   p = bt['Product']
+   bt.create_table('product')
+   p = bt['product']
    p.add_column('id', data_type='int', min_value=1, required=True)
    p.add_column('name', data_type='str', min_length=1, max_length=20)
    p.add_column('price', data_type='float', min_value=0)
@@ -684,7 +684,7 @@ This function can only validate data type of int, float, bool, str, None, dateti
    # 7 ((10, 7, True, None), (11, 'thread', True, None), (11, 'thread', True, None), (11, 'thread', True, None))
 
    # run the high level function
-   p.validate('Product_Bad_Data')
+   p.validate('product_bad_data')
 
    print('\nthe rows after validation')
    for idx, row in p.iterrows():
@@ -693,8 +693,8 @@ This function can only validate data type of int, float, bool, str, None, dateti
    # 1 {'id': 1, 'name': 'Hook', 'price': 1.6, 'order_date': datetime.date(2025, 7, 1)}
    # 3 {'id': 3, 'name': 'Reels', 'price': 15.5, 'order_date': None}   
 
-   print('\ninvalid rows from table Product_Bad_Data')   
-   for idx, row in bt['Product_Bad_Data'].iterrows():
+   print('\ninvalid rows from table product_bad_data')   
+   for idx, row in bt['product_bad_data'].iterrows():
       print(idx, row)
 
    # 2 {'id': '', 'name': 'Sinker', 'price': 1.2, 'order_date': None, 'invalid_idx': 2, 'error_msg': 'column id - column is required but value is None'}
@@ -760,10 +760,10 @@ Return a table object from Bintang object.
 .. code-block:: python
 
    # assume bt is a Bintang object
-   p = bt.get_table('Person') # get Person table object
+   p = bt.get_table('person') # get Person table object
    print(p) # print Person table object
    # {  
-   #   "name": "Person",  
+   #   "name": 'person',  
    #   "columns": [
    #       {"id": 0,"name": "id"},  
    #       {"id": 1,"name": "name"},  
@@ -840,7 +840,7 @@ blookup function use this function internally to find the matching rows.
 .. code-block:: python
 
    # using tables from Example of Usage section above.
-   for lidx, results in bt['Person'].cmprows('FishingClub'
+   for lidx, results in bt['person'].cmprows('fishing_club'
                                         ,on = [('name', 'FirstName'), ('surname', 'LastName')]
                                         ,find_all = False
                                         ):
@@ -870,23 +870,23 @@ It's powered by Python's class difflib.SequenceMatcher, or https://github.com/ra
 
    import bintang
    bt = bintang.Bintang()
-   bt.create_table("Person")
-   bt.get_table("Person")
-   bt['Person'].insert(['id','name','surname','address'], [1,'John','Smith','1 Station St'])
-   bt['Person'].insert(['id','name','surname','hobby','address'], [2,'Jane','Brown','Digging','8 Parade Rd'])
-   bt['Person'].insert(['id','name','surname','Address'], [3,'Okie','Dokie','7 Ocean Rd'])
-   bt['Person'].insert(('id','name','hobby','Address'), (4,'Maria','Digging','7 Heaven Ave'))
+   bt.create_table('person')
+   bt.get_table('person')
+   bt['person'].insert(['id','name','surname','address'], [1,'John','Smith','1 Station St'])
+   bt['person'].insert(['id','name','surname','hobby','address'], [2,'Jane','Brown','Digging','8 Parade Rd'])
+   bt['person'].insert(['id','name','surname','Address'], [3,'Okie','Dokie','7 Ocean Rd'])
+   bt['person'].insert(('id','name','hobby','Address'), (4,'Maria','Digging','7 Heaven Ave'))
 
-   bt.create_table("FishingClub")
-   bt['FishingClub'].insert(['id', 'FirstName','LastName','Membership'], [1, 'Ajes','Freeman','Active'])
-   bt['FishingClub'].insert(['id', 'FirstName','LastName','Membership'], [2, 'Jhon','Smith','Active'])
-   bt['FishingClub'].insert(['id', 'FirstName','LastName','Membership'], [3, 'Jane','brown','Active'])
-   bt['FishingClub'].insert(['id', 'FirstName','LastName','Membership'], [4, 'Jen','Bron','Active'])
-   bt['FishingClub'].insert(['id', 'FirstName','LastName','Membership'], [5, 'Nutmeg','Spaniel','Active'])
+   bt.create_table("fishing_club")
+   bt['fishing_club'].insert(['id', 'FirstName','LastName','Membership'], [1, 'Ajes','Freeman','Active'])
+   bt['fishing_club'].insert(['id', 'FirstName','LastName','Membership'], [2, 'Jhon','Smith','Active'])
+   bt['fishing_club'].insert(['id', 'FirstName','LastName','Membership'], [3, 'Jane','brown','Active'])
+   bt['fishing_club'].insert(['id', 'FirstName','LastName','Membership'], [4, 'Jen','Bron','Active'])
+   bt['fishing_club'].insert(['id', 'FirstName','LastName','Membership'], [5, 'Nutmeg','Spaniel','Active'])
 
    print('\nfuzzy compare rows using specific columns')
-   for lidx, results in bt['Person'].fuzzy_cmprows(
-                     'FishingClub'
+   for lidx, results in bt['person'].fuzzy_cmprows(
+                     'fishing_club'
                      ,on=[
                            ('name', 'FirstName', 0.5)
                            ,('surname', 'LastName', 0.5)
@@ -900,8 +900,8 @@ It's powered by Python's class difflib.SequenceMatcher, or https://github.com/ra
    # 2 [(3, ((11, 11, 1.0), (12, 12, 1.0))), (4, ((11, 11, 0.5714), (12, 12, 0.8889)))]
 
    print('\nfuzzy compare rows using all columns')
-   for lidx, results in bt['Person'].fuzzy_cmprows(
-                     'FishingClub'
+   for lidx, results in bt['person'].fuzzy_cmprows(
+                     'fishing_club'
                      ,min_ratio = 0.5
                      ,find_all = True
                      ):
@@ -1052,11 +1052,11 @@ To update row(s) in the table
    Person.update('job', 'fisherman', where=lambda row: row['name']=='John')
 
    # create 'full name' column and populate value with name and surname combined.
-   bt['Person'].update('full name', lambda row: row['name'] + ' ' + row['surname'])
+   bt['person'].update('full name', lambda row: row['name'] + ' ' + row['surname'])
 
    # one liner conditional expression is common with lambda.
    # for instance, if you know there is None in surname then you want to resolve the full name as name.
-   bt['Person'].update('full name', lambda row: row['name'] if row['surname'] is None else row['name'] + ' ' + row['surname'])
+   bt['person'].update('full name', lambda row: row['name'] if row['surname'] is None else row['name'] + ' ' + row['surname'])
 
 
 
@@ -1123,10 +1123,10 @@ Read csv file and populate its records to table.
 
    from bintang import Bintang
    bt = Bintang()
-   bt.create_csv_linked_table('Person', '/path/to/file.csv') 
+   bt.create_csv_linked_table('person', '/path/to/file.csv') 
    ## upload to sql database
    # ... <define sql connection here> ...
-   bt['Person'].to_sql(conn, 'PersonTableInSQL')
+   bt['person'].to_sql(conn, 'PersonTableInSQL')
 
 
 .. _create_sql_linked_table:
@@ -1165,9 +1165,9 @@ Below is an example to install the package from a terminal.
    params = ('Dokey')
 
    bt = bintang.Bintang()
-   bt.create_linked_table('Person', conn, sql_str, params=params)
+   bt.create_linked_table('person', conn, sql_str, params=params)
 
-   for idx, row in bt['Person'].iterrows():
+   for idx, row in bt['person'].iterrows():
        print(idx, row)
        # would print
        # 1 {'ID': 3, 'FirstName': 'Okie', 'LastName': 'Dokey', 'address': '7 Ocean Rd'}

@@ -7,7 +7,17 @@ import sys
 
 example_scripts = glob.glob(os.path.join("examples", "*.py"))
 
-@pytest.mark.parametrize("script_path", example_scripts)
+@pytest.mark.parametrize(
+        "script_path", 
+        [
+        pytest.param(
+            script,
+            marks=pytest.mark.local
+        ) if os.path.basename(script).startswith("local_")
+        else script
+        for script in example_scripts
+    ]
+)
 def test_example_execution(script_path):
     """
     to test each file under example folder

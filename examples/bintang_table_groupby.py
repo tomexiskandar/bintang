@@ -1,7 +1,7 @@
 import bintang
 bt = bintang.Bintang()
-bt.create_table('Product') # this will be our basis table for grouping
-p = bt['Product'] # assign p as the table
+bt.create_table('product') # this will be our basis table for grouping
+p = bt['product'] # assign p as the table
 p.insert({'id':1, 'brand': 'Shimano', 'class':'rod', 'name':'Extraction','price':299})
 p.insert({'id':2, 'brand': 'Shimano', 'class':'rod', 'name':'Zodias Travel','price':399})
 p.insert({'id':3, 'brand': 'Ugly Stik', 'class':'rod', 'name':'Balance II','price':63.99})

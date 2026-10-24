@@ -1,13 +1,6 @@
 import json
-# import sqlite3
-import uuid
-import re
-import sys
-import copy
-from pathlib import Path
-from typing import Callable
+from typing import Annotated
 import warnings
-import inspect
 from itertools import product
 from abc import ABC, abstractmethod
 from bintang.log import log
@@ -15,6 +8,16 @@ import bintang
 import types
 from bintang.row import Row
 from bintang.cell import Cell
+from bintang.column import Column
+import datetime
+import decimal
+from dataclasses import dataclass
+
+@dataclass
+class ValueRange:
+    lo: int
+    hi: int
+
 
 MAX_ROW_SQL_INSERT = 300
 
@@ -41,32 +44,180 @@ class Base_Table(ABC):
         self.bing: bintang.Bintang = bing # reference to parent Bintang object
         self.name: str = name
         self.__columns: dict = {} # columnid: Column object
+        self.__last_assigned_columnid= 0 #
         self.INDEX_COLUMN_NAME: str = 'idx'
         self.PARENT_PREFIX: str = ''
         self.__last_assigned_rowid = 0
         self.type_map: dict = bintang.type_map # assign type_map to self.type_map
         #self.pytype: dict = pytype # assign pytype to self.pytype
+        self.validate_funcs = {
+            'int': self.validate_integer,
+            'float': self.validate_float,
+            'str': self.validate_string,
+            'date': self.validate_date,
+            'datetime': self.validate_datetime,
+            'decimal': self.validate_decimal
+            }
 
     
-    @abstractmethod
-    def get_columns(self):
-        pass
+    # @abstractmethod
+    # def get_columns(self):
+    #     pass
 
-    @abstractmethod
-    def get_columnid(self):
-        pass
+    # @abstractmethod
+    # def get_columnid(self):
+    #     pass
 
-    @abstractmethod
-    def get_columnids(self):
-        pass
+    # @abstractmethod
+    # def get_columnids(self):
+    #     pass
 
+    
     @abstractmethod
     def iterrows(self):
         pass
 
+               
+
+    def get_columnid(self,column):
+        for id, cobj in self._Base_Table__columns.items():
+            if cobj.get_name_uppercased() == column.upper():
+                return id      
+
+    
+    def get_columnids(self,columns=None):
+        columnids = []
+        if columns is None: # assume user want all available column ids
+            return [id for id in self._Base_Table__columns.keys()]
+        for column in columns:
+            columnid = self.get_columnid(column)
+            if columnid is None:
+                raise ValueError('Cannot find column name {}.'.format(column))
+            else:
+                columnids.append(columnid)
+        return columnids
+
+
+    def get_column_object(self, column):
+        columnid = self.get_columnid(column)
+        return self._Base_Table__columns[columnid]
+
+
+    def get_column_object_byid(self,columnid):
+        return self._Base_Table__columns[columnid]    
+
+ 
+    def validate_column(self, column):
+        """return column as the one stored in table.columns"""
+        if column.lower() in self._get_columnnames_lced().keys():
+            return self._get_columnnames_lced().get(column.lower())
+        else:
+            similar_cols = bintang.core.get_similar_values(column, self.get_columns())
+            if similar_cols:
+                raise ValueError (f'Could not find column {repr(column)}. Did you mean {similar_cols}?')
+            else:
+                raise ValueError (f'Could not find column {repr(column)}')
+
+
     def ColumnError(self):
         """Raise ColumnError with table name and column name."""
         return ColumnError(self.name, self.column)
+
+
+    def get_columns(self) -> tuple:
+        col_objs = [col for col in self.__columns.values()]
+        col_objs.sort(key=lambda col: col.ordinal_position)
+        sorted_columns = [col.name for col in col_objs]
+        return tuple(sorted_columns)   
+
+
+    def _iterrow_sql(self, conn, sql_str=None, params=None):
+        cursor = conn.cursor()
+        if sql_str is None:
+            sql_str = "SELECT * FROM {}".format(self.name)
+        if params is not None:
+            cursor.execute(sql_str, params)
+        else:
+            cursor.execute(sql_str)
+        columns = [col[0] for col in cursor.description]
+        for row in cursor.fetchall():
+            yield dict(zip(columns, row))
+    
+
+    def add_column(self, name, data_type=None, column_size=None, min_value=None, max_value=None, min_length=None, max_length=None, min_digit=None, max_digit=None, decimal_places=None, required=False, empty_string_as_null=False):
+        # check if the passed name already exists
+        columnid = self.get_columnid(name)
+        if columnid is None:
+            cobj = Column(name)
+            if data_type is not None:
+                cobj.data_type = data_type
+            if column_size is not None:
+                cobj.column_size = column_size
+            if min_value is not None:
+                cobj.min_value = min_value
+            if max_value is not None:
+                cobj.max_value = max_value
+            if min_length is not None:
+                cobj.min_length = min_length
+            if max_length is not None:
+                cobj.max_length = max_length
+            if min_digit is not None:
+                cobj.min_digit = min_digit
+            if max_digit is not None:
+                cobj.max_digit = max_digit
+            if decimal_places is not None:
+                cobj.decimal_places = decimal_places
+            if required is not None:
+                cobj.required = required
+            if empty_string_as_null:
+                cobj.empty_string_as_null = empty_string_as_null
+            cobj.id = self.__last_assigned_columnid + 1
+            cobj.ordinal_position = self.__last_assigned_columnid + 1
+            self._Base_Table__columns[cobj.id] = cobj
+            self.__last_assigned_columnid= self.__last_assigned_columnid + 1
+        else:
+            log.debug(f'Warning! trying to add existing column "{name}".')
+        
+
+    def add_or_update_column(self, name, data_type=None, column_size=None, min_value=None, max_value=None, min_length=None, max_length=None, min_digit=None, max_digit=None, decimal_places=None, required=False, empty_string_as_null=False):
+        # check if the passed name already exists
+        columnid = self.get_columnid(name)
+        if columnid is None:
+            self.add_column(name, data_type, column_size, min_value, max_value, min_length, max_length, min_digit, max_digit, decimal_places, required, empty_string_as_null)
+        else:
+            self.update_column(name, data_type, column_size, None, min_value, max_value, min_length, max_length, min_digit, max_digit, decimal_places, required, empty_string_as_null)
+
+
+    def update_column(self,name, data_type=None, column_size=None, ordinal_position=None, min_value=None, max_value=None, min_length=None, max_length=None, min_digit=None, max_digit=None, decimal_places=None, required=False, empty_string_as_null=False):
+        # check if the passed name already exists
+        columnid = self.get_columnid(name)
+        if columnid is not None:
+            if data_type is not None:
+                self._Base_Table__columns[columnid].data_type = data_type
+            if column_size is not None:
+                self._Base_Table__columns[columnid].column_size = column_size
+            if ordinal_position is not None:
+                self._Base_Table__columns[columnid].ordinal_position = ordinal_position
+            if min_value is not None:
+                self._Base_Table__columns[columnid].min_value = min_value
+            if max_value is not None:
+                self._Base_Table__columns[columnid].max_value = max_value
+            if min_length is not None:
+                self._Base_Table__columns[columnid].min_length = min_length
+            if max_length is not None:
+                self._Base_Table__columns[columnid].max_length = max_length
+            if min_digit is not None:
+                self._Base_Table__columns[columnid].min_digit = min_digit
+            if max_digit is not None:
+                self._Base_Table__columns[columnid].max_digit = max_digit
+            if decimal_places is not None:
+                self._Base_Table__columns[columnid].decimal_places = decimal_places
+            if required is not None:
+                self._Base_Table__columns[columnid].required = required
+            if empty_string_as_null is not None:
+                self._Base_Table__columns[columnid].empty_string_as_null = empty_string_as_null
+
+        
     
 
     def make_cell(self,column,value,new_column=True):
@@ -295,7 +446,243 @@ class Base_Table(ABC):
                     if not find_all:
                         break  # only return the first match
             if results: # yield only when the results is True/not empty
-                yield lidx, results    
+                yield lidx, results 
+
+
+
+    def validate_integer(self, value: int, cobj) -> tuple[int | None]:
+        """
+        Validate an integer value against the constraints defined in the column object (cobj).
+        rule: the value must be able to be converted to an integer without loss of information and fall within the specified range if defined.
+
+        Args:
+            value (int | str | float): The value to validate.
+            cobj: The column object containing validation constraints.
+
+        Returns:
+            tuple[int | None]: A tuple containing the validated integer value (or None if invalid),
+                                a boolean indicating if the value is valid,
+                                and an error message if invalid.
+        """
+        if cobj.empty_string_as_null: # check if column has empty_string_as_null set
+            if isinstance(value, str) and not value.strip():
+                return (None, True, None)
+        if type(value) not in [int, str, float]:
+            return (value, False, f"ValueError: Expected int, got {type(value).__name__}")
+        else:
+            if isinstance(value, str):
+                try:
+                    value = float(value)
+                except ValueError:
+                    return (value, False, f"ValueError: Expected int, got string that cannot be converted to integer") # say it integer instead float to avoid confusion
+            if isinstance(value, float) and not value.is_integer():
+                return (value, False, f"ValueError: Expected int, got float with decimal fraction") # check if this value contains decimal fraction
+        #print(f"validate_integer called with value: {value} for column '{cobj.name}' with min_value={cobj.min_value} and max_value={cobj.max_value}")
+        type_ = Annotated[int, ValueRange(cobj.min_value, cobj.max_value)]
+        for annotation in type_.__metadata__:
+            if isinstance(annotation, ValueRange):
+                try:
+                    value = int(value)  # safely convert to integer as the two above cast/check steps ensure it is valid
+                    if cobj.min_value is not None and cobj.max_value is not None:
+                        if not (cobj.min_value <= value <= cobj.max_value):
+                            return (value, False, f"value is out of range [{cobj.min_value}, {cobj.max_value}]")
+                    elif cobj.min_value is not None:
+                        if not (value >= cobj.min_value):
+                            return (value, False, f"value is below the minimum allowed value {cobj.min_value}")
+                    elif cobj.max_value is not None:
+                        if not (value <= cobj.max_value):
+                            return (value, False, f"value is above the maximum allowed value {cobj.max_value}")
+                    return (value, True, None) # return the converted value, validation result, and error message
+                except (TypeError, IndexError, ValueError) as e:
+                    return (value, False, f"ValueError: {e}")
+    
+    
+    def validate_float(self, value: float, cobj) -> tuple[float | None]:
+        if cobj.empty_string_as_null: # check if column has empty_string_as_null set
+            if isinstance(value, str) and not value.strip():
+                return (None, True, None)
+        if type(value) not in [float, int, str]:
+            return (value, False, f"ValueError: Expected float, got {type(value).__name__}")
+        else:
+            if isinstance(value, str):
+                try:
+                    value = float(value)
+                except ValueError:
+                    return (value, False, f"ValueError: Expected float, got string that cannot be converted to float")
+            
+        #print(f"validate_float called with value: {value} for column '{cobj.name}' with min_value={cobj.min_value} and max_value={cobj.max_value}")
+        type_ = Annotated[float, ValueRange(cobj.min_value, cobj.max_value)]
+        for annotation in type_.__metadata__:
+            if isinstance(annotation, ValueRange):
+                errors = []
+                try:
+                    # deprecated - prefer strict type() 
+                    # value = float(value)  # Convert value to the base type float
+                    if cobj.min_value is not None and cobj.max_value is not None:
+                        if not (cobj.min_value <= value <= cobj.max_value):
+                            return (value, False, f"value is out of range [{cobj.min_value}, {cobj.max_value}]")
+                    elif cobj.min_value is not None:
+                        if not (value >= cobj.min_value):
+                            return (value, False, f"value is below the minimum allowed value {cobj.min_value}") 
+                    elif cobj.max_value is not None:
+                        if not (value <= cobj.max_value):
+                            return (value, False, f"value is above the maximum allowed value {cobj.max_value}")
+                    return (value, True, None) # return the converted value, validation result, and error message
+                except (TypeError, IndexError, ValueError) as e:
+                    return (value, False, f"ValueError: {e}")
+
+
+    def validate_decimal(self, value: decimal, cobj) -> decimal.Decimal | None:
+        if cobj.empty_string_as_null: # check if column has empty_string_as_null set
+            if isinstance(value, str) and not value.strip():
+                return (None, True, None)
+        type_ = Annotated[decimal.Decimal, ValueRange(cobj.min_value, cobj.max_value)]
+        for annotation in type_.__metadata__:
+            if isinstance(annotation, ValueRange):
+                errors = []
+                try:
+                    value = decimal.Decimal(str(value))  # Convert value to the base type decimal
+                    decimal_places_cnt = abs(value.as_tuple().exponent)
+                    if cobj.decimal_places is not None and decimal_places_cnt > cobj.decimal_places:
+                        return (value, False, f"value has {decimal_places_cnt} decimal places which is above the maximum allowed {cobj.decimal_places}")
+                    if cobj.min_value is not None and cobj.max_value is not None:
+                        if not (cobj.min_value <= value <= cobj.max_value):
+                            return (value, False, f"value is out of range [{cobj.min_value}, {cobj.max_value}]")
+                    elif cobj.min_value is not None and cobj.decimal_places is not None:
+                        if not (value >= cobj.min_value and decimal_places_cnt <= cobj.decimal_places):
+                            return (value, False, f"value is below the minimum allowed value {cobj.min_value}") 
+                    elif cobj.max_value is not None and cobj.decimal_places is not None:
+                        if not (value <= cobj.max_value and decimal_places_cnt <= cobj.decimal_places):
+                            return (value, False, f"value is above the maximum allowed value {cobj.max_value}")
+                    return (value, True, None) # return the converted value, validation result, and error message
+                except (TypeError, IndexError, ValueError) as e:
+                    return (value, False, f"ValueError: {e}")                
+
+
+    def validate_string(self, value: str, cobj) -> tuple[str, bool, str | None]:
+        if cobj.empty_string_as_null: # user want to treat empty strings as null
+            if '' == str(value).strip():
+                return (None, True, None) # return None for empty string treated as null
+        type_ = Annotated[str, ValueRange(cobj.min_length, cobj.max_length)]
+        for annotation in type_.__metadata__:
+            if isinstance(annotation, ValueRange):
+                try:                    
+                    value = str(value).strip()
+                    if cobj.min_length is not None and cobj.max_length is not None:
+                        if not (annotation.lo <= len(value) <= annotation.hi):
+                            return (value, False, f"value has length {len(value)} which is out of allowed range [{annotation.lo}, {annotation.hi}]")
+                    elif cobj.min_length is not None: 
+                        if not (len(value) >= annotation.lo):
+                            return (value, False, f"value has length {len(value)} which is below the minimum allowed length {annotation.lo}")
+                    elif cobj.max_length is not None:
+                        if not (len(value) <= annotation.hi):
+                            return (value, False, f"value has length {len(value)} which is above the maximum allowed length {annotation.hi}")               
+                    return (value, True, None) # return the converted value, validation result, and error message
+                except (TypeError, IndexError, ValueError) as e:
+                    return (value, False, f"column '{cobj.name}' has ValueError: {e}")
+    
+
+    def validate_date(self, value: datetime.date, cobj, parser) -> tuple[datetime.date | None]:
+        if cobj.empty_string_as_null: # check if column has empty_string_as_null set
+            if isinstance(value, str) and not value.strip():
+                return (None, True, None)
+        type_ = Annotated[datetime.date, ValueRange(cobj.min_value, cobj.max_value)]
+        for annotation in type_.__metadata__:
+            if isinstance(annotation, ValueRange):
+                try: 
+                    value = parser.parse(str(value)).date()  # Use dateutil.parser to parse the value into a date
+                    if cobj.min_value is not None and cobj.max_value is not None:
+                        if not (annotation.lo <= value <= annotation.hi):
+                            return (value, False, f"value is out of range [{annotation.lo}, {annotation.hi}]")
+                    elif cobj.min_value is not None:
+                        if not (value >= annotation.lo):
+                            return (value, False, f"value is below the minimum allowed value {annotation.lo}")
+                    elif cobj.max_value is not None:
+                        if not (value <= annotation.hi):
+                            return (value, False, f"value is above the maximum allowed value {annotation.hi}")
+                    return (value, True, None) # return the converted value, validation result, and error message
+                except (TypeError, IndexError, ValueError) as e:
+                    return (value, False, f"ValueError: {e}")
+    
+
+    def validate_datetime(self, value: datetime.datetime, cobj, parser) -> tuple[datetime.datetime | None]:
+        if cobj.empty_string_as_null: # check if column has empty_string_as_null set
+            if isinstance(value, str) and not value.strip():
+                return (None, True, None)
+        type_ = Annotated[datetime.datetime, ValueRange(cobj.min_value, cobj.max_value)]
+        for annotation in type_.__metadata__:
+            if isinstance(annotation, ValueRange):
+                try:                    
+                    value = parser.parse(str(value))  # Use dateutil.parser to parse the value into a datetime
+                    print('Parsed datetime value:', value)
+                    if cobj.min_value is not None and cobj.max_value is not None:
+                        if not (annotation.lo <= value <= annotation.hi):
+                            return (value, False, f"value is out of range [{annotation.lo}, {annotation.hi}]")
+                    elif cobj.min_value is not None:
+                        if not (value >= annotation.lo):
+                            return (value, False, f"value is below the minimum allowed value {annotation.lo}")
+                    elif cobj.max_value is not None:
+                        if not (value <= annotation.hi):
+                            return (value, False, f"value is above the maximum allowed value {annotation.hi}") 
+                    return (value, True, None) # return the converted value, validation result, and error message
+                except (TypeError, IndexError, ValueError) as e:
+                    return (value, False, f"ValueError: {e}")
+
+
+    def valrows(self, empty_string_as_null=False):
+        """ validate every column that has data_type assigned.
+        args:
+            empty_string_as_null (bool): if True, treat empty strings as null for all columns
+        return: 
+            idx, tuple([colid, validated_value, is_valid, error_message),...])
+        """
+        # check if date and datetime validation are required.
+        types = ["date", "datetime"]
+        if any(self._Base_Table__columns[colid].data_type in types for colid in self.get_columnids()):
+            #log.debug(f'date or datetime validation required, checking if python-dateutil is installed...')
+            try:
+                from dateutil import parser
+            except ImportError as e:
+                log.error(e)
+                raise ImportError("valrows() require python-dateutil to validate date and datetime columns. please install it for eg. pip install python-dateutil")
+
+        # get columns that have data type assigned.
+        data_typed_columnids = []
+        for colid in self.get_columnids():
+            if self._Base_Table__columns[colid].data_type is not None:
+                data_typed_columnids.append(colid)      
+        # iterate through rows and validate each cell value with its column properties
+        # only validate a non None value. if None value then only check if it is requred.
+        for idx, row in self._iterrows():
+            results = []
+            for colid in data_typed_columnids:
+                cobj = self._Base_Table__columns[colid]
+                value = None
+                if colid in row.cells: # check if the cell exists
+                    value = row.cells[colid].value
+                    if empty_string_as_null: # if True then user want to treat empty strings as null for all columns
+                        if isinstance(value, str) and value.strip() == '':
+                            value = None 
+                            res = (colid, value, True, None) # force any '' to None
+                if value is None:
+                    if self._Base_Table__columns[colid].required:
+                        res = (colid, None, False, f"column is required but value is None")
+                elif value is not None:
+                    if cobj.data_type in ['date','datetime']:
+                        res = (colid,) + self.validate_funcs[cobj.data_type](value, self._Base_Table__columns[colid], parser)
+                    else:
+                        res = (colid,) + self.validate_funcs[cobj.data_type](value, self._Base_Table__columns[colid])
+                results.append(res)
+            yield idx, tuple(results)
+
+
+    def extract_invalid_msg_(self,results):
+        res_msg = []
+        for res in results:
+            if not res[2]:
+                item= f"column `{self.get_column(res[0])}` - {res[3]}"
+                res_msg.append(item)      
+        return '; '.join(res_msg)
     
     
     def to_excel(self, wb, path, columns=None, index=False, sheet_title=None):
@@ -776,7 +1163,6 @@ class Base_Table(ABC):
         cursor.execute(sql)
         db_schema_map = {row[0]: row[1] for row in cursor.fetchall()} # Example output: {'id': 1, 'name': 2, 'surname': 3}
         column_ids = [db_schema_map[col] for col in colmap.keys() if col in db_schema_map]
-        print('column_ids', column_ids)
         # Verify all source fields actually exist in the database table
         if len(column_ids) != len(colmap):
             raise ValueError("One or more keys in your source data do not exist in the database table schema.")

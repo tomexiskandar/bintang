@@ -1,3 +1,5 @@
+from bintang.log import log
+
 type_map = {
     'sqlite': {
         'type_mappings': {
